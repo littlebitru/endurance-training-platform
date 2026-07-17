@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useLayoutEffect, useState } from "react";
 import { Link, Navigate, NavLink, Route, Routes, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { api } from "./api";
 import heroImage from "./assets/endurance-hero-v1.webp";
@@ -13,6 +13,33 @@ function LanguageSwitcher() {
       <button className={locale === "ru" ? "active" : ""} onClick={() => setLocale("ru")} type="button">RU</button>
       <button className={locale === "en" ? "active" : ""} onClick={() => setLocale("en")} type="button">EN</button>
     </div>
+  );
+}
+
+function MotionSwitcher() {
+  const { t } = useLanguage();
+  const [enabled, setEnabled] = useState(() => localStorage.getItem("endurance_motion") !== "reduced");
+
+  useLayoutEffect(() => {
+    const preference = enabled ? "full" : "reduced";
+    document.documentElement.dataset.motion = preference;
+    localStorage.setItem("endurance_motion", preference);
+  }, [enabled]);
+
+  const label = enabled ? t("motionOn") : t("motionOff");
+
+  return (
+    <button
+      aria-label={label}
+      aria-pressed={enabled}
+      className={`motion-toggle ${enabled ? "active" : ""}`}
+      onClick={() => setEnabled((current) => !current)}
+      title={label}
+      type="button"
+    >
+      <span aria-hidden="true">✦</span>
+      <small>{label}</small>
+    </button>
   );
 }
 
@@ -81,7 +108,7 @@ function AuthPage() {
 
   return (
     <main className="auth-shell">
-      <LanguageSwitcher />
+      <div className="preference-bar"><MotionSwitcher /><LanguageSwitcher /></div>
       <AuthStory />
       <section className="auth-card">
         <div className="brand-mark">EA</div>
@@ -134,7 +161,7 @@ function SimpleAuthCard({ title, text, children }: { title: string; text: string
   const { t } = useLanguage();
   return (
     <main className="auth-shell">
-      <LanguageSwitcher />
+      <div className="preference-bar"><MotionSwitcher /><LanguageSwitcher /></div>
       <AuthStory security />
       <section className="auth-card">
         <div className="brand-mark">EA</div>
@@ -258,7 +285,7 @@ function Layout({ children }: { children: React.ReactNode }) {
       <div className="content">
         <header>
           <div><span className="eyebrow">{roleLabel} · {t("workspace")}</span><h1>{t("clarity")}</h1></div>
-          <div className="header-actions"><LanguageSwitcher /></div>
+          <div className="header-actions"><MotionSwitcher /><LanguageSwitcher /></div>
         </header>
         <div className="page-enter">{children}</div>
       </div>

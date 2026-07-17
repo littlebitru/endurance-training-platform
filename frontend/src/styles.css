@@ -49,6 +49,38 @@ button, a, input, select { -webkit-tap-highlight-color: transparent; }
 .language-switcher button:hover { color: #173d31; }
 .language-switcher button.active { color: white; background: linear-gradient(135deg, #087f78, #173d31); box-shadow: 0 5px 12px #087f7830; transform: scale(1.03); }
 
+.preference-bar {
+  position: fixed;
+  z-index: 10;
+  top: 24px;
+  right: 26px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.motion-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 36px;
+  padding: 6px 11px;
+  border: 1px solid #dce2dc;
+  border-radius: 999px;
+  color: #6d7873;
+  background: #ffffffc9;
+  box-shadow: 0 8px 24px #173d3110;
+  cursor: pointer;
+  backdrop-filter: blur(12px);
+  transition: color .25s ease, border-color .25s ease, box-shadow .25s ease, transform .25s ease;
+}
+
+.motion-toggle span { color: #87938d; font-size: 15px; transition: color .25s ease, transform .5s cubic-bezier(.22, 1, .36, 1); }
+.motion-toggle small { font: 600 10px Manrope, sans-serif; white-space: nowrap; }
+.motion-toggle:hover { border-color: #a9cdbf; color: #173d31; box-shadow: 0 10px 26px #173d311c; transform: translateY(-1px); }
+.motion-toggle.active { border-color: #80c7b5; color: #176457; background: linear-gradient(135deg, #f6fff9, #edf9f2); }
+.motion-toggle.active span { color: #0b9d87; animation: sparkleTurn 3.2s ease-in-out infinite; }
+
 .auth-shell {
   position: relative;
   display: grid;
@@ -56,13 +88,6 @@ button, a, input, select { -webkit-tap-highlight-color: transparent; }
   min-height: 100vh;
   overflow: hidden;
   background: #0b1915;
-}
-
-.auth-shell > .language-switcher {
-  position: fixed;
-  z-index: 10;
-  top: 24px;
-  right: 26px;
 }
 
 .auth-story {
@@ -209,6 +234,7 @@ button, a, input, select { -webkit-tap-highlight-color: transparent; }
 }
 
 .brand-mark { animation: brandFloat 4s ease-in-out infinite; }
+.logo { animation: logoFloat 4.6s ease-in-out infinite; }
 .auth-card h2 { margin: 40px 0 8px; font: 600 32px Manrope; letter-spacing: -.025em; }
 .auth-card > p { margin: 0 0 28px; color: #78817d; line-height: 1.5; }
 .auth-card form { display: grid; gap: 18px; }
@@ -483,6 +509,7 @@ button, a, input, select { -webkit-tap-highlight-color: transparent; }
   opacity: .68;
   mask-image: linear-gradient(90deg, transparent, black 38%);
   transition: opacity .4s ease, transform 1.2s cubic-bezier(.22, 1, .36, 1);
+  animation: heroImagePan 12s ease-in-out infinite alternate;
 }
 .hero-panel:hover .hero-panel-image { opacity: .82; transform: scale(1.035); }
 .hero-panel h2 { margin: 12px 0; font: 600 clamp(26px, 3vw, 42px) Manrope; }
@@ -672,6 +699,9 @@ button, a, input, select { -webkit-tap-highlight-color: transparent; }
 @keyframes gridDrift { to { background-position: 72px 72px; } }
 @keyframes imageDrift { from { transform: scale(1.01); } to { transform: scale(1.06) translate3d(-1.2%, -.8%, 0); } }
 @keyframes brandFloat { 0%, 100% { transform: translateY(0) rotate(0); } 50% { transform: translateY(-5px) rotate(2deg); } }
+@keyframes logoFloat { 0%, 100% { box-shadow: 0 10px 24px #72cdb439; transform: translateY(0) rotate(0); } 50% { box-shadow: 0 16px 32px #72cdb45c; transform: translateY(-4px) rotate(-3deg); } }
+@keyframes sparkleTurn { 0%, 100% { transform: rotate(0) scale(1); } 50% { transform: rotate(180deg) scale(1.18); } }
+@keyframes heroImagePan { from { object-position: 62% center; } to { object-position: 78% center; } }
 @keyframes buttonShine { to { transform: translateX(120%); } }
 @keyframes ringBreathe { 0%, 100% { box-shadow: 0 0 0 0 #b9d67d00; } 50% { box-shadow: 0 0 0 9px #b9d67d12; } }
 @keyframes spinner { to { transform: rotate(360deg); } }
@@ -693,7 +723,9 @@ button, a, input, select { -webkit-tap-highlight-color: transparent; }
 }
 
 @media (max-width: 560px) {
-  .auth-shell > .language-switcher { top: 16px; right: 16px; }
+  .preference-bar { top: 16px; right: 16px; }
+  .motion-toggle small { display: none; }
+  .motion-toggle { width: 36px; justify-content: center; padding: 6px; }
   .auth-card { padding-top: 88px; }
   .content header { align-items: flex-start; }
   .hero-panel { padding: 28px; }
@@ -708,8 +740,19 @@ button, a, input, select { -webkit-tap-highlight-color: transparent; }
   .two { grid-template-columns: 1fr; }
 }
 
+:root[data-motion="reduced"] *,
+:root[data-motion="reduced"] *::before,
+:root[data-motion="reduced"] *::after {
+  scroll-behavior: auto !important;
+  animation-duration: .01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: .01ms !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
+  :root:not([data-motion="full"]) *,
+  :root:not([data-motion="full"]) *::before,
+  :root:not([data-motion="full"]) *::after {
     scroll-behavior: auto !important;
     animation-duration: .01ms !important;
     animation-iteration-count: 1 !important;

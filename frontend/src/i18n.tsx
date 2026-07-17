@@ -4,6 +4,8 @@ export type Locale = "en" | "ru";
 
 const en = {
   language: "Language",
+  motionOn: "Animation on",
+  motionOff: "Animation off",
   storyEyebrow: "ENDURANCE / TRAINING",
   storyTitleStart: "Build consistency.",
   storyTitleAccent: "Measure progress.",
@@ -111,6 +113,8 @@ type Dictionary = Record<TranslationKey, string>;
 
 const ru: Dictionary = {
   language: "Язык",
+  motionOn: "Анимация включена",
+  motionOff: "Анимация выключена",
   storyEyebrow: "ВЫНОСЛИВОСТЬ / ТРЕНИРОВКИ",
   storyTitleStart: "Развивайте стабильность.",
   storyTitleAccent: "Измеряйте прогресс.",
