@@ -10,6 +10,10 @@ if not SECRET_KEY or len(SECRET_KEY) < 32:
     raise ImproperlyConfigured("DJANGO_SECRET_KEY must contain at least 32 characters in production.")
 
 DEBUG = False
+RENDER_EXTERNAL_HOSTNAME = os.getenv("RENDER_EXTERNAL_HOSTNAME")
+if RENDER_EXTERNAL_HOSTNAME and RENDER_EXTERNAL_HOSTNAME not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
+
 if os.getenv("DATABASE_URL"):
     DATABASES = {"default": dj_database_url.config(conn_max_age=600, conn_health_checks=True, ssl_require=True)}
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
