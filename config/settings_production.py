@@ -6,8 +6,8 @@ from django.core.exceptions import ImproperlyConfigured
 from .settings import *  # noqa: F401,F403
 
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY")
-if not SECRET_KEY or len(SECRET_KEY) < 50:
-    raise ImproperlyConfigured("DJANGO_SECRET_KEY must contain at least 50 characters in production.")
+if not SECRET_KEY or len(SECRET_KEY) < 32:
+    raise ImproperlyConfigured("DJANGO_SECRET_KEY must contain at least 32 characters in production.")
 
 DEBUG = False
 if os.getenv("DATABASE_URL"):
