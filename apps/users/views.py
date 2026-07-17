@@ -25,7 +25,6 @@ from .serializers import (
     PasswordResetRequestSerializer,
     ProfileSerializer,
     RegisterSerializer,
-    UserSerializer,
     VerifiedTokenObtainPairSerializer,
 )
 
