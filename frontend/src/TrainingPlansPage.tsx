@@ -253,6 +253,14 @@ export function TrainingPlansPage() {
         {user?.role === "coach" && <button className="primary" disabled={!relationships.some((item) => item.is_active)} onClick={() => setEditor({ kind: "plan" })} type="button">+ {t("createPlan")}</button>}
       </div>
 
+      {user?.role === "coach" && (
+        <section className="plan-guide" aria-label={t("planGuide")}>
+          <article><strong>1</strong><div><h3>{t("planStepOne")}</h3><p>{t("planStepOneText")}</p></div></article>
+          <article><strong>2</strong><div><h3>{t("planStepTwo")}</h3><p>{t("planStepTwoText")}</p></div></article>
+          <article><strong>3</strong><div><h3>{t("planStepThree")}</h3><p>{t("planStepThreeText")}</p></div></article>
+        </section>
+      )}
+
       {message && <div className="notice" role="status">{message}</div>}
       {error && <div className="error" role="alert">{error}</div>}
       {loading && <div className="training-loading">{t("loading")}</div>}

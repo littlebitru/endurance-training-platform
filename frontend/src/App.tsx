@@ -389,17 +389,12 @@ function AthletesPage() {
         <form className="invite" onSubmit={invite}><input type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="athlete@example.com" required /><button className="primary">{t("inviteAthlete")}</button></form>
       </div>
       {message && <div className="notice" role="status">{message}</div>}
-      <section className="team-summary">
-        <div><span className="eyebrow">{t("team")}</span><h3>{t("teamReady")}</h3><p>{t("teamDescription")}</p></div>
-        <strong>{athletes.filter((relationship) => relationship.is_active).length}<small>{t("activeAthletes")}</small></strong>
-      </section>
       <section className="athlete-grid">
         {athletes.map((relationship) => (
           <article className="athlete" key={relationship.id}>
             <span>{relationship.athlete.first_name?.[0] || relationship.athlete.username[0]}</span>
             <h3>{relationship.athlete.first_name ? `${relationship.athlete.first_name} ${relationship.athlete.last_name}` : relationship.athlete.username}</h3>
             <p>{relationship.athlete.profile?.sport || t("sportMissing")}</p>
-            <small>{relationship.is_active ? t("activeCoaching") : t("inactive")}</small>
           </article>
         ))}
       </section>
