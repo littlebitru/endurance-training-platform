@@ -258,7 +258,7 @@ function Layout({ children }: { children: React.ReactNode }) {
       <div className="content">
         <header>
           <div><span className="eyebrow">{roleLabel} · {t("workspace")}</span><h1>{t("clarity")}</h1></div>
-          <div className="header-actions"><div className="live"><i /> {t("apiConnected")}</div><LanguageSwitcher /></div>
+          <div className="header-actions"><LanguageSwitcher /></div>
         </header>
         <div className="page-enter">{children}</div>
       </div>
