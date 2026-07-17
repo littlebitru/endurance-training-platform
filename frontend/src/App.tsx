@@ -4,6 +4,7 @@ import { api } from "./api";
 import heroImage from "./assets/endurance-hero-v1.webp";
 import { useAuth } from "./auth";
 import { localizeApiError, useLanguage } from "./i18n";
+import { TrainingPlansPage } from "./TrainingPlansPage";
 import type { Analytics, Relationship, TrainingPlan, Workout } from "./types";
 
 function LanguageSwitcher() {
@@ -363,24 +364,6 @@ function Empty({ text }: { text: string }) {
   return <div className="empty">{text}</div>;
 }
 
-function PlansPage() {
-  const { t } = useLanguage();
-  const [plans, setPlans] = useState<TrainingPlan[]>([]);
-  useEffect(() => { api.plans().then((response) => setPlans(response.results)); }, []);
-  return (
-    <>
-      <div className="section-title"><div><span className="eyebrow">{t("training")}</span><h2>{t("plansAndSessions")}</h2></div></div>
-      {plans.map((plan) => (
-        <section className="plan" key={plan.id}>
-          <div className="plan-head"><div><h3>{plan.title}</h3><p>{plan.start_date} — {plan.end_date}</p></div><span className="status active">{plan.is_active ? t("active") : t("archived")}</span></div>
-          {plan.weeks.map((week) => <div key={week.id}><h4>{t("week", { number: week.week_number })} · {week.start_date}</h4>{week.workouts.map((workout) => <WorkoutRow key={workout.id} workout={workout} />)}</div>)}
-        </section>
-      ))}
-      {!plans.length && <Empty text={t("noPlans")} />}
-    </>
-  );
-}
-
 function AthletesPage() {
   const { user } = useAuth();
   const { t } = useLanguage();
@@ -434,7 +417,7 @@ export default function App() {
       <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/invitations/:token" element={<InvitationPage />} />
       <Route path="/" element={<Protected><Overview /></Protected>} />
-      <Route path="/plans" element={<Protected><PlansPage /></Protected>} />
+      <Route path="/plans" element={<Protected><TrainingPlansPage /></Protected>} />
       <Route path="/athletes" element={<Protected><AthletesPage /></Protected>} />
       <Route path="*" element={<Navigate to="/" />} />
     </Routes>

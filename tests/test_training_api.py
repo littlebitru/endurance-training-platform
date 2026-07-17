@@ -2,8 +2,9 @@ from datetime import date, timedelta
 
 import pytest
 from django.urls import reverse
+from django.utils import timezone
 
-from apps.training.models import TrainingPlan, WeeklyPlan, Workout, WorkoutLog
+from apps.training.models import CoachComment, Exercise, TrainingPlan, WeeklyPlan, Workout, WorkoutLog
 from apps.users.models import Profile, User
 
 
@@ -99,3 +100,75 @@ def test_coach_can_review_assigned_athlete_workout_logs(api_client, coach, athle
 
     assert response.status_code == 200
     assert [item["id"] for item in response.data["results"]] == [log.id]
+
+
+@pytest.mark.django_db
+def test_athlete_completion_marks_workout_completed(api_client, coach, athlete, relationship):
+    plan = TrainingPlan.objects.create(
+        coach=coach,
+        athlete=athlete,
+        title="Base training",
+        start_date=date.today(),
+        end_date=date.today() + timedelta(days=7),
+    )
+    week = WeeklyPlan.objects.create(training_plan=plan, week_number=1, start_date=date.today())
+    workout = Workout.objects.create(
+        weekly_plan=week,
+        title="Steady run",
+        sport=Workout.Sport.RUNNING,
+        scheduled_at=timezone.now(),
+    )
+    api_client.force_authenticate(athlete)
+
+    response = api_client.post(
+        reverse("workout-log-list"),
+        {
+            "workout": workout.id,
+            "completed_at": timezone.now(),
+            "actual_duration_minutes": 45,
+            "actual_distance_km": "8.50",
+            "perceived_exertion": 6,
+        },
+    )
+
+    assert response.status_code == 201
+    workout.refresh_from_db()
+    assert workout.status == Workout.Status.COMPLETED
+    assert response.data["athlete"] == athlete.id
+
+
+@pytest.mark.django_db
+def test_athlete_sees_workout_instructions_comments_and_result(api_client, coach, athlete, relationship):
+    plan = TrainingPlan.objects.create(
+        coach=coach,
+        athlete=athlete,
+        title="Race week",
+        start_date=date.today(),
+        end_date=date.today() + timedelta(days=7),
+    )
+    week = WeeklyPlan.objects.create(training_plan=plan, week_number=1, start_date=date.today())
+    workout = Workout.objects.create(
+        weekly_plan=week,
+        title="Race pace intervals",
+        sport=Workout.Sport.RUNNING,
+        scheduled_at=timezone.now(),
+        status=Workout.Status.COMPLETED,
+    )
+    Exercise.objects.create(workout=workout, name="Four race pace intervals", order=1, duration_seconds=1200)
+    CoachComment.objects.create(workout=workout, coach=coach, body="Keep the first interval controlled.")
+    WorkoutLog.objects.create(
+        workout=workout,
+        athlete=athlete,
+        completed_at=timezone.now(),
+        actual_duration_minutes=50,
+        perceived_exertion=7,
+    )
+    api_client.force_authenticate(athlete)
+
+    response = api_client.get(reverse("training-plan-detail", args=(plan.id,)))
+
+    assert response.status_code == 200
+    workout_data = response.data["weeks"][0]["workouts"][0]
+    assert workout_data["exercises"][0]["name"] == "Four race pace intervals"
+    assert workout_data["coach_comments"][0]["body"] == "Keep the first interval controlled."
+    assert workout_data["log"]["actual_duration_minutes"] == 50

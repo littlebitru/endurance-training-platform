@@ -41,6 +41,10 @@ export const api = {
   athletes: () => request<import("./types").Page<import("./types").Relationship>>("/athletes/?page_size=100"),
   analytics: (athleteId?: number) => request<import("./types").Analytics>(`/coach/analytics/summary/${athleteId ? `?athlete_id=${athleteId}` : ""}`),
   invite: (email: string) => request("/athlete-invitations/", { method: "POST", body: JSON.stringify({ email }) }),
-  createPlan: (data: object) => request("/training-plans/", { method: "POST", body: JSON.stringify(data) }),
-  logWorkout: (data: object) => request("/workout-logs/", { method: "POST", body: JSON.stringify(data) }),
+  createPlan: (data: object) => request<import("./types").TrainingPlan>("/training-plans/", { method: "POST", body: JSON.stringify(data) }),
+  createWeek: (data: object) => request<import("./types").WeeklyPlan>("/weekly-plans/", { method: "POST", body: JSON.stringify(data) }),
+  createWorkout: (data: object) => request<import("./types").Workout>("/workouts/", { method: "POST", body: JSON.stringify(data) }),
+  createExercise: (data: object) => request<import("./types").Exercise>("/exercises/", { method: "POST", body: JSON.stringify(data) }),
+  createComment: (data: object) => request<import("./types").CoachComment>("/coach-comments/", { method: "POST", body: JSON.stringify(data) }),
+  logWorkout: (data: object) => request<import("./types").WorkoutLog>("/workout-logs/", { method: "POST", body: JSON.stringify(data) }),
 };

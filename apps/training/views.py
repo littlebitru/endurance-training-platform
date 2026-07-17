@@ -1,4 +1,5 @@
-from django.db.models import Q
+from django.db import transaction
+from django.db.models import Prefetch, Q
 from drf_spectacular.utils import extend_schema
 from rest_framework import serializers, viewsets
 from rest_framework.response import Response
@@ -62,8 +63,10 @@ class TrainingPlanViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):
             return self.queryset
-        return (
-            accessible_plans(self.request.user).select_related("coach", "athlete").prefetch_related("weeks__workouts")
+        return accessible_plans(self.request.user).select_related("coach", "athlete").prefetch_related(
+            "weeks__workouts__exercises",
+            "weeks__workouts__log",
+            Prefetch("weeks__workouts__coach_comments", queryset=CoachComment.objects.select_related("coach")),
         )
 
     def perform_create(self, serializer):
@@ -223,8 +226,18 @@ class WorkoutLogViewSet(viewsets.ModelViewSet):
             ).select_related("workout", "athlete")
         return WorkoutLog.objects.filter(athlete=self.request.user).select_related("workout")
 
+    @transaction.atomic
     def perform_create(self, serializer):
         workout = serializer.validated_data["workout"]
         if workout.weekly_plan.training_plan.athlete_id != self.request.user.id:
             raise serializers.ValidationError({"workout": "This workout does not belong to the current athlete."})
         serializer.save(athlete=self.request.user)
+        workout.status = Workout.Status.COMPLETED
+        workout.save(update_fields=("status", "updated_at"))
+
+    @transaction.atomic
+    def perform_destroy(self, instance):
+        workout = instance.workout
+        super().perform_destroy(instance)
+        workout.status = Workout.Status.PLANNED
+        workout.save(update_fields=("status", "updated_at"))
