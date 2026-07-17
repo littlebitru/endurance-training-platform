@@ -3,6 +3,7 @@ import os
 import dj_database_url
 from django.core.exceptions import ImproperlyConfigured
 
+from . import settings as base_settings
 from .settings import *  # noqa: F401,F403
 
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY")
@@ -10,6 +11,7 @@ if not SECRET_KEY or len(SECRET_KEY) < 32:
     raise ImproperlyConfigured("DJANGO_SECRET_KEY must contain at least 32 characters in production.")
 
 DEBUG = False
+ALLOWED_HOSTS = base_settings.ALLOWED_HOSTS.copy()
 RENDER_EXTERNAL_HOSTNAME = os.getenv("RENDER_EXTERNAL_HOSTNAME")
 if RENDER_EXTERNAL_HOSTNAME and RENDER_EXTERNAL_HOSTNAME not in ALLOWED_HOSTS:
     ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
