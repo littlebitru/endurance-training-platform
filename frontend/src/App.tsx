@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Link, Navigate, NavLink, Route, Routes, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { api } from "./api";
+import heroImage from "./assets/endurance-hero-v1.webp";
 import { useAuth } from "./auth";
 import { localizeApiError, useLanguage } from "./i18n";
 import type { Analytics, Relationship, TrainingPlan, Workout } from "./types";
@@ -19,6 +20,7 @@ function AuthStory({ security = false }: { security?: boolean }) {
   const { t } = useLanguage();
   return (
     <section className="auth-story">
+      <img className="auth-visual" src={heroImage} alt="" />
       <div className="motion-orbit orbit-one" />
       <div className="motion-orbit orbit-two" />
       <span className="eyebrow">{security ? t("accountSecurity") : t("storyEyebrow")}</span>
@@ -289,6 +291,7 @@ function Overview() {
   return (
     <>
       <section className="hero-panel">
+        <img className="hero-panel-image" src={heroImage} alt="" />
         <div>
           <span className="eyebrow">{t("currentCycle")}</span>
           <h2>{plans[0]?.title ?? t("cycleReady")}</h2>

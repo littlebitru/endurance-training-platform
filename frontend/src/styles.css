@@ -3,7 +3,10 @@
 :root {
   font-family: "DM Sans", sans-serif;
   color: #17211e;
-  background: #f1f3ee;
+  background:
+    radial-gradient(circle at 88% 8%, #68c8d421 0, transparent 28%),
+    radial-gradient(circle at 58% 95%, #ff8a5b1d 0, transparent 34%),
+    #f6f5ed;
   font-synthesis: none;
 }
 
@@ -44,7 +47,7 @@ button, a, input, select { -webkit-tap-highlight-color: transparent; }
 }
 
 .language-switcher button:hover { color: #173d31; }
-.language-switcher button.active { color: white; background: #173d31; transform: scale(1.03); }
+.language-switcher button.active { color: white; background: linear-gradient(135deg, #087f78, #173d31); box-shadow: 0 5px 12px #087f7830; transform: scale(1.03); }
 
 .auth-shell {
   position: relative;
@@ -70,13 +73,34 @@ button, a, input, select { -webkit-tap-highlight-color: transparent; }
   overflow: hidden;
   padding: 10vh 8vw;
   color: #eef4e7;
+  background: #0a1713;
+}
+
+.auth-visual {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 58% center;
+  filter: saturate(1.12) contrast(1.04);
+  animation: imageDrift 18s ease-in-out infinite alternate;
+}
+
+.auth-story::after {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  content: "";
   background:
-    radial-gradient(circle at 20% 90%, #1c4b3c 0, transparent 40%),
-    linear-gradient(135deg, #0a1713, #142c24);
+    linear-gradient(90deg, #071612f2 0%, #09211ad4 42%, #09211a38 78%, #09211a12 100%),
+    linear-gradient(0deg, #07130fa6 0%, transparent 48%);
 }
 
 .auth-story::before {
   position: absolute;
+  z-index: 1;
   inset: 0;
   content: "";
   opacity: .35;
@@ -90,6 +114,7 @@ button, a, input, select { -webkit-tap-highlight-color: transparent; }
 
 .motion-orbit {
   position: absolute;
+  z-index: 1;
   border: 1px solid #75948666;
   border-radius: 50%;
   pointer-events: none;
@@ -130,7 +155,7 @@ button, a, input, select { -webkit-tap-highlight-color: transparent; }
 .auth-story > p,
 .auth-story > .metric-row {
   position: relative;
-  z-index: 1;
+  z-index: 2;
   animation: storyReveal .75s cubic-bezier(.22, 1, .36, 1) both;
 }
 
@@ -163,7 +188,10 @@ button, a, input, select { -webkit-tap-highlight-color: transparent; }
   flex-direction: column;
   justify-content: center;
   padding: 8vh clamp(30px, 6vw, 90px);
-  background: #fbfcf8;
+  background:
+    radial-gradient(circle at 100% 0, #ff956f17, transparent 28%),
+    radial-gradient(circle at 0 100%, #4fc5c21a, transparent 34%),
+    linear-gradient(145deg, #fffdf8, #f7fbf5 62%, #fff7f0);
   box-shadow: -30px 0 80px #0000001c;
   animation: panelReveal .7s cubic-bezier(.22, 1, .36, 1) both;
 }
@@ -175,7 +203,8 @@ button, a, input, select { -webkit-tap-highlight-color: transparent; }
   height: 42px;
   border-radius: 12px;
   color: #173426;
-  background: #cfe993;
+  background: linear-gradient(135deg, #dff77c, #8dd9a0 62%, #58c7ca);
+  box-shadow: 0 10px 24px #72cdb439;
   font: bold 14px Manrope;
 }
 
@@ -221,7 +250,7 @@ button, a, input, select { -webkit-tap-highlight-color: transparent; }
   border: 0;
   border-radius: 8px;
   color: white;
-  background: #173d31;
+  background: linear-gradient(135deg, #087f78, #17624f 62%, #21483c);
   box-shadow: 0 10px 24px #173d3126;
   cursor: pointer;
   font-weight: 600;
@@ -236,7 +265,7 @@ button, a, input, select { -webkit-tap-highlight-color: transparent; }
   transform: translateX(-120%);
 }
 
-.primary:hover:not(:disabled) { background: #225744; box-shadow: 0 14px 30px #173d3138; transform: translateY(-2px); }
+.primary:hover:not(:disabled) { background: linear-gradient(135deg, #07958c, #23755d 62%, #275747); box-shadow: 0 14px 30px #087f7840; transform: translateY(-2px); }
 .primary:hover:not(:disabled)::after { animation: buttonShine .7s ease; }
 .primary:active:not(:disabled) { transform: translateY(0); }
 .primary:disabled, .text-button:disabled { opacity: .58; cursor: wait; }
@@ -261,10 +290,18 @@ button, a, input, select { -webkit-tap-highlight-color: transparent; }
   animation: messageReveal .3s ease both;
 }
 
-.notice { color: #31542b; background: #eaf4d9; }
-.error { color: #8a3928; background: #fce8e2; }
+.notice { border-left: 3px solid #69ad49; color: #31542b; background: linear-gradient(90deg, #eaf4d9, #f1fae8); }
+.error { border-left: 3px solid #e46d4c; color: #8a3928; background: linear-gradient(90deg, #fce8e2, #fff1ec); }
 
-.app-shell { display: grid; grid-template-columns: 250px 1fr; min-height: 100vh; }
+.app-shell {
+  display: grid;
+  grid-template-columns: 250px 1fr;
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 88% 7%, #51c8cf1f 0, transparent 24%),
+    radial-gradient(circle at 57% 100%, #ff9d701a 0, transparent 31%),
+    #f7f6ef;
+}
 
 .app-shell aside {
   position: fixed;
@@ -276,7 +313,10 @@ button, a, input, select { -webkit-tap-highlight-color: transparent; }
   height: 100vh;
   padding: 30px 22px;
   color: #e8eee9;
-  background: #10251e;
+  background:
+    radial-gradient(circle at 10% 8%, #15988d40 0, transparent 28%),
+    radial-gradient(circle at 92% 92%, #e7865840 0, transparent 25%),
+    linear-gradient(165deg, #0c2924, #101f2a 72%, #1f2630);
 }
 
 .app-shell aside > div:nth-child(2) { padding-top: 5px; }
@@ -293,7 +333,7 @@ button, a, input, select { -webkit-tap-highlight-color: transparent; }
   transition: color .2s ease, background .2s ease, transform .2s ease;
 }
 
-.app-shell nav a.active, .app-shell nav a:hover { color: white; background: #1b392e; transform: translateX(3px); }
+.app-shell nav a.active, .app-shell nav a:hover { color: white; background: linear-gradient(90deg, #2da99b52, #d8f27618); box-shadow: inset 3px 0 #cfe993; transform: translateX(3px); }
 
 .account {
   display: grid;
@@ -334,18 +374,39 @@ button, a, input, select { -webkit-tap-highlight-color: transparent; }
 .page-enter { animation: pageReveal .45s cubic-bezier(.22, 1, .36, 1) both; }
 
 .hero-panel {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 42px;
   border-radius: 15px;
   color: white;
-  background: linear-gradient(135deg, #173d31, #1d4c3d);
+  background:
+    radial-gradient(circle at 86% 20%, #f0d76950 0, transparent 26%),
+    radial-gradient(circle at 12% 110%, #30c0bd45 0, transparent 38%),
+    linear-gradient(135deg, #0c685f, #163f51 55%, #362f56);
   box-shadow: 0 20px 50px #173d3118;
   transition: box-shadow .3s ease, transform .3s ease;
+  overflow: hidden;
 }
 
 .hero-panel:hover { box-shadow: 0 26px 60px #173d3129; transform: translateY(-2px); }
+.hero-panel > div { position: relative; z-index: 2; }
+.hero-panel > div:not(.ring) { max-width: 66%; }
+.hero-panel-image {
+  position: absolute;
+  z-index: 0;
+  top: 0;
+  right: 0;
+  width: 52%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 68% center;
+  opacity: .68;
+  mask-image: linear-gradient(90deg, transparent, black 38%);
+  transition: opacity .4s ease, transform 1.2s cubic-bezier(.22, 1, .36, 1);
+}
+.hero-panel:hover .hero-panel-image { opacity: .82; transform: scale(1.035); }
 .hero-panel h2 { margin: 12px 0; font: 600 clamp(26px, 3vw, 42px) Manrope; }
 .hero-panel p { max-width: 650px; color: #b9c9c0; }
 
@@ -369,7 +430,7 @@ button, a, input, select { -webkit-tap-highlight-color: transparent; }
   padding: 22px;
   border: 1px solid #e2e5df;
   border-radius: 10px;
-  background: white;
+  background: linear-gradient(145deg, #ffffff, #fbfcf8);
   transition: border-color .25s ease, box-shadow .25s ease, transform .25s ease;
   animation: cardReveal .4s ease both;
 }
@@ -377,13 +438,17 @@ button, a, input, select { -webkit-tap-highlight-color: transparent; }
 .stat:nth-child(2) { animation-delay: .05s; }
 .stat:nth-child(3) { animation-delay: .1s; }
 .stat:nth-child(4) { animation-delay: .15s; }
+.stat:nth-child(1) { border-top: 3px solid #56bdaa; }
+.stat:nth-child(2) { border-top: 3px solid #b8d96b; }
+.stat:nth-child(3) { border-top: 3px solid #68b9dc; }
+.stat:nth-child(4) { border-top: 3px solid #ef9970; }
 .stat:hover, .athlete:hover { border-color: #cbd8cf; box-shadow: 0 16px 34px #173d3111; transform: translateY(-3px); }
 .stat small { color: #78847e; }
 .stat strong { display: block; margin-top: 12px; font: 600 26px Manrope; }
 .section-title { display: flex; align-items: end; justify-content: space-between; margin: 35px 0 18px; }
 .section-title h2 { margin: 8px 0 0; font: 600 25px Manrope; }
 .section-title a { color: #3f725d; text-decoration: none; font-size: 13px; }
-.session-list, .plan { overflow: hidden; border: 1px solid #e1e4dd; border-radius: 12px; background: white; }
+.session-list, .plan { overflow: hidden; border: 1px solid #e1e4dd; border-radius: 12px; background: linear-gradient(145deg, #fff, #fcfdf9); box-shadow: 0 14px 36px #183e3210; }
 
 .workout-row {
   display: grid;
@@ -400,10 +465,10 @@ button, a, input, select { -webkit-tap-highlight-color: transparent; }
 .workout-row time { padding-right: 15px; border-right: 1px solid #e0e4de; text-align: center; }
 .workout-row time strong { display: block; font: 600 20px Manrope; }
 .workout-row small { display: block; margin-top: 4px; color: #829089; font-size: 11px; text-transform: capitalize; }
-.sport { height: 35px; border-radius: 5px; background: #b8d877; }
-.sport.cycling { background: #e4bd65; }
-.sport.swimming { background: #74b6bf; }
-.sport.triathlon { background: #b284c7; }
+.sport { height: 35px; border-radius: 5px; background: linear-gradient(#d6ef85, #8ecb70); box-shadow: 0 5px 12px #8ecb7038; }
+.sport.cycling { background: linear-gradient(#ffd378, #eb8f55); box-shadow: 0 5px 12px #eb8f5538; }
+.sport.swimming { background: linear-gradient(#79d7df, #4d9fd0); box-shadow: 0 5px 12px #4d9fd038; }
+.sport.triathlon { background: linear-gradient(#cf9ae0, #8f72c8); box-shadow: 0 5px 12px #8f72c838; }
 .grow strong { font-size: 14px; }
 
 .status {
@@ -433,7 +498,9 @@ button, a, input, select { -webkit-tap-highlight-color: transparent; }
   padding: 25px;
   border: 1px solid #e0e4dd;
   border-radius: 12px;
-  background: white;
+  background:
+    radial-gradient(circle at 100% 0, #4fc5c216, transparent 36%),
+    linear-gradient(145deg, #fff, #fbfcf8);
   transition: border-color .25s ease, box-shadow .25s ease, transform .25s ease;
   animation: cardReveal .4s ease both;
 }
@@ -462,6 +529,7 @@ button, a, input, select { -webkit-tap-highlight-color: transparent; }
 @keyframes cardReveal { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes orbitSpin { to { transform: rotate(360deg); } }
 @keyframes gridDrift { to { background-position: 72px 72px; } }
+@keyframes imageDrift { from { transform: scale(1.01); } to { transform: scale(1.06) translate3d(-1.2%, -.8%, 0); } }
 @keyframes brandFloat { 0%, 100% { transform: translateY(0) rotate(0); } 50% { transform: translateY(-5px) rotate(2deg); } }
 @keyframes buttonShine { to { transform: translateX(120%); } }
 @keyframes ringBreathe { 0%, 100% { box-shadow: 0 0 0 0 #b9d67d00; } 50% { box-shadow: 0 0 0 9px #b9d67d12; } }
@@ -490,6 +558,8 @@ button, a, input, select { -webkit-tap-highlight-color: transparent; }
   .content header { align-items: flex-start; }
   .header-actions .live { display: none; }
   .hero-panel { padding: 28px; }
+  .hero-panel > div:not(.ring) { max-width: 100%; }
+  .hero-panel-image { width: 100%; opacity: .3; mask-image: linear-gradient(90deg, transparent, black); }
   .ring { display: none; }
   .stat-grid, .athlete-grid { grid-template-columns: 1fr; }
   .section-title { align-items: flex-start; flex-direction: column; gap: 18px; }
