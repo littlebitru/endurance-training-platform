@@ -6,6 +6,7 @@ from django.utils import timezone
 from django.utils.encoding import force_str
 from django.utils.http import urlsafe_base64_decode
 from rest_framework import serializers
+from rest_framework.validators import UniqueValidator
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 from .models import AthleteInvitation, CoachingRelationship, Profile, User
@@ -27,6 +28,14 @@ class UserSerializer(serializers.ModelSerializer):
 
 
 class RegisterSerializer(serializers.ModelSerializer):
+    username = serializers.CharField(
+        validators=[UniqueValidator(queryset=User.objects.all(), message="This username is already registered.")]
+    )
+    email = serializers.EmailField(
+        validators=[
+            UniqueValidator(queryset=User.objects.all(), lookup="iexact", message="This email is already registered.")
+        ]
+    )
     password = serializers.CharField(write_only=True, validators=[validate_password])
 
     class Meta:

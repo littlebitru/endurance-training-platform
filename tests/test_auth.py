@@ -31,6 +31,25 @@ def test_user_can_register(api_client):
 
 
 @pytest.mark.django_db
+def test_registration_rejects_duplicate_identity(api_client, athlete):
+    response = api_client.post(
+        reverse("register"),
+        {
+            "username": athlete.username,
+            "email": athlete.email.upper(),
+            "password": "AnotherExcellentPass123!",
+            "role": User.Role.ATHLETE,
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.data == {
+        "username": ["This username is already registered."],
+        "email": ["This email is already registered."],
+    }
+
+
+@pytest.mark.django_db
 def test_user_can_obtain_jwt(api_client, athlete):
     response = api_client.post(
         reverse("token-obtain-pair"), {"username": athlete.username, "password": "StrongPass123!"}
