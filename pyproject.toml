@@ -1,0 +1,15 @@
+[tool.black]
+line-length = 120
+target-version = ["py312"]
+extend-exclude = "frontend"
+
+[tool.isort]
+profile = "black"
+line_length = 120
+skip = ["frontend"]
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "config.settings_test"
+python_files = ["test_*.py"]
+testpaths = ["tests"]
+addopts = "--strict-markers --disable-warnings --cov=apps --cov-report=term-missing --cov-fail-under=85"

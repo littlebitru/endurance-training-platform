@@ -1,0 +1,10 @@
+Django==5.1.14
+djangorestframework==3.16.1
+djangorestframework-simplejwt==5.5.1
+django-filter==25.1
+django-cors-headers==4.7.0
+dj-database-url==2.3.0
+drf-spectacular==0.28.0
+psycopg[binary]==3.2.10
+python-dotenv==1.1.1
+gunicorn==23.0.0
