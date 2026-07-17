@@ -26,21 +26,17 @@ services:
       - key: RUN_MIGRATIONS
         value: "true"
       - key: DJANGO_ALLOWED_HOSTS
-        sync: false
+        value: endurance-staging-api.onrender.com
       - key: CORS_ALLOWED_ORIGINS
-        sync: false
+        value: https://endurance-staging-web.onrender.com
       - key: CSRF_TRUSTED_ORIGINS
-        sync: false
+        value: https://endurance-staging-web.onrender.com
       - key: FRONTEND_URL
-        sync: false
+        value: https://endurance-staging-web.onrender.com
       - key: DEFAULT_FROM_EMAIL
-        sync: false
-      - key: EMAIL_HOST
-        sync: false
-      - key: EMAIL_HOST_USER
-        sync: false
-      - key: EMAIL_HOST_PASSWORD
-        sync: false
+        value: noreply@endurance-staging.invalid
+      - key: EMAIL_BACKEND
+        value: django.core.mail.backends.console.EmailBackend
 
   - type: web
     name: endurance-staging-web
@@ -50,7 +46,7 @@ services:
     staticPublishPath: ./frontend/dist
     envVars:
       - key: VITE_API_URL
-        sync: false
+        value: https://endurance-staging-api.onrender.com/api/v1
     routes:
       - type: rewrite
         source: /*
