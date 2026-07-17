@@ -8,6 +8,7 @@ from rest_framework.views import APIView
 class HealthCheckView(APIView):
     permission_classes = (permissions.AllowAny,)
     authentication_classes = ()
+    throttle_classes = ()
 
     @extend_schema(
         responses=inline_serializer("HealthResponse", fields={"status": serializers.CharField()}),
