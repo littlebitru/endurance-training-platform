@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { AuthProvider } from "./auth";
@@ -6,7 +6,10 @@ import { LanguageProvider } from "./i18n";
 import App from "./App";
 
 beforeEach(() => localStorage.setItem("endurance_locale", "en"));
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
 
 function renderApp() {
   return render(
