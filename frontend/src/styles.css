@@ -546,6 +546,29 @@ button, a, input, select { -webkit-tap-highlight-color: transparent; }
 .stat small { color: #78847e; }
 .stat strong { position: relative; z-index: 1; display: block; margin-top: 12px; font: 600 26px Manrope; transition: color .25s ease, transform .25s ease; }
 .stat:hover strong { color: #087f78; transform: translateY(-2px); }
+
+.coach-card {
+  display: grid;
+  grid-template-columns: 58px 1fr auto;
+  align-items: center;
+  gap: 18px;
+  overflow: hidden;
+  padding: 21px 24px;
+  border: 1px solid #dfe5dc;
+  border-radius: 13px;
+  background:
+    radial-gradient(circle at 92% 15%, #69c8ba21 0, transparent 29%),
+    linear-gradient(135deg, #ffffff, #f7fbf5);
+  box-shadow: 0 14px 36px #183e3210;
+  transition: border-color .25s ease, box-shadow .25s ease, transform .25s ease;
+}
+
+.coach-card:hover { border-color: #aecfbd; box-shadow: 0 18px 42px #173d3118; transform: translateY(-2px); }
+.coach-card.unassigned { background: linear-gradient(135deg, #fffdf8, #f8f8f2); }
+.coach-avatar { display: grid; place-items: center; width: 52px; height: 52px; border-radius: 16px; color: #173d31; background: linear-gradient(135deg, #dff77c, #72d3b1); box-shadow: 0 9px 20px #72cdb43d; font: 700 18px Manrope; }
+.coach-card h3 { margin: 6px 0 4px; font: 600 18px Manrope; }
+.coach-card p { margin: 0; color: #78847e; font-size: 13px; }
+
 .section-title { display: flex; align-items: end; justify-content: space-between; margin: 35px 0 18px; }
 .section-title h2 { margin: 8px 0 0; font: 600 25px Manrope; }
 .section-title a { color: #3f725d; text-decoration: none; font-size: 13px; transition: color .2s ease, transform .2s ease; }
@@ -603,6 +626,28 @@ button, a, input, select { -webkit-tap-highlight-color: transparent; }
 .plan .workout-row { margin-top: -1px; border: 1px solid #e7eae5; }
 .invite { display: flex; gap: 8px; }
 .invite input { width: 250px; }
+
+.team-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 30px;
+  margin-bottom: 18px;
+  padding: 25px 28px;
+  border-radius: 14px;
+  color: #eef6f0;
+  background:
+    radial-gradient(circle at 88% 20%, #d8f27635 0, transparent 30%),
+    linear-gradient(135deg, #0d685f, #173d4d);
+  box-shadow: 0 18px 42px #173d3120;
+}
+
+.team-summary h3 { margin: 8px 0 4px; font: 600 22px Manrope; }
+.team-summary p { margin: 0; color: #bad0c6; font-size: 13px; }
+.team-summary > strong { display: grid; flex: none; place-items: center; min-width: 110px; font: 700 34px Manrope; }
+.team-summary > strong small { color: #c5d7cf; font: 500 10px "DM Sans"; letter-spacing: .08em; text-align: center; text-transform: uppercase; }
+.team-summary .eyebrow { color: #a9c8bd; }
+
 .athlete-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; }
 
 .athlete {
@@ -691,6 +736,8 @@ button, a, input, select { -webkit-tap-highlight-color: transparent; }
   .account > div { display: none; }
   .content { padding: 25px 20px; }
   .stat-grid { grid-template-columns: 1fr 1fr; }
+  .coach-card { grid-template-columns: 52px 1fr; }
+  .coach-card > .status { grid-column: 2; justify-self: start; }
   .workout-row { grid-template-columns: 45px 8px 1fr; }
   .workout-row > div:nth-of-type(3), .workout-row > .status { display: none; }
   .athlete-grid { grid-template-columns: 1fr 1fr; }
@@ -706,6 +753,8 @@ button, a, input, select { -webkit-tap-highlight-color: transparent; }
   .ring { display: none; }
   .stat-grid, .athlete-grid { grid-template-columns: 1fr; }
   .section-title { align-items: flex-start; flex-direction: column; gap: 18px; }
+  .team-summary { align-items: flex-start; flex-direction: column; }
+  .team-summary > strong { place-items: start; }
   .invite { flex-direction: column; width: 100%; }
   .invite input { width: 100%; }
   .workout-row { gap: 10px; padding: 14px 12px; }

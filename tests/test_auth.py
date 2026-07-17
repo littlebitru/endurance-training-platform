@@ -120,3 +120,30 @@ def test_logout_blacklists_refresh_token(api_client, athlete):
     assert response.status_code == 204
     refresh_response = api_client.post(reverse("token-refresh"), {"refresh": str(refresh)})
     assert refresh_response.status_code == 401
+
+
+@pytest.mark.django_db
+def test_athlete_profile_includes_active_coach(api_client, coach, athlete, relationship):
+    api_client.force_authenticate(athlete)
+
+    response = api_client.get(reverse("me"))
+
+    assert response.status_code == 200
+    assert response.data["coach"] == {
+        "id": coach.id,
+        "username": coach.username,
+        "first_name": coach.first_name,
+        "last_name": coach.last_name,
+    }
+
+
+@pytest.mark.django_db
+def test_athlete_profile_hides_inactive_coach(api_client, athlete, relationship):
+    relationship.is_active = False
+    relationship.save(update_fields=("is_active", "updated_at"))
+    api_client.force_authenticate(athlete)
+
+    response = api_client.get(reverse("me"))
+
+    assert response.status_code == 200
+    assert response.data["coach"] is None

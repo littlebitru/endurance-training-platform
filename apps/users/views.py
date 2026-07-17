@@ -20,6 +20,7 @@ from .serializers import (
     EmailVerificationSerializer,
     InvitationAcceptanceSerializer,
     LogoutSerializer,
+    MeSerializer,
     PasswordResetConfirmSerializer,
     PasswordResetRequestSerializer,
     ProfileSerializer,
@@ -101,7 +102,7 @@ class LogoutView(APIView):
 
 
 class MeView(generics.RetrieveUpdateAPIView):
-    serializer_class = UserSerializer
+    serializer_class = MeSerializer
 
     def get_object(self):
         return self.request.user

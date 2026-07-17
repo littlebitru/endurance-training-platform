@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { Link, Navigate, NavLink, Route, Routes, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { api } from "./api";
 import heroImage from "./assets/endurance-hero-v1.webp";
@@ -219,19 +219,24 @@ function ResetPasswordPage() {
 function InvitationPage() {
   const { t } = useLanguage();
   const { token } = useParams();
-  const { user } = useAuth();
+  const { refreshUser, user } = useAuth();
+  const attempted = useRef(false);
   const [message, setMessage] = useState(t("acceptingInvitation"));
   useEffect(() => {
     if (!user) {
       setMessage(t("invitationSignIn"));
       return;
     }
-    if (token) {
+    if (token && !attempted.current) {
+      attempted.current = true;
       api.acceptInvitation(token)
-        .then(() => setMessage(t("invitationAccepted")))
+        .then(async () => {
+          await refreshUser();
+          setMessage(t("invitationAccepted"));
+        })
         .catch((error) => setMessage(error.message));
     }
-  }, [token, user, t]);
+  }, [refreshUser, token, user, t]);
   return <SimpleAuthCard title={t("coachInvitation")} text={message} />;
 }
 
@@ -288,6 +293,9 @@ function Overview() {
     .filter((workout) => new Date(workout.scheduled_at) >= new Date())
     .sort((left, right) => left.scheduled_at.localeCompare(right.scheduled_at))
     .slice(0, 4);
+  const coachName = user?.coach
+    ? `${user.coach.first_name} ${user.coach.last_name}`.trim() || user.coach.username
+    : "";
   return (
     <>
       <section className="hero-panel">
@@ -305,6 +313,17 @@ function Overview() {
         <Stat label={t("distanceCompleted")} value={`${stats?.actual_distance_km ?? "0.00"} km`} />
         <Stat label={t("averageEffort")} value={stats?.average_perceived_exertion ?? "—"} />
       </section>
+      {user?.role === "athlete" && (
+        <section className={`coach-card ${user.coach ? "connected" : "unassigned"}`}>
+          <span className="coach-avatar">{user.coach ? (user.coach.first_name?.[0] || user.coach.username[0]) : "?"}</span>
+          <div>
+            <span className="eyebrow">{t("yourCoach")}</span>
+            <h3>{user.coach ? coachName : t("coachNotConnected")}</h3>
+            <p>{user.coach ? t("coachSupport", { username: user.coach.username }) : t("coachNotConnectedText")}</p>
+          </div>
+          <span className={`status ${user.coach ? "active" : ""}`}>{user.coach ? t("connected") : t("notConnected")}</span>
+        </section>
+      )}
       <div className="section-title">
         <div><span className="eyebrow">{t("comingUp")}</span><h2>{t("nextSessions")}</h2></div>
         <NavLink to="/plans">{t("viewAll")}</NavLink>
@@ -387,6 +406,10 @@ function AthletesPage() {
         <form className="invite" onSubmit={invite}><input type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="athlete@example.com" required /><button className="primary">{t("inviteAthlete")}</button></form>
       </div>
       {message && <div className="notice" role="status">{message}</div>}
+      <section className="team-summary">
+        <div><span className="eyebrow">{t("team")}</span><h3>{t("teamReady")}</h3><p>{t("teamDescription")}</p></div>
+        <strong>{athletes.filter((relationship) => relationship.is_active).length}<small>{t("activeAthletes")}</small></strong>
+      </section>
       <section className="athlete-grid">
         {athletes.map((relationship) => (
           <article className="athlete" key={relationship.id}>

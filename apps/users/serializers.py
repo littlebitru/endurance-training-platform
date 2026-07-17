@@ -27,6 +27,30 @@ class UserSerializer(serializers.ModelSerializer):
         fields = ("id", "username", "email", "first_name", "last_name", "role", "profile")
 
 
+class CoachSummarySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ("id", "username", "first_name", "last_name")
+
+
+class MeSerializer(UserSerializer):
+    coach = serializers.SerializerMethodField()
+
+    class Meta(UserSerializer.Meta):
+        fields = (*UserSerializer.Meta.fields, "coach")
+
+    def get_coach(self, user):
+        if user.role != User.Role.ATHLETE:
+            return None
+        try:
+            relationship = user.coach_relationship
+        except CoachingRelationship.DoesNotExist:
+            return None
+        if not relationship.is_active:
+            return None
+        return CoachSummarySerializer(relationship.coach).data
+
+
 class RegisterSerializer(serializers.ModelSerializer):
     username = serializers.CharField(
         validators=[UniqueValidator(queryset=User.objects.all(), message="This username is already registered.")]
