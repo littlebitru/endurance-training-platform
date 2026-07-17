@@ -63,10 +63,14 @@ class TrainingPlanViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):
             return self.queryset
-        return accessible_plans(self.request.user).select_related("coach", "athlete").prefetch_related(
-            "weeks__workouts__exercises",
-            "weeks__workouts__log",
-            Prefetch("weeks__workouts__coach_comments", queryset=CoachComment.objects.select_related("coach")),
+        return (
+            accessible_plans(self.request.user)
+            .select_related("coach", "athlete")
+            .prefetch_related(
+                "weeks__workouts__exercises",
+                "weeks__workouts__log",
+                Prefetch("weeks__workouts__coach_comments", queryset=CoachComment.objects.select_related("coach")),
+            )
         )
 
     def perform_create(self, serializer):
