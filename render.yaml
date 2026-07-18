@@ -44,7 +44,7 @@ services:
     name: endurance-staging-web
     runtime: static
     autoDeployTrigger: checksPass
-    buildCommand: cd frontend && npm install --global pnpm@11.9.0 && pnpm install --frozen-lockfile && pnpm build
+    buildCommand: cd frontend && npx --yes pnpm@11.9.0 install --frozen-lockfile && npx --yes pnpm@11.9.0 build
     staticPublishPath: ./frontend/dist
     envVars:
       - key: VITE_API_URL
