@@ -2,7 +2,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "./api";
 import { useAuth } from "./auth";
 import { localizeApiError, useLanguage } from "./i18n";
-import type { Relationship, TrainingPlan, TrainingZone, WeeklyPlan, Workout } from "./types";
+import type { AthleteThreshold, Relationship, TrainingPlan, TrainingZone, WeeklyPlan, Workout } from "./types";
 
 type Editor =
   | { kind: "plan" }
@@ -26,6 +26,22 @@ interface StepDraft {
   targetUnit: string;
   description: string;
 }
+
+interface ThresholdDraft {
+  thresholdHeartRate: string;
+  maximumHeartRate: string;
+  ftp: string;
+  thresholdPace: string;
+  css: string;
+}
+
+const EMPTY_THRESHOLD: ThresholdDraft = {
+  thresholdHeartRate: "",
+  maximumHeartRate: "",
+  ftp: "",
+  thresholdPace: "",
+  css: "",
+};
 
 let stepId = 0;
 
@@ -74,6 +90,29 @@ function dateKey(value: string | Date): string {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+function formatPaceSeconds(value: number | null): string {
+  if (!value) return "";
+  return `${Math.floor(value / 60)}:${String(value % 60).padStart(2, "0")}`;
+}
+
+function parsePaceValue(value: string): number | null {
+  if (!value.trim()) return null;
+  const match = value.trim().match(/^(\d{1,2}):(\d{2})$/);
+  if (!match || Number(match[2]) > 59) return Number.NaN;
+  return Number(match[1]) * 60 + Number(match[2]);
+}
+
+function thresholdDraftFrom(profile?: AthleteThreshold): ThresholdDraft {
+  if (!profile) return { ...EMPTY_THRESHOLD };
+  return {
+    thresholdHeartRate: profile.threshold_heart_rate ? String(profile.threshold_heart_rate) : "",
+    maximumHeartRate: profile.maximum_heart_rate ? String(profile.maximum_heart_rate) : "",
+    ftp: profile.functional_threshold_power ? String(profile.functional_threshold_power) : "",
+    thresholdPace: formatPaceSeconds(profile.threshold_pace_seconds_per_km),
+    css: formatPaceSeconds(profile.critical_swim_speed_seconds_per_100m),
+  };
 }
 
 function weekDays(startDate: string): Date[] {
@@ -130,7 +169,7 @@ function displayName(relationship: Relationship): string {
   return `${athlete.first_name} ${athlete.last_name}`.trim() || athlete.username;
 }
 
-function EditorPanel({
+export function EditorPanel({
   editor,
   relationships,
   onClose,
@@ -142,6 +181,10 @@ function EditorPanel({
   onSaved: (message: string) => Promise<void>;
 }) {
   const { t } = useLanguage();
+  const activeRelationships = relationships.filter((item) => item.is_active);
+  const initialPlanRelationship = editor.kind === "plan" && activeRelationships.length === 1
+    ? activeRelationships[0]
+    : undefined;
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [workoutSport, setWorkoutSport] = useState(editor.kind === "workout" ? editor.planSport : "");
@@ -149,6 +192,12 @@ function EditorPanel({
   const [steps, setSteps] = useState<StepDraft[]>([]);
   const [zones, setZones] = useState<TrainingZone[]>([]);
   const [zonesLoading, setZonesLoading] = useState(false);
+  const [planAthleteId, setPlanAthleteId] = useState(initialPlanRelationship ? String(initialPlanRelationship.athlete.id) : "");
+  const [planSport, setPlanSport] = useState(initialPlanRelationship?.athlete.profile?.sport || "");
+  const [planThreshold, setPlanThreshold] = useState<ThresholdDraft>({ ...EMPTY_THRESHOLD });
+  const [planZones, setPlanZones] = useState<TrainingZone[]>([]);
+  const [planProfileExists, setPlanProfileExists] = useState(false);
+  const [planProfileLoading, setPlanProfileLoading] = useState(false);
 
   useEffect(() => {
     if (editor.kind !== "workout" || !workoutSport) return;
@@ -165,6 +214,33 @@ function EditorPanel({
       .finally(() => { if (active) setZonesLoading(false); });
     return () => { active = false; };
   }, [editor, workoutSport]);
+
+  useEffect(() => {
+    if (editor.kind !== "plan" || !planAthleteId || !planSport) {
+      setPlanThreshold({ ...EMPTY_THRESHOLD });
+      setPlanZones([]);
+      setPlanProfileExists(false);
+      return;
+    }
+    let active = true;
+    setPlanProfileLoading(true);
+    api.thresholds(Number(planAthleteId))
+      .then((response) => {
+        if (!active) return;
+        const profile = response.results.find((item) => item.sport === planSport);
+        setPlanThreshold(thresholdDraftFrom(profile));
+        setPlanZones(profile?.zones ?? []);
+        setPlanProfileExists(Boolean(profile));
+      })
+      .catch(() => {
+        if (!active) return;
+        setPlanThreshold({ ...EMPTY_THRESHOLD });
+        setPlanZones([]);
+        setPlanProfileExists(false);
+      })
+      .finally(() => { if (active) setPlanProfileLoading(false); });
+    return () => { active = false; };
+  }, [editor, planAthleteId, planSport]);
 
   const titles = {
     plan: t("createPlan"),
@@ -274,6 +350,15 @@ function EditorPanel({
     return available.length ? available : [1, 2, 3, 4, 5];
   }
 
+  function updatePlanThreshold(field: keyof ThresholdDraft, value: string) {
+    setPlanThreshold((current) => ({ ...current, [field]: value }));
+  }
+
+  const planTargetMetric = planSport ? preferredTargetType(planSport, planZones) : "";
+  const planPreviewZones = planZones.filter(
+    (zone) => zone.metric === planTargetMetric && [2, 4].includes(zone.zone_number),
+  );
+
   const structuredDuration = Math.max(1, Math.ceil(steps.reduce((total, step) => {
     const repetitions = Number(step.repetitions) || 1;
     const workSeconds = (Number(step.durationMinutes) || 0) * 60 * repetitions;
@@ -296,7 +381,34 @@ function EditorPanel({
 
     try {
       if (editor.kind === "plan") {
-        await api.createPlan({ ...payload, is_active: true });
+        const thresholdPace = parsePaceValue(planThreshold.thresholdPace);
+        const css = parsePaceValue(planThreshold.css);
+        const profileComplete =
+          (planSport === "running" && Boolean(thresholdPace))
+          || (planSport === "cycling" && Boolean(planThreshold.ftp))
+          || (planSport === "swimming" && Boolean(css))
+          || (planSport === "triathlon" && Boolean(planThreshold.thresholdHeartRate || planThreshold.maximumHeartRate));
+        if (Number.isNaN(thresholdPace) || Number.isNaN(css)) {
+          setError(t("paceFormatError"));
+          setSubmitting(false);
+          return;
+        }
+        if (!profileComplete) {
+          setError(t("completeThresholdProfile"));
+          setSubmitting(false);
+          return;
+        }
+        await api.createPlan({
+          ...payload,
+          is_active: true,
+          threshold_profile: {
+            threshold_heart_rate: planThreshold.thresholdHeartRate ? Number(planThreshold.thresholdHeartRate) : null,
+            maximum_heart_rate: planThreshold.maximumHeartRate ? Number(planThreshold.maximumHeartRate) : null,
+            functional_threshold_power: planSport === "cycling" ? Number(planThreshold.ftp) : null,
+            threshold_pace_seconds_per_km: planSport === "running" ? thresholdPace : null,
+            critical_swim_speed_seconds_per_100m: planSport === "swimming" ? css : null,
+          },
+        });
         await onSaved(t("planCreated"));
       } else if (editor.kind === "week") {
         await api.createWeek({ ...payload, training_plan: editor.plan.id });
@@ -351,7 +463,7 @@ function EditorPanel({
     <div className="editor-backdrop" role="presentation" onMouseDown={(event) => {
       if (event.target === event.currentTarget) onClose();
     }}>
-      <section aria-labelledby="editor-title" aria-modal="true" className={`editor-panel ${editor.kind === "workout" ? "workout-builder-panel" : ""}`} role="dialog">
+      <section aria-labelledby="editor-title" aria-modal="true" className={`editor-panel ${editor.kind === "workout" ? "workout-builder-panel" : editor.kind === "plan" ? "plan-builder-panel" : ""}`} role="dialog">
         <div className="editor-head">
           <div><span className="eyebrow">{t("trainingWorkspace")}</span><h2 id="editor-title">{titles[editor.kind]}</h2></div>
           <button aria-label={t("close")} className="icon-button" onClick={onClose} type="button">×</button>
@@ -360,24 +472,62 @@ function EditorPanel({
         <form className="editor-form" onSubmit={submit}>
           {editor.kind === "plan" && (
             <>
-              <label>{t("selectAthlete")}<select name="athlete" required defaultValue=""><option value="" disabled>{t("selectAthlete")}</option>{relationships.filter((item) => item.is_active).map((item) => <option key={item.id} value={item.athlete.id}>{displayName(item)}</option>)}</select></label>
-              <fieldset className="builder-fieldset">
-                <legend>{t("primarySport")}</legend>
+              <div className="plan-wizard-progress" aria-label={t("planSetupProgress")}>
+                <span className={planAthleteId ? "complete" : "active"}><b>1</b>{t("athleteAndSport")}</span>
+                <i />
+                <span className={planAthleteId && planSport ? "active" : ""}><b>2</b>{t("personalIntensity")}</span>
+                <i />
+                <span><b>3</b>{t("planGoalAndDates")}</span>
+              </div>
+
+              <fieldset className="builder-fieldset plan-builder-section">
+                <legend><b>1</b>{t("athleteAndSport")}</legend>
+                <label>{t("selectAthlete")}<select name="athlete" onChange={(event) => {
+                  const athleteId = event.target.value;
+                  const relationship = activeRelationships.find((item) => String(item.athlete.id) === athleteId);
+                  setPlanAthleteId(athleteId);
+                  setPlanSport(relationship?.athlete.profile?.sport || "");
+                }} required value={planAthleteId}><option value="" disabled>{t("selectAthlete")}</option>{activeRelationships.map((item) => <option key={item.id} value={item.athlete.id}>{displayName(item)}</option>)}</select></label>
+                <span className="fieldset-label">{t("primarySport")}</span>
                 <div className="sport-choice-grid">
                   {SPORT_IDS.map((sport) => (
-                    <label className={sport} key={sport}>
-                      <input name="primary_sport" required type="radio" value={sport} />
+                    <label className={`${sport} ${planSport === sport ? "selected" : ""}`} key={sport}>
+                      <input checked={planSport === sport} name="primary_sport" onChange={() => setPlanSport(sport)} required type="radio" value={sport} />
                       <i>{SPORT_MARKS[sport]}</i><span><strong>{t(`sport${sport[0].toUpperCase()}${sport.slice(1)}` as "sportRunning")}</strong><small>{t("selectPlanSportHelp")}</small></span>
                     </label>
                   ))}
                 </div>
               </fieldset>
-              <label>{t("planTitle")}<input name="title" required /></label>
-              <label className="wide">{t("planObjective")}<textarea name="description" rows={3} placeholder={t("planObjectivePlaceholder")} /></label>
-              <div className="form-grid">
-                <label>{t("startDate")}<input name="start_date" type="date" defaultValue={dateOffset(0)} required /></label>
-                <label>{t("endDate")}<input name="end_date" type="date" defaultValue={dateOffset(42)} required /></label>
-              </div>
+
+              {planAthleteId && planSport && (
+                <fieldset className="builder-fieldset plan-builder-section intensity-profile-section">
+                  <legend><b>2</b>{t("personalIntensity")}</legend>
+                  <div className={`auto-profile-status ${planProfileExists ? "connected" : "new"}`}>
+                    <span>{planProfileLoading ? "…" : planProfileExists ? "✓" : "AUTO"}</span>
+                    <div><strong>{planProfileExists ? t("existingProfileLoaded") : t("newProfileRequired")}</strong><p>{planProfileExists ? t("existingProfileLoadedText") : t("newProfileRequiredText")}</p></div>
+                  </div>
+                  <div className="threshold-form-grid compact-threshold-grid">
+                    <label>{t("thresholdHeartRate")}<input max="240" min="80" onChange={(event) => updatePlanThreshold("thresholdHeartRate", event.target.value)} placeholder="172" type="number" value={planThreshold.thresholdHeartRate} /><small>{t("thresholdHeartRateHelp")}</small></label>
+                    <label>{t("maximumHeartRate")}<input max="240" min="100" onChange={(event) => updatePlanThreshold("maximumHeartRate", event.target.value)} placeholder="190" type="number" value={planThreshold.maximumHeartRate} /><small>{t("maximumHeartRateHelp")}</small></label>
+                    {planSport === "cycling" && <label>{t("functionalThresholdPower")}<input max="1000" min="50" onChange={(event) => updatePlanThreshold("ftp", event.target.value)} placeholder="250" required type="number" value={planThreshold.ftp} /><small>{t("functionalThresholdPowerHelp")}</small></label>}
+                    {planSport === "running" && <label>{t("thresholdRunningPace")}<input onChange={(event) => updatePlanThreshold("thresholdPace", event.target.value)} pattern="[0-9]{1,2}:[0-9]{2}" placeholder="4:20" required value={planThreshold.thresholdPace} /><small>{t("thresholdRunningPaceHelp")}</small></label>}
+                    {planSport === "swimming" && <label>{t("criticalSwimSpeed")}<input onChange={(event) => updatePlanThreshold("css", event.target.value)} pattern="[0-9]{1,2}:[0-9]{2}" placeholder="1:40" required value={planThreshold.css} /><small>{t("criticalSwimSpeedHelp")}</small></label>}
+                  </div>
+                  {planSport === "triathlon" && <p className="discipline-note">{t("triathlonThresholdRequired")}</p>}
+                  {planPreviewZones.length > 0 && <div className="plan-zone-preview"><span>{t("currentAutomaticTargets")}</span>{planPreviewZones.map((zone) => <strong key={zone.id}>Z{zone.zone_number} · {zone.display_range}</strong>)}</div>}
+                  <p className="calculation-note">{t("planZonesCalculatedOnSave")}</p>
+                </fieldset>
+              )}
+
+              <fieldset className="builder-fieldset plan-builder-section">
+                <legend><b>3</b>{t("planGoalAndDates")}</legend>
+                <label>{t("planTitle")}<input name="title" required /></label>
+                <label className="wide">{t("planObjective")}<textarea name="description" rows={3} placeholder={t("planObjectivePlaceholder")} /></label>
+                <div className="form-grid">
+                  <label>{t("startDate")}<input name="start_date" type="date" defaultValue={dateOffset(0)} required /></label>
+                  <label>{t("endDate")}<input name="end_date" type="date" defaultValue={dateOffset(42)} required /></label>
+                </div>
+              </fieldset>
             </>
           )}
 

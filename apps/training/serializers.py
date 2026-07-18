@@ -136,6 +136,44 @@ class TrainingZoneSerializer(serializers.ModelSerializer):
         return attrs
 
 
+class ThresholdValuesSerializer(serializers.Serializer):
+    threshold_heart_rate = serializers.IntegerField(min_value=80, max_value=240, required=False, allow_null=True)
+    maximum_heart_rate = serializers.IntegerField(min_value=100, max_value=240, required=False, allow_null=True)
+    functional_threshold_power = serializers.IntegerField(min_value=50, max_value=1000, required=False, allow_null=True)
+    threshold_pace_seconds_per_km = serializers.IntegerField(
+        min_value=120, max_value=1200, required=False, allow_null=True
+    )
+    critical_swim_speed_seconds_per_100m = serializers.IntegerField(
+        min_value=45, max_value=600, required=False, allow_null=True
+    )
+
+
+def validate_threshold_values(values, sport):
+    if not any(values.values()):
+        raise serializers.ValidationError("Provide at least one threshold value.")
+    if (
+        values.get("threshold_heart_rate")
+        and values.get("maximum_heart_rate")
+        and values["maximum_heart_rate"] <= values["threshold_heart_rate"]
+    ):
+        raise serializers.ValidationError(
+            {"maximum_heart_rate": "Maximum heart rate must be above threshold heart rate."}
+        )
+    if values.get("threshold_pace_seconds_per_km") and values.get("critical_swim_speed_seconds_per_100m"):
+        raise serializers.ValidationError("Running threshold pace and swimming CSS cannot share one sport profile.")
+    if sport != Workout.Sport.CYCLING and values.get("functional_threshold_power"):
+        raise serializers.ValidationError({"functional_threshold_power": "FTP is available for the cycling profile."})
+    if sport != Workout.Sport.RUNNING and values.get("threshold_pace_seconds_per_km"):
+        raise serializers.ValidationError(
+            {"threshold_pace_seconds_per_km": "Threshold pace is available for the running profile."}
+        )
+    if sport != Workout.Sport.SWIMMING and values.get("critical_swim_speed_seconds_per_100m"):
+        raise serializers.ValidationError(
+            {"critical_swim_speed_seconds_per_100m": "CSS is available for the swimming profile."}
+        )
+    return values
+
+
 class AthleteThresholdSerializer(serializers.ModelSerializer):
     zones = serializers.SerializerMethodField()
     heart_rate_basis = serializers.SerializerMethodField()
@@ -165,31 +203,7 @@ class AthleteThresholdSerializer(serializers.ModelSerializer):
         )
         values = {field: attrs.get(field, getattr(self.instance, field, None)) for field in threshold_fields}
         sport = attrs.get("sport", getattr(self.instance, "sport", None))
-
-        if not any(values.values()):
-            raise serializers.ValidationError("Provide at least one threshold value.")
-        if (
-            values["threshold_heart_rate"]
-            and values["maximum_heart_rate"]
-            and values["maximum_heart_rate"] <= values["threshold_heart_rate"]
-        ):
-            raise serializers.ValidationError(
-                {"maximum_heart_rate": "Maximum heart rate must be above threshold heart rate."}
-            )
-        if values["threshold_pace_seconds_per_km"] and values["critical_swim_speed_seconds_per_100m"]:
-            raise serializers.ValidationError("Running threshold pace and swimming CSS cannot share one sport profile.")
-        if sport != Workout.Sport.CYCLING and values["functional_threshold_power"]:
-            raise serializers.ValidationError(
-                {"functional_threshold_power": "FTP is available for the cycling profile."}
-            )
-        if sport != Workout.Sport.RUNNING and values["threshold_pace_seconds_per_km"]:
-            raise serializers.ValidationError(
-                {"threshold_pace_seconds_per_km": "Threshold pace is available for the running profile."}
-            )
-        if sport != Workout.Sport.SWIMMING and values["critical_swim_speed_seconds_per_100m"]:
-            raise serializers.ValidationError(
-                {"critical_swim_speed_seconds_per_100m": "CSS is available for the swimming profile."}
-            )
+        validate_threshold_values(values, sport)
         return attrs
 
     @transaction.atomic
@@ -276,6 +290,7 @@ class WeeklyPlanSerializer(serializers.ModelSerializer):
 
 class TrainingPlanSerializer(serializers.ModelSerializer):
     weeks = WeeklyPlanSerializer(many=True, read_only=True)
+    threshold_profile = ThresholdValuesSerializer(write_only=True, required=False)
 
     class Meta:
         model = TrainingPlan
@@ -287,7 +302,35 @@ class TrainingPlanSerializer(serializers.ModelSerializer):
         end = attrs.get("end_date", getattr(self.instance, "end_date", None))
         if start and end and end < start:
             raise serializers.ValidationError({"end_date": "End date must not precede start date."})
+        threshold_profile = attrs.get("threshold_profile")
+        if threshold_profile is not None:
+            sport = attrs.get("primary_sport", getattr(self.instance, "primary_sport", None))
+            validate_threshold_values(threshold_profile, sport)
         return attrs
+
+    def _save_threshold_profile(self, plan, threshold_profile):
+        if threshold_profile is None:
+            return
+        threshold, _ = AthleteThreshold.objects.update_or_create(
+            athlete=plan.athlete,
+            sport=plan.primary_sport,
+            defaults=threshold_profile,
+        )
+        recalculate_training_zones(threshold)
+
+    @transaction.atomic
+    def create(self, validated_data):
+        threshold_profile = validated_data.pop("threshold_profile", None)
+        plan = super().create(validated_data)
+        self._save_threshold_profile(plan, threshold_profile)
+        return plan
+
+    @transaction.atomic
+    def update(self, instance, validated_data):
+        threshold_profile = validated_data.pop("threshold_profile", None)
+        plan = super().update(instance, validated_data)
+        self._save_threshold_profile(plan, threshold_profile)
+        return plan
 
 
 class CoachAnalyticsQuerySerializer(serializers.Serializer):

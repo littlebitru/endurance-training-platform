@@ -101,6 +101,8 @@ Coaches maintain one threshold profile per athlete and sport. Running profiles a
 
 Structured workouts store relative zone targets such as Z2 or Z4. API responses resolve those targets to the athlete's current real-world range, such as `145–158 bpm`, `4:08–4:18 /km`, or `228–263 W`. Updating a threshold therefore updates the resolved targets of existing workouts without rewriting the plan.
 
+Training-plan creation may include a `threshold_profile` object. The API creates or updates the athlete's matching sport profile, recalculates the zones, and creates the plan in one database transaction. The web plan wizard loads existing values automatically and requires the discipline-specific threshold when a profile is not configured yet.
+
 ### Athlete invitation flow
 
 1. A coach creates an invitation with `POST /api/v1/athlete-invitations/` and the athlete's email.

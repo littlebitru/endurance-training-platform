@@ -4,7 +4,16 @@ import pytest
 from django.urls import reverse
 from django.utils import timezone
 
-from apps.training.models import CoachComment, Exercise, TrainingPlan, WeeklyPlan, Workout, WorkoutLog
+from apps.training.models import (
+    AthleteThreshold,
+    CoachComment,
+    Exercise,
+    TrainingPlan,
+    TrainingZone,
+    WeeklyPlan,
+    Workout,
+    WorkoutLog,
+)
 from apps.users.models import Profile, User
 
 
@@ -24,6 +33,59 @@ def test_coach_can_create_plan_for_assigned_athlete(api_client, coach, athlete, 
 
     assert response.status_code == 201
     assert TrainingPlan.objects.filter(coach=coach, athlete=athlete, primary_sport="running").exists()
+
+
+@pytest.mark.django_db
+def test_plan_creation_atomically_configures_athlete_thresholds(api_client, coach, athlete, relationship):
+    api_client.force_authenticate(coach)
+
+    response = api_client.post(
+        reverse("training-plan-list"),
+        {
+            "athlete": athlete.id,
+            "title": "Personal marathon plan",
+            "primary_sport": "running",
+            "start_date": date.today(),
+            "end_date": date.today() + timedelta(weeks=12),
+            "threshold_profile": {
+                "threshold_heart_rate": 178,
+                "maximum_heart_rate": 193,
+                "threshold_pace_seconds_per_km": 255,
+            },
+        },
+        format="json",
+    )
+
+    assert response.status_code == 201
+    assert AthleteThreshold.objects.filter(
+        athlete=athlete,
+        sport="running",
+        threshold_heart_rate=178,
+        threshold_pace_seconds_per_km=255,
+    ).exists()
+    assert TrainingZone.objects.filter(athlete=athlete, sport="running", metric="heart_rate").count() == 5
+    assert TrainingZone.objects.filter(athlete=athlete, sport="running", metric="pace").count() == 5
+
+
+@pytest.mark.django_db
+def test_invalid_plan_threshold_profile_does_not_create_plan(api_client, coach, athlete, relationship):
+    api_client.force_authenticate(coach)
+
+    response = api_client.post(
+        reverse("training-plan-list"),
+        {
+            "athlete": athlete.id,
+            "title": "Invalid cycling plan",
+            "primary_sport": "cycling",
+            "start_date": date.today(),
+            "end_date": date.today() + timedelta(weeks=6),
+            "threshold_profile": {"threshold_pace_seconds_per_km": 255},
+        },
+        format="json",
+    )
+
+    assert response.status_code == 400
+    assert not TrainingPlan.objects.filter(title="Invalid cycling plan").exists()
 
 
 @pytest.mark.django_db
