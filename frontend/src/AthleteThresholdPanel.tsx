@@ -4,6 +4,7 @@ import { localizeApiError, useLanguage } from "./i18n";
 import type { AthleteThreshold, Relationship, TrainingZone } from "./types";
 
 const SPORTS = ["running", "cycling", "swimming", "triathlon"] as const;
+const today = new Date().toISOString().slice(0, 10);
 
 function athleteName(relationship: Relationship): string {
   const athlete = relationship.athlete;
@@ -31,7 +32,7 @@ export function AthleteThresholdPanel({
   relationship: Relationship;
   onClose: () => void;
 }) {
-  const { t } = useLanguage();
+  const { locale, t } = useLanguage();
   const profileSport = relationship.athlete.profile?.sport;
   const [sport, setSport] = useState<(typeof SPORTS)[number]>(
     SPORTS.includes(profileSport as (typeof SPORTS)[number]) ? profileSport as (typeof SPORTS)[number] : "running",
@@ -42,6 +43,9 @@ export function AthleteThresholdPanel({
   const [ftp, setFtp] = useState("");
   const [thresholdPace, setThresholdPace] = useState("");
   const [css, setCss] = useState("");
+  const [effectiveFrom, setEffectiveFrom] = useState(today);
+  const [source, setSource] = useState("manual");
+  const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
@@ -55,7 +59,9 @@ export function AthleteThresholdPanel({
       .finally(() => setLoading(false));
   }, [relationship.athlete.id, t]);
 
-  const current = thresholds.find((threshold) => threshold.sport === sport);
+  const sportHistory = thresholds.filter((threshold) => threshold.sport === sport);
+  const current = sportHistory.find((threshold) => threshold.is_current);
+  const selectedMeasurement = sportHistory.find((threshold) => threshold.effective_from === effectiveFrom);
 
   useEffect(() => {
     setThresholdHeartRate(current?.threshold_heart_rate ? String(current.threshold_heart_rate) : "");
@@ -63,6 +69,9 @@ export function AthleteThresholdPanel({
     setFtp(current?.functional_threshold_power ? String(current.functional_threshold_power) : "");
     setThresholdPace(formatSeconds(current?.threshold_pace_seconds_per_km ?? null));
     setCss(formatSeconds(current?.critical_swim_speed_seconds_per_100m ?? null));
+    setEffectiveFrom(current?.effective_from ?? today);
+    setSource(current?.source ?? "manual");
+    setNotes(current?.notes ?? "");
     setMessage("");
     setError("");
   }, [current, sport]);
@@ -90,16 +99,22 @@ export function AthleteThresholdPanel({
       sport,
       threshold_heart_rate: thresholdHeartRate ? Number(thresholdHeartRate) : null,
       maximum_heart_rate: maximumHeartRate ? Number(maximumHeartRate) : null,
+      effective_from: effectiveFrom,
+      source,
+      notes,
       functional_threshold_power: sport === "cycling" && ftp ? Number(ftp) : null,
       threshold_pace_seconds_per_km: sport === "running" ? paceSeconds : null,
       critical_swim_speed_seconds_per_100m: sport === "swimming" ? cssSeconds : null,
     };
 
     try {
-      const saved = current
-        ? await api.updateThreshold(current.id, payload)
-        : await api.createThreshold(payload);
-      setThresholds((items) => [...items.filter((item) => item.id !== saved.id), saved]);
+      if (selectedMeasurement) {
+        await api.updateThreshold(selectedMeasurement.id, payload);
+      } else {
+        await api.createThreshold(payload);
+      }
+      const refreshed = await api.thresholds(relationship.athlete.id);
+      setThresholds(refreshed.results);
       setMessage(t("zonesCalculated"));
     } catch (caught) {
       setError(localizeApiError((caught as Error).message, t));
@@ -119,6 +134,25 @@ export function AthleteThresholdPanel({
     pace: t("targetPace"),
     power: t("targetPower"),
   };
+  const sourceLabels: Record<string, string> = {
+    manual: t("sourceManual"),
+    field_test: t("sourceFieldTest"),
+    lab_test: t("sourceLabTest"),
+    device_import: t("sourceDeviceImport"),
+  };
+
+  function loadMeasurement(threshold: AthleteThreshold) {
+    setEffectiveFrom(threshold.effective_from);
+    setSource(threshold.source);
+    setNotes(threshold.notes);
+    setThresholdHeartRate(threshold.threshold_heart_rate ? String(threshold.threshold_heart_rate) : "");
+    setMaximumHeartRate(threshold.maximum_heart_rate ? String(threshold.maximum_heart_rate) : "");
+    setFtp(threshold.functional_threshold_power ? String(threshold.functional_threshold_power) : "");
+    setThresholdPace(formatSeconds(threshold.threshold_pace_seconds_per_km));
+    setCss(formatSeconds(threshold.critical_swim_speed_seconds_per_100m));
+    setMessage("");
+    setError("");
+  }
 
   return (
     <div className="editor-backdrop threshold-backdrop" role="presentation" onMouseDown={(event) => {
@@ -146,17 +180,34 @@ export function AthleteThresholdPanel({
         {loading ? <div className="training-loading">{t("loading")}</div> : (
           <form onSubmit={save}>
             <div className="threshold-form-grid">
+              <label>{t("thresholdEffectiveDate")}<input max={today} onChange={(event) => setEffectiveFrom(event.target.value)} required type="date" value={effectiveFrom} /><small>{t("thresholdEffectiveDateHelp")}</small></label>
+              <label>{t("thresholdSource")}<select onChange={(event) => setSource(event.target.value)} value={source}><option value="manual">{t("sourceManual")}</option><option value="field_test">{t("sourceFieldTest")}</option><option value="lab_test">{t("sourceLabTest")}</option><option value="device_import">{t("sourceDeviceImport")}</option></select><small>{t("thresholdSourceHelp")}</small></label>
               <label>{t("thresholdHeartRate")}<input max="240" min="80" onChange={(event) => setThresholdHeartRate(event.target.value)} placeholder="172" type="number" value={thresholdHeartRate} /><small>{t("thresholdHeartRateHelp")}</small></label>
               <label>{t("maximumHeartRate")}<input max="240" min="100" onChange={(event) => setMaximumHeartRate(event.target.value)} placeholder="190" type="number" value={maximumHeartRate} /><small>{t("maximumHeartRateHelp")}</small></label>
               {sport === "cycling" && <label>{t("functionalThresholdPower")}<input max="1000" min="50" onChange={(event) => setFtp(event.target.value)} placeholder="250" type="number" value={ftp} /><small>{t("functionalThresholdPowerHelp")}</small></label>}
               {sport === "running" && <label>{t("thresholdRunningPace")}<input onChange={(event) => setThresholdPace(event.target.value)} pattern="[0-9]{1,2}:[0-9]{2}" placeholder="4:20" value={thresholdPace} /><small>{t("thresholdRunningPaceHelp")}</small></label>}
               {sport === "swimming" && <label>{t("criticalSwimSpeed")}<input onChange={(event) => setCss(event.target.value)} pattern="[0-9]{1,2}:[0-9]{2}" placeholder="1:40" value={css} /><small>{t("criticalSwimSpeedHelp")}</small></label>}
             </div>
+            <label className="threshold-notes">{t("thresholdNotes")}<textarea onChange={(event) => setNotes(event.target.value)} rows={2} value={notes} /></label>
             {sport === "triathlon" && <p className="discipline-note">{t("triathlonThresholdHelp")}</p>}
             {error && <div className="error" role="alert">{error}</div>}
             {message && <div className="notice" role="status">{message}</div>}
             <div className="editor-actions"><button className="secondary" onClick={onClose} type="button">{t("cancel")}</button><button className="primary" disabled={saving} type="submit">{saving ? t("calculatingZones") : t("calculateZones")}</button></div>
           </form>
+        )}
+
+        {!loading && sportHistory.length > 0 && (
+          <section className="threshold-history">
+            <div><span className="eyebrow">{t("measurementHistory")}</span><h3>{t("thresholdHistory")}</h3></div>
+            <div className="threshold-history-list">
+              {sportHistory.map((threshold) => (
+                <button className={threshold.effective_from === effectiveFrom ? "active" : ""} key={threshold.id} onClick={() => loadMeasurement(threshold)} type="button">
+                  <strong>{new Intl.DateTimeFormat(locale, { dateStyle: "medium" }).format(new Date(`${threshold.effective_from}T00:00:00`))}</strong>
+                  <small>{sourceLabels[threshold.source] ?? threshold.source}{threshold.is_current ? ` · ${t("currentThreshold")}` : ""}</small>
+                </button>
+              ))}
+            </div>
+          </section>
         )}
 
         {!loading && (

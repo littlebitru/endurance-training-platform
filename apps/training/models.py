@@ -1,6 +1,7 @@
 from django.conf import settings
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
+from django.utils import timezone
 
 from apps.core.models import TimeStampedModel
 
@@ -28,12 +29,27 @@ class TrainingPlan(TimeStampedModel):
 
     class Meta:
         ordering = ("-start_date",)
+        indexes = [
+            models.Index(fields=("coach", "is_active", "start_date"), name="plan_coach_active_start_idx"),
+            models.Index(fields=("athlete", "is_active", "start_date"), name="plan_athlete_active_start_idx"),
+        ]
 
 
 class WeeklyPlan(TimeStampedModel):
+    class Phase(models.TextChoices):
+        BASE = "base", "Base"
+        BUILD = "build", "Build"
+        PEAK = "peak", "Peak"
+        TAPER = "taper", "Taper"
+        RECOVERY = "recovery", "Recovery"
+        RACE = "race", "Race"
+
     training_plan = models.ForeignKey(TrainingPlan, on_delete=models.CASCADE, related_name="weeks")
     week_number = models.PositiveSmallIntegerField(validators=[MinValueValidator(1)])
     start_date = models.DateField()
+    phase = models.CharField(max_length=16, choices=Phase.choices, blank=True)
+    planned_duration_minutes = models.PositiveIntegerField(null=True, blank=True)
+    is_recovery = models.BooleanField(default=False)
     notes = models.TextField(blank=True)
 
     class Meta:
@@ -75,6 +91,11 @@ class Workout(TimeStampedModel):
 
     class Meta:
         ordering = ("scheduled_at",)
+        indexes = [
+            models.Index(fields=("weekly_plan", "scheduled_at"), name="workout_week_scheduled_idx"),
+            models.Index(fields=("status", "scheduled_at"), name="workout_status_scheduled_idx"),
+            models.Index(fields=("sport", "scheduled_at"), name="workout_sport_scheduled_idx"),
+        ]
 
 
 class Exercise(TimeStampedModel):
@@ -142,12 +163,21 @@ class TrainingZone(TimeStampedModel):
 
 
 class AthleteThreshold(TimeStampedModel):
+    class Source(models.TextChoices):
+        MANUAL = "manual", "Manual"
+        FIELD_TEST = "field_test", "Field test"
+        LAB_TEST = "lab_test", "Lab test"
+        DEVICE_IMPORT = "device_import", "Device import"
+
     athlete = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name="training_thresholds",
     )
     sport = models.CharField(max_length=16, choices=SportType.choices)
+    effective_from = models.DateField(default=timezone.localdate)
+    source = models.CharField(max_length=20, choices=Source.choices, default=Source.MANUAL)
+    notes = models.TextField(blank=True)
     threshold_heart_rate = models.PositiveSmallIntegerField(
         null=True,
         blank=True,
@@ -175,8 +205,39 @@ class AthleteThreshold(TimeStampedModel):
     )
 
     class Meta:
-        ordering = ("athlete", "sport")
-        constraints = [models.UniqueConstraint(fields=("athlete", "sport"), name="unique_athlete_sport_threshold")]
+        ordering = ("athlete", "sport", "-effective_from", "-created_at")
+        constraints = [
+            models.UniqueConstraint(
+                fields=("athlete", "sport", "effective_from"),
+                name="unique_athlete_sport_threshold_date",
+            )
+        ]
+
+
+class WorkoutTemplate(TimeStampedModel):
+    coach = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="workout_templates",
+    )
+    title = models.CharField(max_length=200)
+    sport = models.CharField(max_length=16, choices=SportType.choices)
+    workout_type = models.CharField(max_length=16, choices=Workout.Type.choices, default=Workout.Type.ENDURANCE)
+    description = models.TextField(blank=True)
+    planned_duration_minutes = models.PositiveIntegerField(null=True, blank=True)
+    planned_distance_km = models.DecimalField(max_digits=7, decimal_places=2, null=True, blank=True)
+    intensity = models.CharField(max_length=100, blank=True)
+    structured_steps = models.JSONField(default=list, blank=True)
+
+    class Meta:
+        ordering = ("sport", "workout_type", "title")
+        constraints = [
+            models.UniqueConstraint(
+                fields=("coach", "sport", "title"),
+                name="unique_coach_sport_template_title",
+            )
+        ]
+        indexes = [models.Index(fields=("coach", "sport", "workout_type"), name="template_coach_sport_type_idx")]
 
 
 class CoachComment(TimeStampedModel):
@@ -200,3 +261,6 @@ class WorkoutLog(TimeStampedModel):
     actual_distance_km = models.DecimalField(max_digits=7, decimal_places=2, null=True, blank=True)
     perceived_exertion = models.PositiveSmallIntegerField(null=True, blank=True)
     notes = models.TextField(blank=True)
+
+    class Meta:
+        indexes = [models.Index(fields=("athlete", "completed_at"), name="log_athlete_completed_idx")]

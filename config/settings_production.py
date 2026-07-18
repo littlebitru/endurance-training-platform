@@ -7,8 +7,8 @@ from . import settings as base_settings
 from .settings import *  # noqa: F401,F403
 
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY")
-if not SECRET_KEY or len(SECRET_KEY) < 32:
-    raise ImproperlyConfigured("DJANGO_SECRET_KEY must contain at least 32 characters in production.")
+if not SECRET_KEY or len(SECRET_KEY) < 50:
+    raise ImproperlyConfigured("DJANGO_SECRET_KEY must contain at least 50 characters in production.")
 
 DEBUG = False
 ALLOWED_HOSTS = base_settings.ALLOWED_HOSTS.copy()
@@ -28,6 +28,7 @@ SECURE_HSTS_PRELOAD = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
 X_FRAME_OPTIONS = "DENY"
 CSRF_TRUSTED_ORIGINS = [origin.strip() for origin in os.getenv("CSRF_TRUSTED_ORIGINS", "").split(",") if origin]
+JWT_REFRESH_COOKIE_SAMESITE = os.getenv("JWT_REFRESH_COOKIE_SAMESITE", "None")
 
 EMAIL_BACKEND = os.getenv("EMAIL_BACKEND", "django.core.mail.backends.smtp.EmailBackend")
 EMAIL_HOST = os.getenv("EMAIL_HOST", "")

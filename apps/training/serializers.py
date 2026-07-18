@@ -2,6 +2,7 @@ from datetime import timedelta
 
 from django.db import transaction
 from django.utils import timezone
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from apps.users.models import User
@@ -15,8 +16,9 @@ from .models import (
     WeeklyPlan,
     Workout,
     WorkoutLog,
+    WorkoutTemplate,
 )
-from .zones import recalculate_training_zones
+from .zones import current_threshold, recalculate_training_zones
 
 
 def format_training_range(lower, upper, unit):
@@ -95,19 +97,23 @@ class ExerciseSerializer(TargetRangeValidationMixin, serializers.ModelSerializer
         cache[cache_key] = target
         return target
 
-    def get_resolved_target_min(self, exercise):
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_resolved_target_min(self, exercise) -> str | None:
         target = self._resolved_target(exercise)
         return target["min"] if target else None
 
-    def get_resolved_target_max(self, exercise):
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_resolved_target_max(self, exercise) -> str | None:
         target = self._resolved_target(exercise)
         return target["max"] if target else None
 
-    def get_resolved_target_unit(self, exercise):
+    @extend_schema_field(serializers.CharField())
+    def get_resolved_target_unit(self, exercise) -> str:
         target = self._resolved_target(exercise)
         return target["unit"] if target else ""
 
-    def get_resolved_target_label(self, exercise):
+    @extend_schema_field(serializers.CharField())
+    def get_resolved_target_label(self, exercise) -> str:
         target = self._resolved_target(exercise)
         return target["label"] if target else ""
 
@@ -125,7 +131,8 @@ class TrainingZoneSerializer(serializers.ModelSerializer):
         model = TrainingZone
         fields = "__all__"
 
-    def get_display_range(self, zone):
+    @extend_schema_field(serializers.CharField())
+    def get_display_range(self, zone) -> str:
         return format_training_range(zone.lower_bound, zone.upper_bound, zone.unit)
 
     def validate(self, attrs):
@@ -177,16 +184,30 @@ def validate_threshold_values(values, sport):
 class AthleteThresholdSerializer(serializers.ModelSerializer):
     zones = serializers.SerializerMethodField()
     heart_rate_basis = serializers.SerializerMethodField()
+    is_current = serializers.SerializerMethodField()
 
     class Meta:
         model = AthleteThreshold
         fields = "__all__"
 
-    def get_zones(self, threshold):
+    @extend_schema_field(TrainingZoneSerializer(many=True))
+    def get_zones(self, threshold) -> list[dict]:
+        if not self.get_is_current(threshold):
+            return []
         zones = TrainingZone.objects.filter(athlete=threshold.athlete, sport=threshold.sport)
         return TrainingZoneSerializer(zones, many=True).data
 
-    def get_heart_rate_basis(self, threshold):
+    @extend_schema_field(serializers.BooleanField())
+    def get_is_current(self, threshold) -> bool:
+        cache = self.context.setdefault("_current_thresholds", {})
+        key = (threshold.athlete_id, threshold.sport)
+        if key not in cache:
+            active = current_threshold(*key)
+            cache[key] = active.pk if active else None
+        return cache[key] == threshold.pk
+
+    @extend_schema_field(serializers.CharField())
+    def get_heart_rate_basis(self, threshold) -> str:
         if threshold.threshold_heart_rate:
             return "lthr"
         if threshold.maximum_heart_rate:
@@ -203,6 +224,9 @@ class AthleteThresholdSerializer(serializers.ModelSerializer):
         )
         values = {field: attrs.get(field, getattr(self.instance, field, None)) for field in threshold_fields}
         sport = attrs.get("sport", getattr(self.instance, "sport", None))
+        effective_from = attrs.get("effective_from", getattr(self.instance, "effective_from", timezone.localdate()))
+        if effective_from > timezone.localdate():
+            raise serializers.ValidationError({"effective_from": "Threshold dates cannot be in the future."})
         validate_threshold_values(values, sport)
         return attrs
 
@@ -267,6 +291,17 @@ class WorkoutSerializer(serializers.ModelSerializer):
             Exercise.objects.create(workout=workout, **step)
         return workout
 
+    @transaction.atomic
+    def update(self, instance, validated_data):
+        structured_steps = validated_data.pop("structured_steps", None)
+        workout = super().update(instance, validated_data)
+        if structured_steps is not None:
+            workout.exercises.all().delete()
+            for index, step in enumerate(structured_steps, start=1):
+                step.setdefault("order", index)
+                Exercise.objects.create(workout=workout, **step)
+        return workout
+
     def validate(self, attrs):
         week = attrs.get("weekly_plan", getattr(self.instance, "weekly_plan", None))
         scheduled_at = attrs.get("scheduled_at", getattr(self.instance, "scheduled_at", None))
@@ -286,6 +321,25 @@ class WeeklyPlanSerializer(serializers.ModelSerializer):
     class Meta:
         model = WeeklyPlan
         fields = "__all__"
+
+    def validate(self, attrs):
+        plan = attrs.get("training_plan", getattr(self.instance, "training_plan", None))
+        start_date = attrs.get("start_date", getattr(self.instance, "start_date", None))
+        if plan and start_date and not plan.start_date <= start_date <= plan.end_date:
+            raise serializers.ValidationError({"start_date": "The week must start within the training plan dates."})
+        return attrs
+
+
+class WorkoutTemplateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = WorkoutTemplate
+        fields = "__all__"
+        read_only_fields = ("coach",)
+
+    def validate_structured_steps(self, value):
+        validator = StructuredStepSerializer(data=value, many=True)
+        validator.is_valid(raise_exception=True)
+        return value
 
 
 class TrainingPlanSerializer(serializers.ModelSerializer):
@@ -314,6 +368,7 @@ class TrainingPlanSerializer(serializers.ModelSerializer):
         threshold, _ = AthleteThreshold.objects.update_or_create(
             athlete=plan.athlete,
             sport=plan.primary_sport,
+            effective_from=timezone.localdate(),
             defaults=threshold_profile,
         )
         recalculate_training_zones(threshold)
@@ -350,6 +405,80 @@ class CoachAnalyticsQuerySerializer(serializers.Serializer):
         return attrs
 
 
+class AnalyticsDateRangeSerializer(serializers.Serializer):
+    date_from = serializers.DateField(required=False)
+    date_to = serializers.DateField(required=False)
+
+    def validate(self, attrs):
+        if attrs.get("date_from") and attrs.get("date_to") and attrs["date_to"] < attrs["date_from"]:
+            raise serializers.ValidationError({"date_to": "Date to must not precede date from."})
+        return attrs
+
+
+class PeriodizedPlanSerializer(serializers.Serializer):
+    athlete = serializers.PrimaryKeyRelatedField(queryset=User.objects.filter(role=User.Role.ATHLETE))
+    title = serializers.CharField(max_length=200)
+    primary_sport = serializers.ChoiceField(choices=Workout.Sport.choices)
+    start_date = serializers.DateField()
+    event_date = serializers.DateField()
+    event_name = serializers.CharField(max_length=200)
+    weekly_minutes = serializers.IntegerField(min_value=120, max_value=1800)
+    available_days = serializers.ListField(
+        child=serializers.IntegerField(min_value=0, max_value=6),
+        allow_empty=False,
+        min_length=3,
+        max_length=7,
+    )
+    recovery_every = serializers.ChoiceField(choices=(3, 4), default=4)
+    taper_weeks = serializers.IntegerField(min_value=1, max_value=3, default=2)
+    experience_level = serializers.ChoiceField(
+        choices=("beginner", "intermediate", "advanced"),
+        default="intermediate",
+    )
+    threshold_profile = ThresholdValuesSerializer(required=False)
+
+    def validate_available_days(self, value):
+        if len(value) != len(set(value)):
+            raise serializers.ValidationError("Training days must be unique.")
+        return sorted(value)
+
+    def validate(self, attrs):
+        if attrs["start_date"] < timezone.localdate():
+            raise serializers.ValidationError({"start_date": "Start date cannot be in the past."})
+        if attrs["event_date"] < attrs["start_date"] + timedelta(weeks=6):
+            raise serializers.ValidationError({"event_date": "Allow at least six weeks before the target event."})
+        if attrs["event_date"] > attrs["start_date"] + timedelta(weeks=52):
+            raise serializers.ValidationError({"event_date": "Plans cannot exceed 52 weeks."})
+        if attrs["taper_weeks"] + 3 >= (attrs["event_date"] - attrs["start_date"]).days // 7:
+            raise serializers.ValidationError({"taper_weeks": "The taper is too long for the selected plan dates."})
+        threshold_profile = attrs.get("threshold_profile")
+        if threshold_profile is not None:
+            validate_threshold_values(threshold_profile, attrs["primary_sport"])
+        return attrs
+
+
+class WorkoutDuplicateSerializer(serializers.Serializer):
+    scheduled_at = serializers.DateTimeField()
+    weekly_plan = serializers.PrimaryKeyRelatedField(queryset=WeeklyPlan.objects.all(), required=False)
+
+
+class WeekDuplicateSerializer(serializers.Serializer):
+    start_date = serializers.DateField()
+    week_number = serializers.IntegerField(min_value=1)
+
+
+class WeeklyAnalyticsSerializer(serializers.Serializer):
+    week_start = serializers.DateField()
+    total_workouts = serializers.IntegerField()
+    completed_workouts = serializers.IntegerField()
+    completion_rate = serializers.FloatField()
+    planned_duration_minutes = serializers.DecimalField(max_digits=12, decimal_places=2)
+    actual_duration_minutes = serializers.DecimalField(max_digits=12, decimal_places=2)
+    planned_distance_km = serializers.DecimalField(max_digits=12, decimal_places=2)
+    actual_distance_km = serializers.DecimalField(max_digits=12, decimal_places=2)
+    session_load = serializers.DecimalField(max_digits=14, decimal_places=2)
+
+
 class CoachAnalyticsSummarySerializer(serializers.Serializer):
     total_workouts = serializers.IntegerField()
     completed_workouts = serializers.IntegerField()
@@ -360,3 +489,4 @@ class CoachAnalyticsSummarySerializer(serializers.Serializer):
     planned_distance_km = serializers.DecimalField(max_digits=12, decimal_places=2)
     actual_distance_km = serializers.DecimalField(max_digits=12, decimal_places=2)
     average_perceived_exertion = serializers.FloatField(allow_null=True)
+    weekly = WeeklyAnalyticsSerializer(many=True)

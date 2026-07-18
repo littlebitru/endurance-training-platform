@@ -1,4 +1,5 @@
 import pytest
+from django.conf import settings
 from django.contrib.auth.tokens import default_token_generator
 from django.core import mail
 from django.urls import reverse
@@ -56,7 +57,58 @@ def test_user_can_obtain_jwt(api_client, athlete):
     )
 
     assert response.status_code == 200
-    assert {"access", "refresh"} <= response.data.keys()
+    assert set(response.data) == {"access"}
+    refresh_cookie = response.cookies[settings.JWT_REFRESH_COOKIE_NAME]
+    assert refresh_cookie.value
+    assert refresh_cookie["httponly"]
+    assert refresh_cookie["secure"]
+    assert refresh_cookie["samesite"] == settings.JWT_REFRESH_COOKIE_SAMESITE
+
+
+@pytest.mark.django_db
+def test_login_rejects_unknown_browser_origin(api_client, athlete):
+    response = api_client.post(
+        reverse("token-obtain-pair"),
+        {"username": athlete.username, "password": "StrongPass123!"},
+        HTTP_ORIGIN="https://attacker.example",
+    )
+
+    assert response.status_code == 400
+
+
+@pytest.mark.django_db
+def test_browser_can_rotate_refresh_cookie_without_exposing_token(api_client, athlete):
+    login = api_client.post(
+        reverse("token-obtain-pair"),
+        {"username": athlete.username, "password": "StrongPass123!"},
+    )
+    original_refresh = login.cookies[settings.JWT_REFRESH_COOKIE_NAME].value
+    api_client.cookies[settings.JWT_REFRESH_COOKIE_NAME] = original_refresh
+
+    response = api_client.post(
+        reverse("token-refresh"),
+        {},
+        format="json",
+        HTTP_ORIGIN=settings.CORS_ALLOWED_ORIGINS[0],
+    )
+
+    assert response.status_code == 200
+    assert set(response.data) == {"access"}
+    assert response.cookies[settings.JWT_REFRESH_COOKIE_NAME].value != original_refresh
+
+
+@pytest.mark.django_db
+def test_refresh_cookie_rejects_unknown_browser_origin(api_client, athlete):
+    api_client.cookies[settings.JWT_REFRESH_COOKIE_NAME] = str(RefreshToken.for_user(athlete))
+
+    response = api_client.post(
+        reverse("token-refresh"),
+        {},
+        format="json",
+        HTTP_ORIGIN="https://attacker.example",
+    )
+
+    assert response.status_code == 400
 
 
 @pytest.mark.django_db

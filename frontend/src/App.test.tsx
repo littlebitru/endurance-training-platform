@@ -5,7 +5,10 @@ import { AuthProvider } from "./auth";
 import { LanguageProvider } from "./i18n";
 import App from "./App";
 
-beforeEach(() => localStorage.setItem("endurance_locale", "en"));
+beforeEach(() => {
+  localStorage.setItem("endurance_locale", "en");
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 401 })));
+});
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();

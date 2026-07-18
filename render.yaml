@@ -31,6 +31,8 @@ services:
         value: https://endurance-staging-web.onrender.com
       - key: CSRF_TRUSTED_ORIGINS
         value: https://endurance-staging-web.onrender.com
+      - key: JWT_REFRESH_COOKIE_SAMESITE
+        value: None
       - key: FRONTEND_URL
         value: https://endurance-staging-web.onrender.com
       - key: DEFAULT_FROM_EMAIL
@@ -42,11 +44,27 @@ services:
     name: endurance-staging-web
     runtime: static
     autoDeployTrigger: checksPass
-    buildCommand: cd frontend && npm install --no-audit --no-fund && npm run build
+    buildCommand: cd frontend && npm install --global pnpm@11.9.0 && pnpm install --frozen-lockfile && pnpm build
     staticPublishPath: ./frontend/dist
     envVars:
       - key: VITE_API_URL
         value: https://endurance-staging-api.onrender.com/api/v1
+    headers:
+      - path: /*
+        name: Content-Security-Policy
+        value: "default-src 'self'; connect-src 'self' https://endurance-staging-api.onrender.com; img-src 'self' data:; style-src 'self' 'unsafe-inline'; font-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'"
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: Referrer-Policy
+        value: strict-origin-when-cross-origin
+      - path: /*
+        name: Permissions-Policy
+        value: camera=(), microphone=(), geolocation=()
     routes:
       - type: rewrite
         source: /*

@@ -1,14 +1,16 @@
 from django.db import transaction
 from django.db.models import Prefetch, Q
+from django.utils import timezone
 from drf_spectacular.utils import extend_schema
-from rest_framework import serializers, viewsets
+from rest_framework import serializers, status, viewsets
+from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.users.models import CoachingRelationship, User
-from apps.users.permissions import IsCoach
+from apps.users.permissions import IsAthlete, IsCoach
 
-from .analytics import build_coach_summary
+from .analytics import build_athlete_summary, build_coach_summary
 from .models import (
     AthleteThreshold,
     CoachComment,
@@ -18,20 +20,28 @@ from .models import (
     WeeklyPlan,
     Workout,
     WorkoutLog,
+    WorkoutTemplate,
 )
 from .permissions import AthleteWriteCoachRead, CoachWriteAthleteReadOnly
+from .plan_generation import generate_periodized_plan
 from .serializers import (
+    AnalyticsDateRangeSerializer,
     AthleteThresholdSerializer,
     CoachAnalyticsQuerySerializer,
     CoachAnalyticsSummarySerializer,
     CoachCommentSerializer,
     ExerciseSerializer,
+    PeriodizedPlanSerializer,
     TrainingPlanSerializer,
     TrainingZoneSerializer,
+    WeekDuplicateSerializer,
     WeeklyPlanSerializer,
+    WorkoutDuplicateSerializer,
     WorkoutLogSerializer,
     WorkoutSerializer,
+    WorkoutTemplateSerializer,
 )
+from .zones import current_threshold, recalculate_training_zones
 
 
 class CoachAnalyticsSummaryView(APIView):
@@ -53,6 +63,21 @@ class CoachAnalyticsSummaryView(APIView):
             raise serializers.ValidationError({"athlete_id": "The athlete is not assigned to this coach."})
 
         summary = build_coach_summary(coach=request.user, **query.validated_data)
+        return Response(CoachAnalyticsSummarySerializer(summary).data)
+
+
+class AthleteAnalyticsSummaryView(APIView):
+    permission_classes = (IsAthlete,)
+
+    @extend_schema(
+        parameters=[AnalyticsDateRangeSerializer],
+        responses=CoachAnalyticsSummarySerializer,
+        summary="Get athlete training analytics",
+    )
+    def get(self, request):
+        query = AnalyticsDateRangeSerializer(data=request.query_params)
+        query.is_valid(raise_exception=True)
+        summary = build_athlete_summary(athlete=request.user, **query.validated_data)
         return Response(CoachAnalyticsSummarySerializer(summary).data)
 
 
@@ -94,6 +119,35 @@ class TrainingPlanViewSet(viewsets.ModelViewSet):
         if not CoachingRelationship.objects.filter(coach=self.request.user, athlete=athlete, is_active=True).exists():
             raise serializers.ValidationError({"athlete": "The athlete is not assigned to this coach."})
         serializer.save(coach=self.request.user)
+
+    @extend_schema(
+        request=PeriodizedPlanSerializer,
+        responses={status.HTTP_201_CREATED: TrainingPlanSerializer},
+        summary="Generate a periodized training plan",
+    )
+    @action(detail=False, methods=("post",), url_path="generate")
+    @transaction.atomic
+    def generate(self, request):
+        serializer = PeriodizedPlanSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        athlete = data["athlete"]
+        if not CoachingRelationship.objects.filter(coach=request.user, athlete=athlete, is_active=True).exists():
+            raise serializers.ValidationError({"athlete": "The athlete is not assigned to this coach."})
+
+        threshold_profile = data.pop("threshold_profile", None)
+        if threshold_profile is not None:
+            threshold, _ = AthleteThreshold.objects.update_or_create(
+                athlete=athlete,
+                sport=data["primary_sport"],
+                effective_from=timezone.localdate(),
+                defaults=threshold_profile,
+            )
+            recalculate_training_zones(threshold)
+        plan = generate_periodized_plan(coach=request.user, **data)
+        queryset = self.get_queryset()
+        plan = queryset.get(pk=plan.pk)
+        return Response(self.get_serializer(plan).data, status=status.HTTP_201_CREATED)
 
 
 class TrainingZoneViewSet(viewsets.ModelViewSet):
@@ -165,8 +219,14 @@ class AthleteThresholdViewSet(viewsets.ModelViewSet):
 
     @transaction.atomic
     def perform_destroy(self, instance):
-        TrainingZone.objects.filter(athlete=instance.athlete, sport=instance.sport).delete()
+        athlete = instance.athlete
+        sport = instance.sport
         instance.delete()
+        replacement = current_threshold(athlete.id, sport)
+        if replacement:
+            recalculate_training_zones(replacement)
+        else:
+            TrainingZone.objects.filter(athlete=athlete, sport=sport).delete()
 
 
 class RelatedPlanViewSet(viewsets.ModelViewSet):
@@ -205,6 +265,36 @@ class WeeklyPlanViewSet(RelatedPlanViewSet):
         self.validate_coach_ownership(plan, "training_plan")
         serializer.save()
 
+    @extend_schema(
+        request=WeekDuplicateSerializer,
+        responses={status.HTTP_201_CREATED: WeeklyPlanSerializer},
+        summary="Duplicate a training week",
+    )
+    @action(detail=True, methods=("post",), url_path="duplicate")
+    @transaction.atomic
+    def duplicate(self, request, pk=None):
+        source = self.get_object()
+        input_serializer = WeekDuplicateSerializer(data=request.data)
+        input_serializer.is_valid(raise_exception=True)
+        target_data = input_serializer.validated_data
+        week_serializer = WeeklyPlanSerializer(
+            data={
+                "training_plan": source.training_plan_id,
+                "week_number": target_data["week_number"],
+                "start_date": target_data["start_date"],
+                "phase": source.phase,
+                "planned_duration_minutes": source.planned_duration_minutes,
+                "is_recovery": source.is_recovery,
+                "notes": source.notes,
+            }
+        )
+        week_serializer.is_valid(raise_exception=True)
+        target = week_serializer.save()
+        date_shift = target.start_date - source.start_date
+        for workout in source.workouts.prefetch_related("exercises"):
+            duplicate_workout(workout, target, workout.scheduled_at + date_shift)
+        return Response(WeeklyPlanSerializer(target).data, status=status.HTTP_201_CREATED)
+
 
 class WorkoutViewSet(RelatedPlanViewSet):
     queryset = Workout.objects.all()
@@ -226,6 +316,73 @@ class WorkoutViewSet(RelatedPlanViewSet):
         week = serializer.validated_data.get("weekly_plan", serializer.instance.weekly_plan)
         self.validate_coach_ownership(week.training_plan, "weekly_plan")
         serializer.save()
+
+    @extend_schema(
+        request=WorkoutDuplicateSerializer,
+        responses={status.HTTP_201_CREATED: WorkoutSerializer},
+        summary="Duplicate a workout",
+    )
+    @action(detail=True, methods=("post",), url_path="duplicate")
+    @transaction.atomic
+    def duplicate(self, request, pk=None):
+        source = self.get_object()
+        input_serializer = WorkoutDuplicateSerializer(data=request.data)
+        input_serializer.is_valid(raise_exception=True)
+        target_week = input_serializer.validated_data.get("weekly_plan", source.weekly_plan)
+        self.validate_coach_ownership(target_week.training_plan, "weekly_plan")
+        workout = duplicate_workout(source, target_week, input_serializer.validated_data["scheduled_at"])
+        return Response(WorkoutSerializer(workout).data, status=status.HTTP_201_CREATED)
+
+
+def duplicate_workout(source, target_week, scheduled_at):
+    data = {
+        "weekly_plan": target_week.id,
+        "title": source.title,
+        "sport": source.sport,
+        "workout_type": source.workout_type,
+        "scheduled_at": scheduled_at,
+        "planned_duration_minutes": source.planned_duration_minutes,
+        "planned_distance_km": source.planned_distance_km,
+        "intensity": source.intensity,
+        "status": Workout.Status.PLANNED,
+        "notes": source.notes,
+        "structured_steps": [
+            {
+                "name": step.name,
+                "step_type": step.step_type,
+                "order": step.order,
+                "description": step.description,
+                "repetitions": step.repetitions,
+                "duration_seconds": step.duration_seconds,
+                "distance_meters": step.distance_meters,
+                "recovery_seconds": step.recovery_seconds,
+                "target_type": step.target_type,
+                "target_min": step.target_min,
+                "target_max": step.target_max,
+                "target_unit": step.target_unit,
+            }
+            for step in source.exercises.all()
+        ],
+    }
+    serializer = WorkoutSerializer(data=data)
+    serializer.is_valid(raise_exception=True)
+    return serializer.save()
+
+
+class WorkoutTemplateViewSet(viewsets.ModelViewSet):
+    serializer_class = WorkoutTemplateSerializer
+    permission_classes = (IsCoach,)
+    filterset_fields = ("sport", "workout_type")
+    search_fields = ("title", "description")
+    ordering_fields = ("title", "sport", "workout_type", "created_at")
+
+    def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return WorkoutTemplate.objects.none()
+        return WorkoutTemplate.objects.filter(coach=self.request.user)
+
+    def perform_create(self, serializer):
+        serializer.save(coach=self.request.user)
 
 
 class ExerciseViewSet(RelatedPlanViewSet):
