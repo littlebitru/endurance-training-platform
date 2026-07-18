@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { Link, Navigate, NavLink, Route, Routes, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { api } from "./api";
+import { AthleteThresholdPanel } from "./AthleteThresholdPanel";
 import heroImage from "./assets/endurance-hero-v1.webp";
 import { useAuth } from "./auth";
 import { localizeApiError, useLanguage } from "./i18n";
@@ -397,6 +398,7 @@ function AthletesPage() {
   const [athletes, setAthletes] = useState<Relationship[]>([]);
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
+  const [selectedAthlete, setSelectedAthlete] = useState<Relationship | null>(null);
   useEffect(() => { if (user?.role === "coach") api.athletes().then((response) => setAthletes(response.results)); }, [user]);
   if (user?.role !== "coach") return <Navigate to="/" />;
   async function invite(event: FormEvent) {
@@ -422,10 +424,12 @@ function AthletesPage() {
             <span>{relationship.athlete.first_name?.[0] || relationship.athlete.username[0]}</span>
             <h3>{relationship.athlete.first_name ? `${relationship.athlete.first_name} ${relationship.athlete.last_name}` : relationship.athlete.username}</h3>
             <p>{relationship.athlete.profile?.sport || t("sportMissing")}</p>
+            <button className="secondary athlete-threshold-button" onClick={() => setSelectedAthlete(relationship)} type="button">{t("thresholdsAndZones")}</button>
           </article>
         ))}
       </section>
       {!athletes.length && <Empty text={t("noAthletes")} />}
+      {selectedAthlete && <AthleteThresholdPanel onClose={() => setSelectedAthlete(null)} relationship={selectedAthlete} />}
     </>
   );
 }

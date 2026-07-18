@@ -9,9 +9,19 @@ from apps.users.models import CoachingRelationship, User
 from apps.users.permissions import IsCoach
 
 from .analytics import build_coach_summary
-from .models import CoachComment, Exercise, TrainingPlan, TrainingZone, WeeklyPlan, Workout, WorkoutLog
+from .models import (
+    AthleteThreshold,
+    CoachComment,
+    Exercise,
+    TrainingPlan,
+    TrainingZone,
+    WeeklyPlan,
+    Workout,
+    WorkoutLog,
+)
 from .permissions import AthleteWriteCoachRead, CoachWriteAthleteReadOnly
 from .serializers import (
+    AthleteThresholdSerializer,
     CoachAnalyticsQuerySerializer,
     CoachAnalyticsSummarySerializer,
     CoachCommentSerializer,
@@ -97,7 +107,10 @@ class TrainingZoneViewSet(viewsets.ModelViewSet):
         if getattr(self, "swagger_fake_view", False):
             return self.queryset
         if self.request.user.role == User.Role.COACH:
-            return TrainingZone.objects.filter(athlete__coach_relationship__coach=self.request.user)
+            return TrainingZone.objects.filter(
+                athlete__coach_relationship__coach=self.request.user,
+                athlete__coach_relationship__is_active=True,
+            ).distinct()
         return TrainingZone.objects.filter(athlete=self.request.user)
 
     def _validate_athlete(self, athlete):
@@ -112,6 +125,48 @@ class TrainingZoneViewSet(viewsets.ModelViewSet):
         athlete = serializer.validated_data.get("athlete", serializer.instance.athlete)
         self._validate_athlete(athlete)
         serializer.save()
+
+
+class AthleteThresholdViewSet(viewsets.ModelViewSet):
+    queryset = AthleteThreshold.objects.none()
+    serializer_class = AthleteThresholdSerializer
+    permission_classes = (CoachWriteAthleteReadOnly,)
+    filterset_fields = ("athlete", "sport")
+    ordering_fields = ("athlete", "sport", "updated_at")
+
+    def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return self.queryset
+        if self.request.user.role == User.Role.COACH:
+            return AthleteThreshold.objects.filter(
+                athlete__coach_relationship__coach=self.request.user,
+                athlete__coach_relationship__is_active=True,
+            ).select_related("athlete")
+        return AthleteThreshold.objects.filter(athlete=self.request.user).select_related("athlete")
+
+    def _validate_athlete(self, athlete):
+        if athlete.role != User.Role.ATHLETE:
+            raise serializers.ValidationError({"athlete": "Thresholds can only be assigned to an athlete."})
+        if not CoachingRelationship.objects.filter(
+            coach=self.request.user,
+            athlete=athlete,
+            is_active=True,
+        ).exists():
+            raise serializers.ValidationError({"athlete": "The athlete is not assigned to this coach."})
+
+    def perform_create(self, serializer):
+        self._validate_athlete(serializer.validated_data["athlete"])
+        serializer.save()
+
+    def perform_update(self, serializer):
+        athlete = serializer.validated_data.get("athlete", serializer.instance.athlete)
+        self._validate_athlete(athlete)
+        serializer.save()
+
+    @transaction.atomic
+    def perform_destroy(self, instance):
+        TrainingZone.objects.filter(athlete=instance.athlete, sport=instance.sport).delete()
+        instance.delete()
 
 
 class RelatedPlanViewSet(viewsets.ModelViewSet):
@@ -174,7 +229,7 @@ class WorkoutViewSet(RelatedPlanViewSet):
 
 
 class ExerciseViewSet(RelatedPlanViewSet):
-    queryset = Exercise.objects.all()
+    queryset = Exercise.objects.select_related("workout__weekly_plan__training_plan")
     serializer_class = ExerciseSerializer
     plan_path = "workout__weekly_plan__training_plan"
     filterset_fields = ("workout",)

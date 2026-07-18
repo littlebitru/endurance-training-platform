@@ -2,12 +2,12 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "./api";
 import { useAuth } from "./auth";
 import { localizeApiError, useLanguage } from "./i18n";
-import type { Relationship, TrainingPlan, WeeklyPlan, Workout } from "./types";
+import type { Relationship, TrainingPlan, TrainingZone, WeeklyPlan, Workout } from "./types";
 
 type Editor =
   | { kind: "plan" }
   | { kind: "week"; plan: TrainingPlan }
-  | { kind: "workout"; week: WeeklyPlan; planSport: string; scheduledDate?: string }
+  | { kind: "workout"; week: WeeklyPlan; planSport: string; athleteId: number; scheduledDate?: string }
   | { kind: "exercise"; workout: Workout }
   | { kind: "comment"; workout: Workout }
   | { kind: "log"; workout: Workout };
@@ -100,6 +100,31 @@ const WORKOUT_TYPES_BY_SPORT: Record<string, string[]> = {
   triathlon: ["recovery", "endurance", "long", "tempo", "threshold", "intervals", "brick", "race", "strength"],
 };
 
+function preferredTargetType(sport: string, zones: TrainingZone[]): string {
+  const available = new Set(zones.map((zone) => zone.metric));
+  if (sport === "cycling") return available.has("power") ? "power" : available.has("heart_rate") ? "heart_rate" : "power";
+  if (sport === "running" || sport === "swimming") return available.has("pace") ? "pace" : available.has("heart_rate") ? "heart_rate" : "pace";
+  return "heart_rate";
+}
+
+function resolvedZoneRange(zones: TrainingZone[], metric: string, start: string, end: string): string {
+  const minimum = Number(start);
+  const maximum = Number(end || start);
+  const selected = zones.filter((zone) => zone.metric === metric && zone.zone_number >= minimum && zone.zone_number <= maximum);
+  if (!selected.length) return "";
+  const zoneLabel = minimum === maximum ? `Z${minimum}` : `Z${minimum}–Z${maximum}`;
+  if (selected.length === 1) return `${zoneLabel} · ${selected[0].display_range}`;
+  const values = selected.flatMap((zone) => [Number(zone.lower_bound), Number(zone.upper_bound)]);
+  const lower = Math.min(...values);
+  const upper = Math.max(...values);
+  const unit = selected[0].unit;
+  if (unit === "sec/km" || unit === "sec/100m") {
+    const format = (value: number) => `${Math.floor(value / 60)}:${String(Math.round(value) % 60).padStart(2, "0")}`;
+    return `${zoneLabel} · ${format(lower)}–${format(upper)} ${unit === "sec/km" ? "/km" : "/100m"}`;
+  }
+  return `${zoneLabel} · ${Math.round(lower)}–${Math.round(upper)} ${unit}`;
+}
+
 function displayName(relationship: Relationship): string {
   const athlete = relationship.athlete;
   return `${athlete.first_name} ${athlete.last_name}`.trim() || athlete.username;
@@ -122,6 +147,24 @@ function EditorPanel({
   const [workoutSport, setWorkoutSport] = useState(editor.kind === "workout" ? editor.planSport : "");
   const [workoutType, setWorkoutType] = useState("");
   const [steps, setSteps] = useState<StepDraft[]>([]);
+  const [zones, setZones] = useState<TrainingZone[]>([]);
+  const [zonesLoading, setZonesLoading] = useState(false);
+
+  useEffect(() => {
+    if (editor.kind !== "workout" || !workoutSport) return;
+    let active = true;
+    setZonesLoading(true);
+    api.trainingZones(editor.athleteId, workoutSport)
+      .then((response) => {
+        if (!active) return;
+        setZones(response.results);
+        const targetType = preferredTargetType(workoutSport, response.results);
+        setSteps((current) => current.map((step) => step.targetUnit === "zone" ? { ...step, targetType } : step));
+      })
+      .catch(() => { if (active) setZones([]); })
+      .finally(() => { if (active) setZonesLoading(false); });
+    return () => { active = false; };
+  }, [editor, workoutSport]);
 
   const titles = {
     plan: t("createPlan"),
@@ -147,7 +190,7 @@ function EditorPanel({
   };
 
   function makeTemplate(type: string, sport: string): StepDraft[] {
-    const targetType = sport === "cycling" ? "power" : sport === "triathlon" ? "heart_rate" : "pace";
+    const targetType = preferredTargetType(sport, zones);
     const zoneStep = (
       name: string,
       stepType: string,
@@ -214,6 +257,21 @@ function EditorPanel({
 
   function updateStep(id: number, field: keyof StepDraft, value: string) {
     setSteps((current) => current.map((step) => (step.id === id ? { ...step, [field]: value } : step)));
+  }
+
+  function updateTargetType(id: number, targetType: string) {
+    setSteps((current) => current.map((step) => {
+      if (step.id !== id) return step;
+      if (["heart_rate", "pace", "power"].includes(targetType)) {
+        return { ...step, targetType, targetMin: step.targetMin || "2", targetMax: step.targetMax || step.targetMin || "2", targetUnit: "zone" };
+      }
+      return { ...step, targetType, targetMin: targetType === "rpe" ? "5" : "", targetMax: targetType === "rpe" ? "5" : "", targetUnit: targetType === "rpe" ? "RPE" : "" };
+    }));
+  }
+
+  function zoneNumbers(targetType: string): number[] {
+    const available = zones.filter((zone) => zone.metric === targetType).map((zone) => zone.zone_number);
+    return available.length ? available : [1, 2, 3, 4, 5];
   }
 
   const structuredDuration = Math.max(1, Math.ceil(steps.reduce((total, step) => {
@@ -373,6 +431,10 @@ function EditorPanel({
               {workoutType && (
                 <fieldset className="builder-fieldset structure-builder">
                   <legend><b>3</b>{t("buildWorkoutStructure")}</legend>
+                  <div className={`personal-zone-banner ${zones.length ? "ready" : "missing"}`}>
+                    <span>{zonesLoading ? "…" : zones.length ? "✓" : "!"}</span>
+                    <div><strong>{zones.length ? t("personalZonesReady") : t("personalZonesMissing")}</strong><p>{zones.length ? t("personalZonesReadyText") : t("personalZonesMissingText")}</p></div>
+                  </div>
                   <div className="structure-summary">
                     <div><span>{t("calculatedDuration")}</span><strong>{structuredDuration} {t("minutes")}</strong></div>
                     <div><span>{t("structuredSteps")}</span><strong>{steps.length}</strong></div>
@@ -391,11 +453,11 @@ function EditorPanel({
                           <label>{t("repetitions")}<input min="1" onChange={(event) => updateStep(step.id, "repetitions", event.target.value)} type="number" value={step.repetitions} /></label>
                           <label>{t("stepDurationMinutes")}<input min="0.1" onChange={(event) => updateStep(step.id, "durationMinutes", event.target.value)} step="0.1" type="number" value={step.durationMinutes} /></label>
                           <label>{t("recoverySeconds")}<input min="0" onChange={(event) => updateStep(step.id, "recoverySeconds", event.target.value)} type="number" value={step.recoverySeconds} /></label>
-                          <label>{t("targetType")}<select onChange={(event) => updateStep(step.id, "targetType", event.target.value)} value={step.targetType}><option value="free">{t("targetFree")}</option><option value="heart_rate">{t("targetHeartRate")}</option><option value="pace">{t("targetPace")}</option><option value="power">{t("targetPower")}</option><option value="rpe">RPE</option></select></label>
-                          <label>{t("targetMin")}<input onChange={(event) => updateStep(step.id, "targetMin", event.target.value)} step="0.01" type="number" value={step.targetMin} /></label>
-                          <label>{t("targetMax")}<input onChange={(event) => updateStep(step.id, "targetMax", event.target.value)} step="0.01" type="number" value={step.targetMax} /></label>
-                          <label>{t("targetUnit")}<input onChange={(event) => updateStep(step.id, "targetUnit", event.target.value)} placeholder="zone / %FTP / bpm" value={step.targetUnit} /></label>
+                          <label>{t("targetType")}<select onChange={(event) => updateTargetType(step.id, event.target.value)} value={step.targetType}><option value="free">{t("targetFree")}</option><option value="heart_rate">{t("targetHeartRate")}</option><option value="pace">{t("targetPace")}</option><option value="power">{t("targetPower")}</option><option value="rpe">RPE</option></select></label>
+                          {["heart_rate", "pace", "power"].includes(step.targetType) && <><label>{t("targetZoneFrom")}<select onChange={(event) => updateStep(step.id, "targetMin", event.target.value)} value={step.targetMin}>{zoneNumbers(step.targetType).map((zone) => <option key={zone} value={zone}>Z{zone}</option>)}</select></label><label>{t("targetZoneTo")}<select onChange={(event) => updateStep(step.id, "targetMax", event.target.value)} value={step.targetMax}>{zoneNumbers(step.targetType).map((zone) => <option key={zone} value={zone}>Z{zone}</option>)}</select></label></>}
+                          {step.targetType === "rpe" && <><label>{t("targetMin")}<input max="10" min="1" onChange={(event) => updateStep(step.id, "targetMin", event.target.value)} type="number" value={step.targetMin} /></label><label>{t("targetMax")}<input max="10" min="1" onChange={(event) => updateStep(step.id, "targetMax", event.target.value)} type="number" value={step.targetMax} /></label></>}
                         </div>
+                        {["heart_rate", "pace", "power"].includes(step.targetType) && <div className={`automatic-step-target ${resolvedZoneRange(zones, step.targetType, step.targetMin, step.targetMax) ? "resolved" : "unresolved"}`}><span>{t("automaticTarget")}</span><strong>{resolvedZoneRange(zones, step.targetType, step.targetMin, step.targetMax) || t("thresholdRequired")}</strong></div>}
                         <label>{t("exerciseDescription")}<textarea onChange={(event) => updateStep(step.id, "description", event.target.value)} rows={2} value={step.description} /></label>
                       </article>
                     ))}
@@ -577,7 +639,7 @@ export function TrainingPlansPage() {
               <div className="week-block calendar-week" key={week.id}>
                 <div className="week-head">
                   <div><span className="eyebrow">{t("weeklyCalendar")}</span><h4>{t("week", { number: week.week_number })}</h4><small>{week.start_date}{week.notes ? ` · ${week.notes}` : ""}</small></div>
-                  {user?.role === "coach" && <button className="secondary compact" onClick={() => setEditor({ kind: "workout", week, planSport: plan.primary_sport, scheduledDate: week.start_date })} type="button">+ {t("addWorkout")}</button>}
+                  {user?.role === "coach" && <button className="secondary compact" onClick={() => setEditor({ kind: "workout", week, planSport: plan.primary_sport, athleteId: plan.athlete, scheduledDate: week.start_date })} type="button">+ {t("addWorkout")}</button>}
                 </div>
 
                 <div className="week-calendar">
@@ -587,7 +649,7 @@ export function TrainingPlansPage() {
                       <section className="calendar-day" key={dateKey(day)}>
                         <header>
                           <div><span>{day.toLocaleDateString(dateLocale, { weekday: "short" })}</span><strong>{day.getDate()}</strong></div>
-                          {user?.role === "coach" && <button aria-label={t("addWorkoutOnDate", { date: day.toLocaleDateString(dateLocale) })} onClick={() => setEditor({ kind: "workout", week, planSport: plan.primary_sport, scheduledDate: dateKey(day) })} type="button">+</button>}
+                          {user?.role === "coach" && <button aria-label={t("addWorkoutOnDate", { date: day.toLocaleDateString(dateLocale) })} onClick={() => setEditor({ kind: "workout", week, planSport: plan.primary_sport, athleteId: plan.athlete, scheduledDate: dateKey(day) })} type="button">+</button>}
                         </header>
                         <div className="day-workouts">
                           {dayWorkouts.map((workout) => (
@@ -624,7 +686,7 @@ export function TrainingPlansPage() {
                     <div className="detail-columns">
                       <section>
                         <div className="detail-title"><h5>{t("exercises")}</h5>{user?.role === "coach" && <button className="link-action" onClick={() => setEditor({ kind: "exercise", workout: selectedWorkout })} type="button">+ {t("addExercise")}</button>}</div>
-                        {selectedWorkout.exercises.length ? <ol className="exercise-list">{selectedWorkout.exercises.map((exercise) => <li className={exercise.step_type} key={exercise.id}><strong>{exercise.name}</strong><span>{exercise.description || t("exerciseDetails")}</span><small>{exercise.repetitions && exercise.repetitions > 1 ? `${exercise.repetitions}× · ` : ""}{exercise.duration_seconds ? `${exercise.duration_seconds} ${t("seconds")}` : ""}{exercise.distance_meters ? ` · ${exercise.distance_meters} m` : ""}{exercise.target_min ? ` · ${exercise.target_type} ${exercise.target_min}${exercise.target_max && exercise.target_max !== exercise.target_min ? `–${exercise.target_max}` : ""} ${exercise.target_unit}` : ""}{exercise.recovery_seconds ? ` · ${t("recovery")} ${exercise.recovery_seconds} ${t("seconds")}` : ""}</small></li>)}</ol> : <p className="muted">{t("noExercises")}</p>}
+                        {selectedWorkout.exercises.length ? <ol className="exercise-list">{selectedWorkout.exercises.map((exercise) => <li className={exercise.step_type} key={exercise.id}><strong>{exercise.name}</strong><span>{exercise.description || t("exerciseDetails")}</span><small>{exercise.repetitions && exercise.repetitions > 1 ? `${exercise.repetitions}× · ` : ""}{exercise.duration_seconds ? `${exercise.duration_seconds} ${t("seconds")}` : ""}{exercise.distance_meters ? ` · ${exercise.distance_meters} m` : ""}{exercise.resolved_target_label ? ` · ${exercise.resolved_target_label}` : exercise.target_min ? ` · ${exercise.target_type} ${exercise.target_min}${exercise.target_max && exercise.target_max !== exercise.target_min ? `–${exercise.target_max}` : ""} ${exercise.target_unit}` : ""}{exercise.recovery_seconds ? ` · ${t("recovery")} ${exercise.recovery_seconds} ${t("seconds")}` : ""}</small></li>)}</ol> : <p className="muted">{t("noExercises")}</p>}
                       </section>
                       <section>
                         <div className="detail-title"><h5>{t("coachComments")}</h5>{user?.role === "coach" && <button className="link-action" onClick={() => setEditor({ kind: "comment", workout: selectedWorkout })} type="button">+ {t("addComment")}</button>}</div>

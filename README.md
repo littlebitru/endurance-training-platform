@@ -12,7 +12,8 @@ The repository also includes a responsive React and TypeScript web application w
 - User profiles and coach–athlete assignments
 - Consent-based athlete invitations with expiration and revocation
 - Training plans, weekly plans, workouts, and exercises
-- Heart-rate, pace, and power zones with structured workout targets
+- Sport-specific athlete thresholds with automatically calculated heart-rate, pace, and power zones
+- Structured workout targets that dynamically follow the athlete's latest thresholds
 - Coach comments and athlete workout logs
 - Coach analytics with athlete and date-range filtering
 - Filtering, full-text-style search, ordering, and pagination
@@ -81,6 +82,7 @@ On Windows, activate the environment with `.venv\\Scripts\\activate`.
 | Accept invitation | `POST /api/v1/athlete-invitations/{token}/accept/` |
 | Assigned athletes | `/api/v1/athletes/` |
 | Training plans | `/api/v1/training-plans/` |
+| Athlete thresholds | `/api/v1/athlete-thresholds/` |
 | Training zones | `/api/v1/training-zones/` |
 | Weekly plans | `/api/v1/weekly-plans/` |
 | Workouts | `/api/v1/workouts/` |
@@ -92,6 +94,12 @@ On Windows, activate the environment with `.venv\\Scripts\\activate`.
 Collection endpoints accept `page`, `page_size`, `ordering`, and resource-specific filters. Search-enabled endpoints accept `search`. Discover the complete contract in Swagger or download `/api/schema/`.
 
 The analytics endpoint accepts optional `athlete_id`, `date_from`, and `date_to` query parameters. It returns planned and actual volume, completed and skipped workout counts, completion rate, and average perceived exertion. Access is restricted to coaches, and athlete filtering is limited to active coaching relationships.
+
+### Automatic training zones
+
+Coaches maintain one threshold profile per athlete and sport. Running profiles accept LTHR or maximum heart rate and threshold pace, cycling profiles accept heart-rate data and FTP, swimming profiles accept heart-rate data and CSS, and triathlon profiles provide general heart-rate targets. Saving a threshold profile atomically regenerates the matching training zones.
+
+Structured workouts store relative zone targets such as Z2 or Z4. API responses resolve those targets to the athlete's current real-world range, such as `145–158 bpm`, `4:08–4:18 /km`, or `228–263 W`. Updating a threshold therefore updates the resolved targets of existing workouts without rewriting the plan.
 
 ### Athlete invitation flow
 

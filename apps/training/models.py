@@ -1,5 +1,5 @@
 from django.conf import settings
-from django.core.validators import MinValueValidator
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 
 from apps.core.models import TimeStampedModel
@@ -14,7 +14,11 @@ class SportType(models.TextChoices):
 
 class TrainingPlan(TimeStampedModel):
     coach = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="created_plans")
-    athlete = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="training_plans")
+    athlete = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="training_plans",
+    )
     title = models.CharField(max_length=200)
     description = models.TextField(blank=True)
     primary_sport = models.CharField(max_length=16, choices=SportType.choices, default=SportType.RUNNING)
@@ -114,7 +118,11 @@ class TrainingZone(TimeStampedModel):
         PACE = "pace", "Pace"
         POWER = "power", "Power"
 
-    athlete = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="training_zones")
+    athlete = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="training_zones",
+    )
     sport = models.CharField(max_length=16, choices=Workout.Sport.choices)
     metric = models.CharField(max_length=16, choices=Metric.choices)
     zone_number = models.PositiveSmallIntegerField(validators=[MinValueValidator(1)])
@@ -127,14 +135,57 @@ class TrainingZone(TimeStampedModel):
         ordering = ("sport", "metric", "zone_number")
         constraints = [
             models.UniqueConstraint(
-                fields=("athlete", "sport", "metric", "zone_number"), name="unique_athlete_training_zone"
+                fields=("athlete", "sport", "metric", "zone_number"),
+                name="unique_athlete_training_zone",
             )
         ]
 
 
+class AthleteThreshold(TimeStampedModel):
+    athlete = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="training_thresholds",
+    )
+    sport = models.CharField(max_length=16, choices=SportType.choices)
+    threshold_heart_rate = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(80), MaxValueValidator(240)],
+    )
+    maximum_heart_rate = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(100), MaxValueValidator(240)],
+    )
+    functional_threshold_power = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(50), MaxValueValidator(1000)],
+    )
+    threshold_pace_seconds_per_km = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(120), MaxValueValidator(1200)],
+    )
+    critical_swim_speed_seconds_per_100m = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(45), MaxValueValidator(600)],
+    )
+
+    class Meta:
+        ordering = ("athlete", "sport")
+        constraints = [models.UniqueConstraint(fields=("athlete", "sport"), name="unique_athlete_sport_threshold")]
+
+
 class CoachComment(TimeStampedModel):
     workout = models.ForeignKey(Workout, on_delete=models.CASCADE, related_name="coach_comments")
-    coach = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="coach_comments")
+    coach = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="coach_comments",
+    )
     body = models.TextField()
 
     class Meta:

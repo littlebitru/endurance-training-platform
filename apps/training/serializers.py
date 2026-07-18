@@ -6,7 +6,32 @@ from rest_framework import serializers
 
 from apps.users.models import User
 
-from .models import CoachComment, Exercise, TrainingPlan, TrainingZone, WeeklyPlan, Workout, WorkoutLog
+from .models import (
+    AthleteThreshold,
+    CoachComment,
+    Exercise,
+    TrainingPlan,
+    TrainingZone,
+    WeeklyPlan,
+    Workout,
+    WorkoutLog,
+)
+from .zones import recalculate_training_zones
+
+
+def format_training_range(lower, upper, unit):
+    if unit in {"sec/km", "sec/100m"}:
+        formatted = []
+        for value in (lower, upper):
+            minutes, seconds = divmod(round(float(value)), 60)
+            formatted.append(f"{minutes}:{seconds:02d}")
+        suffix = "/km" if unit == "sec/km" else "/100m"
+        return f"{formatted[0]}–{formatted[1]} {suffix}"
+    return f"{float(lower):.0f}–{float(upper):.0f} {unit}"
+
+
+def plain_decimal(value):
+    return format(value, "f").rstrip("0").rstrip(".") if value % 1 else format(value, ".0f")
 
 
 class TargetRangeValidationMixin:
@@ -19,9 +44,72 @@ class TargetRangeValidationMixin:
 
 
 class ExerciseSerializer(TargetRangeValidationMixin, serializers.ModelSerializer):
+    resolved_target_min = serializers.SerializerMethodField()
+    resolved_target_max = serializers.SerializerMethodField()
+    resolved_target_unit = serializers.SerializerMethodField()
+    resolved_target_label = serializers.SerializerMethodField()
+
     class Meta:
         model = Exercise
         fields = "__all__"
+
+    def _resolved_target(self, exercise):
+        cache = self.context.setdefault("_resolved_exercise_targets", {})
+        cache_key = exercise.pk or id(exercise)
+        if cache_key in cache:
+            return cache[cache_key]
+
+        target = None
+        if exercise.target_unit == "zone" and exercise.target_min is not None:
+            start_zone = int(exercise.target_min)
+            end_zone = int(exercise.target_max or exercise.target_min)
+            if exercise.target_min == start_zone and (exercise.target_max is None or exercise.target_max == end_zone):
+                plan = exercise.workout.weekly_plan.training_plan
+                zone_cache = self.context.setdefault("_athlete_training_zones", {})
+                zone_key = (
+                    plan.athlete_id,
+                    exercise.workout.sport,
+                    exercise.target_type,
+                )
+                if zone_key not in zone_cache:
+                    zone_cache[zone_key] = list(
+                        TrainingZone.objects.filter(
+                            athlete_id=plan.athlete_id,
+                            sport=exercise.workout.sport,
+                            metric=exercise.target_type,
+                        ).order_by("zone_number")
+                    )
+                selected = [zone for zone in zone_cache[zone_key] if start_zone <= zone.zone_number <= end_zone]
+                if selected:
+                    lower = min(min(zone.lower_bound, zone.upper_bound) for zone in selected)
+                    upper = max(max(zone.lower_bound, zone.upper_bound) for zone in selected)
+                    unit = selected[0].unit
+                    zone_label = f"Z{start_zone}" if start_zone == end_zone else f"Z{start_zone}–Z{end_zone}"
+                    target = {
+                        "min": plain_decimal(lower),
+                        "max": plain_decimal(upper),
+                        "unit": unit,
+                        "label": f"{zone_label} · {format_training_range(lower, upper, unit)}",
+                    }
+
+        cache[cache_key] = target
+        return target
+
+    def get_resolved_target_min(self, exercise):
+        target = self._resolved_target(exercise)
+        return target["min"] if target else None
+
+    def get_resolved_target_max(self, exercise):
+        target = self._resolved_target(exercise)
+        return target["max"] if target else None
+
+    def get_resolved_target_unit(self, exercise):
+        target = self._resolved_target(exercise)
+        return target["unit"] if target else ""
+
+    def get_resolved_target_label(self, exercise):
+        target = self._resolved_target(exercise)
+        return target["label"] if target else ""
 
 
 class StructuredStepSerializer(TargetRangeValidationMixin, serializers.ModelSerializer):
@@ -31,9 +119,14 @@ class StructuredStepSerializer(TargetRangeValidationMixin, serializers.ModelSeri
 
 
 class TrainingZoneSerializer(serializers.ModelSerializer):
+    display_range = serializers.SerializerMethodField()
+
     class Meta:
         model = TrainingZone
         fields = "__all__"
+
+    def get_display_range(self, zone):
+        return format_training_range(zone.lower_bound, zone.upper_bound, zone.unit)
 
     def validate(self, attrs):
         lower = attrs.get("lower_bound", getattr(self.instance, "lower_bound", None))
@@ -43,12 +136,89 @@ class TrainingZoneSerializer(serializers.ModelSerializer):
         return attrs
 
 
+class AthleteThresholdSerializer(serializers.ModelSerializer):
+    zones = serializers.SerializerMethodField()
+    heart_rate_basis = serializers.SerializerMethodField()
+
+    class Meta:
+        model = AthleteThreshold
+        fields = "__all__"
+
+    def get_zones(self, threshold):
+        zones = TrainingZone.objects.filter(athlete=threshold.athlete, sport=threshold.sport)
+        return TrainingZoneSerializer(zones, many=True).data
+
+    def get_heart_rate_basis(self, threshold):
+        if threshold.threshold_heart_rate:
+            return "lthr"
+        if threshold.maximum_heart_rate:
+            return "max_hr"
+        return ""
+
+    def validate(self, attrs):
+        threshold_fields = (
+            "threshold_heart_rate",
+            "maximum_heart_rate",
+            "functional_threshold_power",
+            "threshold_pace_seconds_per_km",
+            "critical_swim_speed_seconds_per_100m",
+        )
+        values = {field: attrs.get(field, getattr(self.instance, field, None)) for field in threshold_fields}
+        sport = attrs.get("sport", getattr(self.instance, "sport", None))
+
+        if not any(values.values()):
+            raise serializers.ValidationError("Provide at least one threshold value.")
+        if (
+            values["threshold_heart_rate"]
+            and values["maximum_heart_rate"]
+            and values["maximum_heart_rate"] <= values["threshold_heart_rate"]
+        ):
+            raise serializers.ValidationError(
+                {"maximum_heart_rate": "Maximum heart rate must be above threshold heart rate."}
+            )
+        if values["threshold_pace_seconds_per_km"] and values["critical_swim_speed_seconds_per_100m"]:
+            raise serializers.ValidationError("Running threshold pace and swimming CSS cannot share one sport profile.")
+        if sport != Workout.Sport.CYCLING and values["functional_threshold_power"]:
+            raise serializers.ValidationError(
+                {"functional_threshold_power": "FTP is available for the cycling profile."}
+            )
+        if sport != Workout.Sport.RUNNING and values["threshold_pace_seconds_per_km"]:
+            raise serializers.ValidationError(
+                {"threshold_pace_seconds_per_km": "Threshold pace is available for the running profile."}
+            )
+        if sport != Workout.Sport.SWIMMING and values["critical_swim_speed_seconds_per_100m"]:
+            raise serializers.ValidationError(
+                {"critical_swim_speed_seconds_per_100m": "CSS is available for the swimming profile."}
+            )
+        return attrs
+
+    @transaction.atomic
+    def create(self, validated_data):
+        threshold = super().create(validated_data)
+        recalculate_training_zones(threshold)
+        return threshold
+
+    @transaction.atomic
+    def update(self, instance, validated_data):
+        threshold = super().update(instance, validated_data)
+        recalculate_training_zones(threshold)
+        return threshold
+
+
 class CoachCommentSerializer(serializers.ModelSerializer):
     coach_name = serializers.CharField(source="coach.get_full_name", read_only=True)
 
     class Meta:
         model = CoachComment
-        fields = ("id", "workout", "coach", "coach_name", "body", "created_at", "updated_at")
+        fields = (
+            "id",
+            "workout",
+            "coach",
+            "coach_name",
+            "body",
+            "created_at",
+            "updated_at",
+        )
         read_only_fields = ("coach",)
 
 

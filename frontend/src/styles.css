@@ -870,6 +870,59 @@ button, a, input, select { -webkit-tap-highlight-color: transparent; }
 .athlete:hover > span { box-shadow: 0 0 0 7px #d9eaa829; transform: translateY(-2px) rotate(-3deg); }
 .athlete h3 { margin: 18px 0 5px; font: 600 17px Manrope; }
 .athlete p, .athlete small { color: #7c8982; text-transform: capitalize; }
+.athlete-threshold-button { position: relative; z-index: 1; width: 100%; margin-top: 18px; }
+
+.threshold-panel { width: min(1080px, 100%); }
+.threshold-intro { display: grid; grid-template-columns: 58px 1fr; align-items: center; gap: 15px; padding: 16px 18px; border: 1px solid #cfe1d4; border-radius: 12px; background: linear-gradient(135deg, #edf7ef, #f8fbf5); }
+.threshold-intro > span { display: grid; place-items: center; width: 50px; height: 50px; border-radius: 14px; color: #fff; background: linear-gradient(145deg, #1e7058, #62a77a); font: 700 10px Manrope; letter-spacing: .08em; }
+.threshold-intro strong { color: #254b3d; font: 600 14px Manrope; }
+.threshold-intro p { margin: 4px 0 0; color: #64776e; font-size: 11px; line-height: 1.5; }
+.threshold-sports { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 16px 0; }
+.threshold-sports button { padding: 11px 13px; border: 1px solid #dce3dd; border-radius: 9px; color: #66746d; background: #fff; cursor: pointer; font: 600 11px Manrope; text-transform: capitalize; transition: .2s ease; }
+.threshold-sports button:hover, .threshold-sports button.active { border-color: #4f9778; color: #246448; background: #eaf5ed; box-shadow: 0 7px 18px #214d3b12; transform: translateY(-1px); }
+.threshold-sports button.cycling.active { border-color: #d99555; color: #955b29; background: #fff4e8; }
+.threshold-sports button.swimming.active { border-color: #64a9c8; color: #246a8c; background: #ebf7fc; }
+.threshold-sports button.triathlon.active { border-color: #927abe; color: #684a9d; background: #f3effa; }
+.threshold-form-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+.threshold-form-grid label { padding: 14px; border: 1px solid #e0e5df; border-radius: 10px; background: #fff; }
+.threshold-form-grid input { margin-top: 7px; }
+.threshold-form-grid small { display: block; margin-top: 6px; color: #86928c; font-size: 9px; font-weight: 400; line-height: 1.4; }
+.discipline-note { margin: 12px 0 0; padding: 12px 14px; border-left: 3px solid #8d75b6; color: #6f6879; background: #f5f1fa; font-size: 10px; line-height: 1.5; }
+.calculated-zones { display: grid; gap: 12px; margin-top: 20px; padding-top: 19px; border-top: 1px solid #e0e5df; }
+.zone-section-title { display: flex; align-items: end; justify-content: space-between; gap: 20px; }
+.zone-section-title h3 { margin: 5px 0 0; font: 600 17px Manrope; }
+.zone-section-title > small { max-width: 320px; color: #78867f; font-size: 9px; line-height: 1.4; text-align: right; }
+.zone-empty { padding: 25px; border: 1px dashed #ccd6ce; border-radius: 10px; color: #7f8d86; background: #fafcf9; text-align: center; font-size: 11px; }
+.zone-group { overflow: hidden; border: 1px solid #dfe5df; border-radius: 11px; background: #fff; }
+.zone-group > header { display: flex; align-items: center; justify-content: space-between; padding: 10px 13px; border-bottom: 1px solid #edf0ed; background: #f8faf7; }
+.zone-group > header strong { font: 600 12px Manrope; }
+.zone-group > header small { color: #7e8b84; font-size: 9px; }
+.zone-group > div { display: grid; grid-template-columns: repeat(7, minmax(90px, 1fr)); }
+.zone-group .zone { --zone-color: #83b8a0; display: grid; gap: 3px; min-height: 76px; padding: 12px; border-right: 1px solid #edf0ed; box-shadow: inset 0 3px var(--zone-color); }
+.zone-group .zone:last-child { border-right: 0; }
+.zone-group .zone.z1 { --zone-color: #82aac1; }
+.zone-group .zone.z2 { --zone-color: #65ae80; }
+.zone-group .zone.z3 { --zone-color: #c2b55a; }
+.zone-group .zone.z4 { --zone-color: #df8d4c; }
+.zone-group .zone.z5 { --zone-color: #d86354; }
+.zone-group .zone.z6 { --zone-color: #b85070; }
+.zone-group .zone.z7 { --zone-color: #7f4c91; }
+.zone-group .zone b { color: var(--zone-color); font: 700 10px Manrope; }
+.zone-group .zone strong { color: #34453d; font: 600 11px Manrope; white-space: nowrap; }
+.zone-group .zone small { overflow: hidden; color: #87928d; font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
+
+.personal-zone-banner { display: grid; grid-template-columns: 34px 1fr; align-items: center; gap: 11px; margin-bottom: 10px; padding: 11px 13px; border: 1px solid #ead3b5; border-radius: 9px; background: #fff8ed; }
+.personal-zone-banner > span { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; color: #fff; background: #d18a43; font-weight: 700; }
+.personal-zone-banner strong { color: #714a27; font: 600 11px Manrope; }
+.personal-zone-banner p { margin: 2px 0 0; color: #8d7257; font-size: 9px; line-height: 1.4; }
+.personal-zone-banner.ready { border-color: #c9dfcf; background: #edf7ef; }
+.personal-zone-banner.ready > span { background: #4d9970; }
+.personal-zone-banner.ready strong { color: #2e6348; }
+.personal-zone-banner.ready p { color: #688071; }
+.automatic-step-target { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 11px 11px; padding: 9px 11px; border-radius: 7px; color: #8a6c4b; background: #fff6e9; font-size: 9px; }
+.automatic-step-target span { font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
+.automatic-step-target strong { font: 600 11px Manrope; }
+.automatic-step-target.resolved { color: #386d55; background: #ecf6ef; }
 .empty { display: flex; flex-direction: column; align-items: center; gap: 14px; overflow: hidden; padding: 42px 50px; border: 1px dashed #ccd3cc; border-radius: 12px; color: #87928c; background: linear-gradient(145deg, #fff, #fbfdf9); text-align: center; }
 .empty::before { width: 34px; height: 34px; border: 2px solid #80b7a8; border-radius: 50%; box-shadow: 0 0 0 0 #80b7a829; content: ""; animation: emptyPulse 2.8s ease-in-out infinite; }
 
@@ -931,6 +984,7 @@ button, a, input, select { -webkit-tap-highlight-color: transparent; }
   .step-grid { grid-template-columns: repeat(3, 1fr); }
   .week-calendar { grid-template-columns: repeat(7, 145px); }
   .athlete-grid { grid-template-columns: 1fr 1fr; }
+  .zone-group > div { overflow-x: auto; grid-template-columns: repeat(7, minmax(120px, 1fr)); }
 }
 
 @media (max-width: 560px) {
@@ -968,4 +1022,8 @@ button, a, input, select { -webkit-tap-highlight-color: transparent; }
   .invite input { width: 100%; }
   .workout-row { gap: 10px; padding: 14px 12px; }
   .two { grid-template-columns: 1fr; }
+  .threshold-sports, .threshold-form-grid { grid-template-columns: 1fr 1fr; }
+  .threshold-panel { max-height: 95vh; }
+  .zone-section-title { align-items: flex-start; flex-direction: column; }
+  .zone-section-title > small { text-align: left; }
 }
