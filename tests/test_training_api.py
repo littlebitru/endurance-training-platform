@@ -16,13 +16,14 @@ def test_coach_can_create_plan_for_assigned_athlete(api_client, coach, athlete, 
         {
             "athlete": athlete.id,
             "title": "Marathon preparation",
+            "primary_sport": "running",
             "start_date": date.today(),
             "end_date": date.today() + timedelta(weeks=12),
         },
     )
 
     assert response.status_code == 201
-    assert TrainingPlan.objects.filter(coach=coach, athlete=athlete).exists()
+    assert TrainingPlan.objects.filter(coach=coach, athlete=athlete, primary_sport="running").exists()
 
 
 @pytest.mark.django_db
@@ -101,6 +102,52 @@ def test_workout_date_must_fall_within_selected_week(api_client, coach, athlete,
 
     assert response.status_code == 400
     assert "scheduled_at" in response.data
+
+
+@pytest.mark.django_db
+def test_coach_can_create_structured_threshold_workout(api_client, coach, athlete, relationship):
+    plan = TrainingPlan.objects.create(
+        coach=coach,
+        athlete=athlete,
+        title="Cycling threshold block",
+        primary_sport=Workout.Sport.CYCLING,
+        start_date=date.today(),
+        end_date=date.today() + timedelta(days=14),
+    )
+    week = WeeklyPlan.objects.create(training_plan=plan, week_number=1, start_date=date.today())
+    api_client.force_authenticate(coach)
+
+    workout_response = api_client.post(
+        reverse("workout-list"),
+        {
+            "weekly_plan": week.id,
+            "title": "Four by eight threshold",
+            "sport": Workout.Sport.CYCLING,
+            "workout_type": Workout.Type.THRESHOLD,
+            "scheduled_at": timezone.now(),
+            "planned_duration_minutes": 72,
+            "structured_steps": [
+                {
+                    "name": "Threshold interval",
+                    "step_type": Exercise.StepType.WORK,
+                    "order": 1,
+                    "repetitions": 4,
+                    "duration_seconds": 480,
+                    "recovery_seconds": 180,
+                    "target_type": Exercise.TargetType.POWER,
+                    "target_min": "4.00",
+                    "target_max": "4.00",
+                    "target_unit": "zone",
+                }
+            ],
+        },
+        format="json",
+    )
+
+    assert workout_response.status_code == 201
+    assert workout_response.data["workout_type"] == Workout.Type.THRESHOLD
+    assert workout_response.data["exercises"][0]["step_type"] == Exercise.StepType.WORK
+    assert Workout.objects.filter(id=workout_response.data["id"], exercises__repetitions=4).exists()
 
 
 @pytest.mark.django_db

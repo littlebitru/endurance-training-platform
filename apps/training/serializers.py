@@ -1,5 +1,6 @@
 from datetime import timedelta
 
+from django.db import transaction
 from django.utils import timezone
 from rest_framework import serializers
 
@@ -8,17 +9,25 @@ from apps.users.models import User
 from .models import CoachComment, Exercise, TrainingPlan, TrainingZone, WeeklyPlan, Workout, WorkoutLog
 
 
-class ExerciseSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Exercise
-        fields = "__all__"
-
+class TargetRangeValidationMixin:
     def validate(self, attrs):
         lower = attrs.get("target_min", getattr(self.instance, "target_min", None))
         upper = attrs.get("target_max", getattr(self.instance, "target_max", None))
         if lower is not None and upper is not None and upper < lower:
             raise serializers.ValidationError({"target_max": "Target maximum must not be below target minimum."})
-        return attrs
+        return super().validate(attrs)
+
+
+class ExerciseSerializer(TargetRangeValidationMixin, serializers.ModelSerializer):
+    class Meta:
+        model = Exercise
+        fields = "__all__"
+
+
+class StructuredStepSerializer(TargetRangeValidationMixin, serializers.ModelSerializer):
+    class Meta:
+        model = Exercise
+        exclude = ("workout",)
 
 
 class TrainingZoneSerializer(serializers.ModelSerializer):
@@ -57,12 +66,22 @@ class WorkoutLogSerializer(serializers.ModelSerializer):
 
 class WorkoutSerializer(serializers.ModelSerializer):
     exercises = ExerciseSerializer(many=True, read_only=True)
+    structured_steps = StructuredStepSerializer(many=True, write_only=True, required=False)
     coach_comments = CoachCommentSerializer(many=True, read_only=True)
     log = WorkoutLogSerializer(read_only=True)
 
     class Meta:
         model = Workout
         fields = "__all__"
+
+    @transaction.atomic
+    def create(self, validated_data):
+        structured_steps = validated_data.pop("structured_steps", [])
+        workout = super().create(validated_data)
+        for index, step in enumerate(structured_steps, start=1):
+            step.setdefault("order", index)
+            Exercise.objects.create(workout=workout, **step)
+        return workout
 
     def validate(self, attrs):
         week = attrs.get("weekly_plan", getattr(self.instance, "weekly_plan", None))

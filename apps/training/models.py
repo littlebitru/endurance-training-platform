@@ -5,11 +5,19 @@ from django.db import models
 from apps.core.models import TimeStampedModel
 
 
+class SportType(models.TextChoices):
+    RUNNING = "running", "Running"
+    TRIATHLON = "triathlon", "Triathlon"
+    SWIMMING = "swimming", "Swimming"
+    CYCLING = "cycling", "Cycling"
+
+
 class TrainingPlan(TimeStampedModel):
     coach = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="created_plans")
     athlete = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="training_plans")
     title = models.CharField(max_length=200)
     description = models.TextField(blank=True)
+    primary_sport = models.CharField(max_length=16, choices=SportType.choices, default=SportType.RUNNING)
     start_date = models.DateField()
     end_date = models.DateField()
     is_active = models.BooleanField(default=True)
@@ -30,11 +38,20 @@ class WeeklyPlan(TimeStampedModel):
 
 
 class Workout(TimeStampedModel):
-    class Sport(models.TextChoices):
-        RUNNING = "running", "Running"
-        TRIATHLON = "triathlon", "Triathlon"
-        SWIMMING = "swimming", "Swimming"
-        CYCLING = "cycling", "Cycling"
+    Sport = SportType
+
+    class Type(models.TextChoices):
+        RECOVERY = "recovery", "Recovery"
+        ENDURANCE = "endurance", "Endurance"
+        LONG = "long", "Long session"
+        TEMPO = "tempo", "Tempo"
+        THRESHOLD = "threshold", "Threshold"
+        INTERVALS = "intervals", "Intervals"
+        VO2_MAX = "vo2_max", "VO2 max"
+        TECHNIQUE = "technique", "Technique"
+        BRICK = "brick", "Brick"
+        RACE = "race", "Race"
+        STRENGTH = "strength", "Strength"
 
     class Status(models.TextChoices):
         PLANNED = "planned", "Planned"
@@ -44,6 +61,7 @@ class Workout(TimeStampedModel):
     weekly_plan = models.ForeignKey(WeeklyPlan, on_delete=models.CASCADE, related_name="workouts")
     title = models.CharField(max_length=200)
     sport = models.CharField(max_length=16, choices=Sport.choices)
+    workout_type = models.CharField(max_length=16, choices=Type.choices, default=Type.ENDURANCE)
     scheduled_at = models.DateTimeField()
     planned_duration_minutes = models.PositiveIntegerField(null=True, blank=True)
     planned_distance_km = models.DecimalField(max_digits=7, decimal_places=2, null=True, blank=True)
@@ -56,6 +74,14 @@ class Workout(TimeStampedModel):
 
 
 class Exercise(TimeStampedModel):
+    class StepType(models.TextChoices):
+        WARMUP = "warmup", "Warm-up"
+        WORK = "work", "Work"
+        RECOVERY = "recovery", "Recovery"
+        COOLDOWN = "cooldown", "Cool-down"
+        STEADY = "steady", "Steady"
+        DRILL = "drill", "Drill"
+
     class TargetType(models.TextChoices):
         FREE = "free", "Free"
         HEART_RATE = "heart_rate", "Heart rate"
@@ -65,6 +91,7 @@ class Exercise(TimeStampedModel):
 
     workout = models.ForeignKey(Workout, on_delete=models.CASCADE, related_name="exercises")
     name = models.CharField(max_length=200)
+    step_type = models.CharField(max_length=16, choices=StepType.choices, default=StepType.WORK)
     order = models.PositiveSmallIntegerField(default=1)
     description = models.TextField(blank=True)
     repetitions = models.PositiveIntegerField(null=True, blank=True)
