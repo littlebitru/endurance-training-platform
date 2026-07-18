@@ -6,16 +6,18 @@ The repository also includes a responsive React and TypeScript web application w
 
 ## Features
 
-- User registration and JWT authentication with rotating refresh tokens
+- User registration and JWT authentication with in-memory access tokens and secure HttpOnly refresh cookies
 - Email verification, password reset, logout, and refresh-token revocation
 - Coach and athlete roles with isolated data access
 - User profiles and coach–athlete assignments
 - Consent-based athlete invitations with expiration and revocation
-- Training plans, weekly plans, workouts, and exercises
-- Sport-specific athlete thresholds with automatically calculated heart-rate, pace, and power zones
+- Automatic event-based periodization across Base, Build, Peak, Taper, Recovery, and Race phases
+- Interactive weekly calendar with workout editing, drag-and-drop rescheduling, duplication, and reusable libraries
+- Training plans, weekly plans, structured workouts, and exercises
+- Historical sport-specific thresholds with automatically calculated heart-rate, pace, and power zones
 - Structured workout targets that dynamically follow the athlete's latest thresholds
 - Coach comments and athlete workout logs
-- Coach analytics with athlete and date-range filtering
+- Coach and athlete analytics with weekly planned-versus-completed volume and session load
 - Filtering, full-text-style search, ordering, and pagination
 - OpenAPI schema and interactive Swagger UI
 - PostgreSQL, Docker, automated tests, code quality checks, and GitHub Actions
@@ -82,26 +84,40 @@ On Windows, activate the environment with `.venv\\Scripts\\activate`.
 | Accept invitation | `POST /api/v1/athlete-invitations/{token}/accept/` |
 | Assigned athletes | `/api/v1/athletes/` |
 | Training plans | `/api/v1/training-plans/` |
+| Generate periodized plan | `POST /api/v1/training-plans/generate/` |
 | Athlete thresholds | `/api/v1/athlete-thresholds/` |
 | Training zones | `/api/v1/training-zones/` |
 | Weekly plans | `/api/v1/weekly-plans/` |
 | Workouts | `/api/v1/workouts/` |
+| Duplicate workout | `POST /api/v1/workouts/{id}/duplicate/` |
+| Workout library | `/api/v1/workout-templates/` |
 | Exercises | `/api/v1/exercises/` |
 | Coach comments | `/api/v1/coach-comments/` |
 | Workout logs | `/api/v1/workout-logs/` |
 | Coach analytics | `GET /api/v1/coach/analytics/summary/` |
+| Athlete analytics | `GET /api/v1/athlete/analytics/summary/` |
 
 Collection endpoints accept `page`, `page_size`, `ordering`, and resource-specific filters. Search-enabled endpoints accept `search`. Discover the complete contract in Swagger or download `/api/schema/`.
 
-The analytics endpoint accepts optional `athlete_id`, `date_from`, and `date_to` query parameters. It returns planned and actual volume, completed and skipped workout counts, completion rate, and average perceived exertion. Access is restricted to coaches, and athlete filtering is limited to active coaching relationships.
+The coach analytics endpoint accepts optional `athlete_id`, `date_from`, and `date_to` query parameters. Both analytics endpoints return planned and actual volume, completed and skipped workout counts, completion rate, average perceived exertion, and weekly session load. Coach athlete filtering is limited to active coaching relationships; athletes can retrieve only their own summary.
+
+### Periodized plan generation
+
+`POST /api/v1/training-plans/generate/` creates a complete, editable calendar from a target event. The coach supplies the athlete, discipline, start and event dates, sustainable weekly volume, available weekdays, experience level, recovery rhythm, and taper duration. The service builds the plan backward from the event, applies progressive volume, inserts recovery weeks, and creates sport-specific structured sessions with relative zone targets.
+
+Generated plans are decision support, not a substitute for coaching judgment. The coach remains responsible for reviewing athlete readiness, recent training response, injury context, and schedule constraints before publishing or adapting the calendar.
 
 ### Automatic training zones
 
-Coaches maintain one threshold profile per athlete and sport. Running profiles accept LTHR or maximum heart rate and threshold pace, cycling profiles accept heart-rate data and FTP, swimming profiles accept heart-rate data and CSS, and triathlon profiles provide general heart-rate targets. Saving a threshold profile atomically regenerates the matching training zones.
+Coaches maintain dated threshold measurements per athlete and sport. Running profiles accept LTHR or maximum heart rate and threshold pace, cycling profiles accept heart-rate data and FTP, swimming profiles accept heart-rate data and CSS, and triathlon profiles provide general heart-rate targets. Each measurement records its effective date, source, and notes. Saving the newest measurement atomically regenerates the matching training zones while older results remain available for longitudinal comparison.
 
 Structured workouts store relative zone targets such as Z2 or Z4. API responses resolve those targets to the athlete's current real-world range, such as `145–158 bpm`, `4:08–4:18 /km`, or `228–263 W`. Updating a threshold therefore updates the resolved targets of existing workouts without rewriting the plan.
 
-Training-plan creation may include a `threshold_profile` object. The API creates or updates the athlete's matching sport profile, recalculates the zones, and creates the plan in one database transaction. The web plan wizard loads existing values automatically and requires the discipline-specific threshold when a profile is not configured yet.
+Training-plan creation and automatic generation may include a `threshold_profile` object. The API creates or updates the athlete's current matching sport profile, recalculates the zones, and creates the plan in one database transaction. The web plan wizard loads existing values automatically and requires the discipline-specific threshold when a profile is not configured yet.
+
+### Browser authentication
+
+The browser never persists JWTs in `localStorage`. Access tokens live only in memory; rotating refresh tokens use `HttpOnly`, `Secure`, path-scoped cookies in production. Refresh and logout requests validate cross-origin cookie use, logout blacklists the refresh token, and the frontend restores an authenticated session through the refresh endpoint. Native API clients may still submit a refresh token in the request body.
 
 ### Athlete invitation flow
 
@@ -134,7 +150,7 @@ Set `VITE_API_URL` from `frontend/.env.example` when the API is not running at t
 
 ## Staging deployment
 
-`render.yaml` defines a Render staging Blueprint with managed PostgreSQL, a Docker API service, and a static frontend. Push the repository to GitHub, create a Render Blueprint from the repository, and provide the prompted host, origin, frontend, and SMTP values. Render runs migrations through the API service's pre-deploy command. The current staging plans are free and suitable only for acceptance testing, not production availability or durable data guarantees.
+`render.yaml` defines a Render staging Blueprint with managed PostgreSQL, a Docker API service, and a static frontend. Push the repository to GitHub and create a Render Blueprint from the repository. The API entrypoint applies migrations when `RUN_MIGRATIONS=true`. The current staging plans are suitable only for acceptance testing, not production availability or durable data guarantees.
 
 ## Quality checks
 

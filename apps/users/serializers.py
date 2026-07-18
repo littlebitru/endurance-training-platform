@@ -5,6 +5,7 @@ from django.db import transaction
 from django.utils import timezone
 from django.utils.encoding import force_str
 from django.utils.http import urlsafe_base64_decode
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 from rest_framework.validators import UniqueValidator
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
@@ -39,7 +40,8 @@ class MeSerializer(UserSerializer):
     class Meta(UserSerializer.Meta):
         fields = (*UserSerializer.Meta.fields, "coach")
 
-    def get_coach(self, user):
+    @extend_schema_field(CoachSummarySerializer(allow_null=True))
+    def get_coach(self, user) -> dict | None:
         if user.role != User.Role.ATHLETE:
             return None
         try:

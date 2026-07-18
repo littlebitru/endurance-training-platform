@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { LanguageProvider } from "./i18n";
 import { EditorPanel } from "./TrainingPlansPage";
@@ -37,6 +37,10 @@ beforeEach(() => {
       id: 10,
       athlete: 2,
       sport: "running",
+      effective_from: "2026-07-18",
+      source: "field_test",
+      notes: "Track field test",
+      is_current: true,
       threshold_heart_rate: 178,
       maximum_heart_rate: 193,
       functional_threshold_power: null,
@@ -80,4 +84,38 @@ test("loads the athlete intensity profile inside plan creation", async () => {
   expect(screen.getAllByText("Personal intensity profile")).toHaveLength(2);
   expect(await screen.findByDisplayValue("4:15")).toBeInTheDocument();
   expect(screen.getByText("Z4 · 4:07–4:18 /km")).toBeInTheDocument();
+});
+
+test("submits event settings to the periodized plan generator", async () => {
+  render(
+    <LanguageProvider>
+      <EditorPanel
+        editor={{ kind: "plan" }}
+        onClose={() => undefined}
+        onSaved={async () => undefined}
+        relationships={[relationship]}
+      />
+    </LanguageProvider>,
+  );
+
+  await screen.findByDisplayValue("4:15");
+  fireEvent.change(screen.getByLabelText("Plan title"), { target: { value: "Autumn marathon" } });
+  fireEvent.change(screen.getByLabelText("Target event"), { target: { value: "City Marathon" } });
+  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+  await waitFor(() => {
+    const generatorCall = vi.mocked(fetch).mock.calls.find(([url]) => String(url).endsWith("/training-plans/generate/"));
+    expect(generatorCall).toBeDefined();
+    const body = JSON.parse(String(generatorCall?.[1]?.body));
+    expect(body).toMatchObject({
+      athlete: 2,
+      title: "Autumn marathon",
+      primary_sport: "running",
+      event_name: "City Marathon",
+      weekly_minutes: 360,
+      available_days: [0, 2, 4, 6],
+      recovery_every: 4,
+      taper_weeks: 2,
+    });
+  });
 });

@@ -6,9 +6,11 @@ from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema
 from rest_framework import generics, mixins, permissions, serializers, status, viewsets
 from rest_framework.response import Response
+from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
+from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
-from rest_framework_simplejwt.views import TokenObtainPairView
+from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 from .models import AthleteInvitation, CoachingRelationship, User
 from .permissions import IsCoach
@@ -32,10 +34,71 @@ from .serializers import (
 class RegisterView(generics.CreateAPIView):
     serializer_class = RegisterSerializer
     permission_classes = (permissions.AllowAny,)
+    throttle_classes = (ScopedRateThrottle,)
+    throttle_scope = "registration"
 
 
 class VerifiedTokenObtainPairView(TokenObtainPairView):
     serializer_class = VerifiedTokenObtainPairSerializer
+    throttle_classes = (ScopedRateThrottle,)
+    throttle_scope = "login"
+
+    def post(self, request, *args, **kwargs):
+        validate_cookie_origin(request)
+        response = super().post(request, *args, **kwargs)
+        refresh = response.data.pop("refresh", None) if response.status_code == status.HTTP_200_OK else None
+        if refresh:
+            set_refresh_cookie(response, refresh)
+        return response
+
+
+def validate_cookie_origin(request):
+    origin = request.headers.get("Origin")
+    if origin and origin not in settings.CORS_ALLOWED_ORIGINS:
+        raise serializers.ValidationError({"detail": "The request origin is not allowed."})
+
+
+def set_refresh_cookie(response, refresh):
+    response.set_cookie(
+        settings.JWT_REFRESH_COOKIE_NAME,
+        refresh,
+        max_age=int(settings.SIMPLE_JWT["REFRESH_TOKEN_LIFETIME"].total_seconds()),
+        httponly=True,
+        secure=not settings.DEBUG,
+        samesite=settings.JWT_REFRESH_COOKIE_SAMESITE,
+        path="/api/v1/auth/",
+    )
+
+
+def clear_refresh_cookie(response):
+    response.delete_cookie(
+        settings.JWT_REFRESH_COOKIE_NAME,
+        samesite=settings.JWT_REFRESH_COOKIE_SAMESITE,
+        path="/api/v1/auth/",
+    )
+
+
+class CookieTokenRefreshView(TokenRefreshView):
+    throttle_classes = (ScopedRateThrottle,)
+    throttle_scope = "token_refresh"
+
+    def post(self, request, *args, **kwargs):
+        refresh = request.data.get("refresh") or request.COOKIES.get(settings.JWT_REFRESH_COOKIE_NAME)
+        if not refresh:
+            raise serializers.ValidationError({"refresh": "A refresh token is required."})
+        if settings.JWT_REFRESH_COOKIE_NAME in request.COOKIES:
+            validate_cookie_origin(request)
+
+        serializer = self.get_serializer(data={"refresh": refresh})
+        try:
+            serializer.is_valid(raise_exception=True)
+        except TokenError as exc:
+            raise InvalidToken(exc.args[0]) from exc
+        response = Response(serializer.validated_data, status=status.HTTP_200_OK)
+        rotated_refresh = response.data.pop("refresh", None)
+        if rotated_refresh:
+            set_refresh_cookie(response, rotated_refresh)
+        return response
 
 
 class EmailVerificationView(APIView):
@@ -56,6 +119,8 @@ class EmailVerificationView(APIView):
 
 class EmailVerificationRequestView(APIView):
     permission_classes = (permissions.AllowAny,)
+    throttle_classes = (ScopedRateThrottle,)
+    throttle_scope = "account_email"
 
     @extend_schema(request=EmailVerificationRequestSerializer, responses=DetailSerializer)
     def post(self, request):
@@ -67,6 +132,8 @@ class EmailVerificationRequestView(APIView):
 
 class PasswordResetRequestView(APIView):
     permission_classes = (permissions.AllowAny,)
+    throttle_classes = (ScopedRateThrottle,)
+    throttle_scope = "account_email"
 
     @extend_schema(request=PasswordResetRequestSerializer, responses=DetailSerializer)
     def post(self, request):
@@ -88,16 +155,24 @@ class PasswordResetConfirmView(APIView):
 
 
 class LogoutView(APIView):
+    permission_classes = (permissions.AllowAny,)
+    throttle_classes = (ScopedRateThrottle,)
+    throttle_scope = "logout"
+
     @extend_schema(request=LogoutSerializer, responses={204: None})
     def post(self, request):
-        refresh = request.data.get("refresh")
+        refresh = request.data.get("refresh") or request.COOKIES.get(settings.JWT_REFRESH_COOKIE_NAME)
         if not refresh:
             raise serializers.ValidationError({"refresh": "This field is required."})
+        if settings.JWT_REFRESH_COOKIE_NAME in request.COOKIES:
+            validate_cookie_origin(request)
         try:
             RefreshToken(refresh).blacklist()
         except Exception as exc:
             raise serializers.ValidationError({"refresh": "The refresh token is invalid."}) from exc
-        return Response(status=status.HTTP_204_NO_CONTENT)
+        response = Response(status=status.HTTP_204_NO_CONTENT)
+        clear_refresh_cookie(response)
+        return response
 
 
 class MeView(generics.RetrieveUpdateAPIView):

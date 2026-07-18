@@ -6,7 +6,7 @@ import heroImage from "./assets/endurance-hero-v1.webp";
 import { useAuth } from "./auth";
 import { localizeApiError, useLanguage } from "./i18n";
 import { TrainingPlansPage } from "./TrainingPlansPage";
-import type { Analytics, Relationship, TrainingPlan, Workout } from "./types";
+import type { Analytics, Relationship, TrainingPlan, WeeklyAnalytics, Workout } from "./types";
 
 function LanguageSwitcher() {
   const { locale, setLocale, t } = useLanguage();
@@ -259,7 +259,7 @@ function Layout({ children }: { children: React.ReactNode }) {
         <div className="account">
           <span>{user?.first_name?.[0] || user?.username[0]}</span>
           <div><strong>{user?.first_name || user?.username}</strong><small>{roleLabel}</small></div>
-          <button onClick={logout} aria-label={t("signOut")}>↗</button>
+          <button onClick={() => void logout()} aria-label={t("signOut")}>↗</button>
         </div>
       </aside>
       <div className="content">
@@ -283,17 +283,22 @@ function Protected({ children }: { children: React.ReactNode }) {
 
 function Overview() {
   const { user } = useAuth();
-  const { t } = useLanguage();
+  const { locale, t } = useLanguage();
   const [plans, setPlans] = useState<TrainingPlan[]>([]);
   const [relationships, setRelationships] = useState<Relationship[]>([]);
   const [stats, setStats] = useState<Analytics | null>(null);
+  const [dashboardError, setDashboardError] = useState("");
   useEffect(() => {
-    api.plans().then((response) => setPlans(response.results));
-    if (user?.role === "coach") {
-      api.analytics().then(setStats);
-      api.athletes().then((response) => setRelationships(response.results));
+    if (!user) return;
+    const requests: Promise<unknown>[] = [api.plans().then((response) => setPlans(response.results))];
+    if (user.role === "coach") {
+      requests.push(api.analytics().then(setStats));
+      requests.push(api.athletes().then((response) => setRelationships(response.results)));
+    } else {
+      requests.push(api.athleteAnalytics().then(setStats));
     }
-  }, [user]);
+    Promise.all(requests).catch((caught) => setDashboardError(localizeApiError((caught as Error).message, t)));
+  }, [t, user]);
   const scheduledWorkouts = plans.flatMap((plan) =>
     plan.weeks.flatMap((week) => week.workouts.map((workout) => ({ athleteId: plan.athlete, workout }))),
   );
@@ -342,6 +347,8 @@ function Overview() {
         <Stat label={isCoach ? t("completedSessions") : t("distanceCompleted")} value={isCoach ? stats?.completed_workouts ?? 0 : `${stats?.actual_distance_km ?? "0.00"} km`} />
         <Stat label={t("averageEffort")} value={stats?.average_perceived_exertion ?? "—"} />
       </section>
+      {dashboardError && <div className="error" role="alert">{dashboardError}</div>}
+      {stats?.weekly?.length ? <WeeklyProgress locale={locale} weeks={stats.weekly.slice(-8)} /> : null}
       {user?.role === "athlete" && (
         <section className={`coach-card ${user.coach ? "connected" : "unassigned"}`}>
           <span className="coach-avatar">{user.coach ? (user.coach.first_name?.[0] || user.coach.username[0]) : "?"}</span>
@@ -366,6 +373,32 @@ function Overview() {
 
 function Stat({ label, value }: { label: string; value: string | number }) {
   return <article className="stat"><small>{label}</small><strong>{value}</strong></article>;
+}
+
+function WeeklyProgress({ locale, weeks }: { locale: string; weeks: WeeklyAnalytics[] }) {
+  const { t } = useLanguage();
+  const maximum = Math.max(1, ...weeks.flatMap((week) => [Number(week.planned_duration_minutes), Number(week.actual_duration_minutes)]));
+  const dateLocale = locale === "ru" ? "ru-RU" : "en-US";
+  return (
+    <section className="weekly-progress">
+      <div className="weekly-progress-head">
+        <div><span className="eyebrow">{t("weeklyProgress")}</span><h3>{t("plannedVsActual")}</h3></div>
+        <div className="chart-legend"><span className="planned">{t("plannedLabel")}</span><span className="actual">{t("actualLabel")}</span></div>
+      </div>
+      <div className="weekly-bars">
+        {weeks.map((week) => (
+          <article key={week.week_start} title={`${week.completion_rate}%`}>
+            <div className="bar-pair">
+              <i className="planned" style={{ height: `${Math.max(4, Number(week.planned_duration_minutes) / maximum * 100)}%` }} />
+              <i className="actual" style={{ height: `${Math.max(4, Number(week.actual_duration_minutes) / maximum * 100)}%` }} />
+            </div>
+            <small>{new Date(`${week.week_start}T12:00:00`).toLocaleDateString(dateLocale, { day: "2-digit", month: "short" })}</small>
+            <strong>{Math.round(week.completion_rate)}%</strong>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
 }
 
 function WorkoutRow({ athleteName, workout }: { athleteName?: string; workout: Workout }) {

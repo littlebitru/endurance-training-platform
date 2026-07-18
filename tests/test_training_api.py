@@ -14,6 +14,7 @@ from apps.training.models import (
     Workout,
     WorkoutLog,
 )
+from apps.training.zones import recalculate_training_zones
 from apps.users.models import Profile, User
 
 
@@ -307,3 +308,243 @@ def test_athlete_sees_workout_instructions_comments_and_result(api_client, coach
     assert workout_data["exercises"][0]["name"] == "Four race pace intervals"
     assert workout_data["coach_comments"][0]["body"] == "Keep the first interval controlled."
     assert workout_data["log"]["actual_duration_minutes"] == 50
+
+
+@pytest.mark.django_db
+def test_threshold_history_preserves_current_training_zones(api_client, coach, athlete, relationship):
+    api_client.force_authenticate(coach)
+    today = timezone.localdate()
+
+    current_response = api_client.post(
+        reverse("athlete-threshold-list"),
+        {
+            "athlete": athlete.id,
+            "sport": Workout.Sport.RUNNING,
+            "effective_from": today,
+            "source": AthleteThreshold.Source.FIELD_TEST,
+            "threshold_heart_rate": 180,
+        },
+        format="json",
+    )
+    historical_response = api_client.post(
+        reverse("athlete-threshold-list"),
+        {
+            "athlete": athlete.id,
+            "sport": Workout.Sport.RUNNING,
+            "effective_from": today - timedelta(days=30),
+            "source": AthleteThreshold.Source.LAB_TEST,
+            "threshold_heart_rate": 170,
+        },
+        format="json",
+    )
+
+    assert current_response.status_code == 201
+    assert historical_response.status_code == 201
+    assert current_response.data["is_current"] is True
+    assert historical_response.data["is_current"] is False
+    assert historical_response.data["zones"] == []
+    assert (
+        TrainingZone.objects.get(
+            athlete=athlete,
+            sport=Workout.Sport.RUNNING,
+            metric=TrainingZone.Metric.HEART_RATE,
+            zone_number=4,
+        ).lower_bound
+        == 171
+    )
+
+
+@pytest.mark.django_db
+def test_deleting_current_threshold_restores_previous_zones(api_client, coach, athlete, relationship):
+    today = timezone.localdate()
+    previous = AthleteThreshold.objects.create(
+        athlete=athlete,
+        sport=Workout.Sport.CYCLING,
+        effective_from=today - timedelta(days=30),
+        functional_threshold_power=240,
+    )
+    current = AthleteThreshold.objects.create(
+        athlete=athlete,
+        sport=Workout.Sport.CYCLING,
+        effective_from=today,
+        functional_threshold_power=280,
+    )
+    recalculate_training_zones(current)
+    api_client.force_authenticate(coach)
+
+    response = api_client.delete(reverse("athlete-threshold-detail", args=(current.id,)))
+
+    assert response.status_code == 204
+    assert AthleteThreshold.objects.filter(pk=previous.pk).exists()
+    assert (
+        TrainingZone.objects.get(
+            athlete=athlete,
+            sport=Workout.Sport.CYCLING,
+            metric=TrainingZone.Metric.POWER,
+            zone_number=4,
+        ).lower_bound
+        == 218
+    )
+
+
+@pytest.mark.django_db
+def test_future_threshold_date_is_rejected(api_client, coach, athlete, relationship):
+    api_client.force_authenticate(coach)
+
+    response = api_client.post(
+        reverse("athlete-threshold-list"),
+        {
+            "athlete": athlete.id,
+            "sport": Workout.Sport.RUNNING,
+            "effective_from": timezone.localdate() + timedelta(days=1),
+            "threshold_heart_rate": 180,
+        },
+        format="json",
+    )
+
+    assert response.status_code == 400
+    assert "effective_from" in response.data
+
+
+@pytest.mark.django_db
+def test_coach_can_generate_periodized_plan_with_recovery_and_taper(api_client, coach, athlete, relationship):
+    start_date = timezone.localdate() + timedelta(days=1)
+    event_date = start_date + timedelta(weeks=12)
+    api_client.force_authenticate(coach)
+
+    response = api_client.post(
+        reverse("training-plan-generate"),
+        {
+            "athlete": athlete.id,
+            "title": "Autumn half marathon",
+            "primary_sport": Workout.Sport.RUNNING,
+            "start_date": start_date,
+            "event_date": event_date,
+            "event_name": "City Half Marathon",
+            "weekly_minutes": 360,
+            "available_days": [0, 2, 4, 6],
+            "recovery_every": 4,
+            "taper_weeks": 2,
+            "experience_level": "intermediate",
+            "threshold_profile": {
+                "threshold_heart_rate": 178,
+                "maximum_heart_rate": 193,
+                "threshold_pace_seconds_per_km": 255,
+            },
+        },
+        format="json",
+    )
+
+    assert response.status_code == 201
+    plan = TrainingPlan.objects.get(pk=response.data["id"])
+    assert plan.weeks.filter(phase=WeeklyPlan.Phase.RECOVERY, is_recovery=True).exists()
+    assert plan.weeks.filter(phase=WeeklyPlan.Phase.TAPER).count() == 2
+    assert plan.weeks.filter(phase=WeeklyPlan.Phase.RACE).count() == 1
+    assert plan.weeks.exclude(planned_duration_minutes__isnull=True).count() == plan.weeks.count()
+    assert Workout.objects.filter(weekly_plan__training_plan=plan, exercises__target_unit="zone").exists()
+    assert response.data["weeks"][-1]["phase"] == WeeklyPlan.Phase.RACE
+
+
+@pytest.mark.django_db
+def test_unassigned_athlete_cannot_receive_generated_plan(api_client, coach):
+    outsider = User.objects.create_user("generated-outsider", role=User.Role.ATHLETE)
+    Profile.objects.create(user=outsider)
+    start_date = timezone.localdate() + timedelta(days=1)
+    api_client.force_authenticate(coach)
+
+    response = api_client.post(
+        reverse("training-plan-generate"),
+        {
+            "athlete": outsider.id,
+            "title": "Unauthorized plan",
+            "primary_sport": Workout.Sport.CYCLING,
+            "start_date": start_date,
+            "event_date": start_date + timedelta(weeks=8),
+            "event_name": "Unauthorized event",
+            "weekly_minutes": 300,
+            "available_days": [1, 3, 5],
+            "recovery_every": 4,
+            "taper_weeks": 1,
+            "experience_level": "beginner",
+        },
+        format="json",
+    )
+
+    assert response.status_code == 400
+    assert not TrainingPlan.objects.filter(athlete=outsider).exists()
+
+
+@pytest.mark.django_db
+def test_coach_can_duplicate_structured_workout(api_client, coach, athlete, relationship):
+    today = timezone.localdate()
+    plan = TrainingPlan.objects.create(
+        coach=coach,
+        athlete=athlete,
+        title="Reusable sessions",
+        start_date=today,
+        end_date=today + timedelta(days=13),
+    )
+    week = WeeklyPlan.objects.create(training_plan=plan, week_number=1, start_date=today)
+    workout = Workout.objects.create(
+        weekly_plan=week,
+        title="Threshold repeats",
+        sport=Workout.Sport.RUNNING,
+        workout_type=Workout.Type.THRESHOLD,
+        scheduled_at=timezone.now(),
+        planned_duration_minutes=60,
+    )
+    Exercise.objects.create(
+        workout=workout,
+        name="Main set",
+        order=1,
+        repetitions=4,
+        duration_seconds=480,
+        target_type=Exercise.TargetType.PACE,
+        target_min=4,
+        target_max=4,
+        target_unit="zone",
+    )
+    api_client.force_authenticate(coach)
+
+    response = api_client.post(
+        reverse("workout-duplicate", args=(workout.id,)),
+        {"scheduled_at": timezone.now() + timedelta(days=1)},
+        format="json",
+    )
+
+    assert response.status_code == 201
+    assert response.data["id"] != workout.id
+    assert response.data["exercises"][0]["repetitions"] == 4
+    assert response.data["status"] == Workout.Status.PLANNED
+
+
+@pytest.mark.django_db
+def test_coach_workout_template_library_is_private(api_client, coach, athlete):
+    api_client.force_authenticate(coach)
+    create_response = api_client.post(
+        reverse("workout-template-list"),
+        {
+            "title": "Five by five threshold",
+            "sport": Workout.Sport.CYCLING,
+            "workout_type": Workout.Type.THRESHOLD,
+            "planned_duration_minutes": 70,
+            "structured_steps": [
+                {
+                    "name": "Main intervals",
+                    "step_type": Exercise.StepType.WORK,
+                    "order": 1,
+                    "repetitions": 5,
+                    "duration_seconds": 300,
+                    "target_type": Exercise.TargetType.POWER,
+                    "target_min": "4.00",
+                    "target_max": "4.00",
+                    "target_unit": "zone",
+                }
+            ],
+        },
+        format="json",
+    )
+
+    assert create_response.status_code == 201
+    api_client.force_authenticate(athlete)
+    assert api_client.get(reverse("workout-template-list")).status_code == 403

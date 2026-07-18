@@ -46,7 +46,7 @@ def test_coach_receives_training_summary(api_client, coach, athlete, completed_w
     response = api_client.get(reverse("coach-analytics-summary"), {"athlete_id": athlete.id})
 
     assert response.status_code == 200
-    assert response.data == {
+    assert {key: value for key, value in response.data.items() if key != "weekly"} == {
         "total_workouts": 1,
         "completed_workouts": 1,
         "skipped_workouts": 0,
@@ -57,6 +57,56 @@ def test_coach_receives_training_summary(api_client, coach, athlete, completed_w
         "actual_distance_km": "11.50",
         "average_perceived_exertion": 7.0,
     }
+    assert response.data["weekly"] == [
+        {
+            "week_start": (timezone.localdate() - timedelta(days=timezone.localdate().weekday())).isoformat(),
+            "total_workouts": 1,
+            "completed_workouts": 1,
+            "completion_rate": 100.0,
+            "planned_duration_minutes": "60.00",
+            "actual_duration_minutes": "55.00",
+            "planned_distance_km": "12.00",
+            "actual_distance_km": "11.50",
+            "session_load": "385.00",
+        }
+    ]
+
+
+@pytest.mark.django_db
+def test_athlete_receives_only_own_training_summary(api_client, coach, athlete, completed_workout):
+    other = User.objects.create_user("other-athlete", role=User.Role.ATHLETE)
+    Profile.objects.create(user=other)
+    other_plan = TrainingPlan.objects.create(
+        coach=coach,
+        athlete=other,
+        title="Other plan",
+        start_date=timezone.localdate(),
+        end_date=timezone.localdate() + timedelta(days=7),
+    )
+    other_week = WeeklyPlan.objects.create(training_plan=other_plan, week_number=1, start_date=timezone.localdate())
+    Workout.objects.create(
+        weekly_plan=other_week,
+        title="Other workout",
+        sport=Workout.Sport.RUNNING,
+        scheduled_at=timezone.now(),
+    )
+    api_client.force_authenticate(athlete)
+
+    response = api_client.get(reverse("athlete-analytics-summary"))
+
+    assert response.status_code == 200
+    assert response.data["total_workouts"] == 1
+    assert response.data["completed_workouts"] == 1
+    assert response.data["weekly"][0]["session_load"] == "385.00"
+
+
+@pytest.mark.django_db
+def test_coach_cannot_access_athlete_analytics(api_client, coach):
+    api_client.force_authenticate(coach)
+
+    response = api_client.get(reverse("athlete-analytics-summary"))
+
+    assert response.status_code == 403
 
 
 @pytest.mark.django_db

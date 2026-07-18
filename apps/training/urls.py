@@ -2,6 +2,7 @@ from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
 from .views import (
+    AthleteAnalyticsSummaryView,
     AthleteThresholdViewSet,
     CoachAnalyticsSummaryView,
     CoachCommentViewSet,
@@ -10,6 +11,7 @@ from .views import (
     TrainingZoneViewSet,
     WeeklyPlanViewSet,
     WorkoutLogViewSet,
+    WorkoutTemplateViewSet,
     WorkoutViewSet,
 )
 
@@ -22,7 +24,9 @@ router.register("workouts", WorkoutViewSet, basename="workout")
 router.register("exercises", ExerciseViewSet, basename="exercise")
 router.register("coach-comments", CoachCommentViewSet, basename="coach-comment")
 router.register("workout-logs", WorkoutLogViewSet, basename="workout-log")
+router.register("workout-templates", WorkoutTemplateViewSet, basename="workout-template")
 urlpatterns = [
     path("coach/analytics/summary/", CoachAnalyticsSummaryView.as_view(), name="coach-analytics-summary"),
+    path("athlete/analytics/summary/", AthleteAnalyticsSummaryView.as_view(), name="athlete-analytics-summary"),
     path("", include(router.urls)),
 ]

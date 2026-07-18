@@ -2,12 +2,12 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "./api";
 import { useAuth } from "./auth";
 import { localizeApiError, useLanguage } from "./i18n";
-import type { AthleteThreshold, Relationship, TrainingPlan, TrainingZone, WeeklyPlan, Workout } from "./types";
+import type { AthleteThreshold, Relationship, TrainingPlan, TrainingZone, WeeklyPlan, Workout, WorkoutTemplate } from "./types";
 
 type Editor =
   | { kind: "plan" }
   | { kind: "week"; plan: TrainingPlan }
-  | { kind: "workout"; week: WeeklyPlan; planSport: string; athleteId: number; scheduledDate?: string }
+  | { kind: "workout"; week: WeeklyPlan; planSport: string; athleteId: number; scheduledDate?: string; workout?: Workout }
   | { kind: "exercise"; workout: Workout }
   | { kind: "comment"; workout: Workout }
   | { kind: "log"; workout: Workout };
@@ -84,6 +84,13 @@ function dateOffset(days: number): string {
   return value.toISOString().slice(0, 10);
 }
 
+function nextMonday(): string {
+  const value = new Date();
+  const daysUntilMonday = (8 - value.getDay()) % 7 || 7;
+  value.setDate(value.getDate() + daysUntilMonday);
+  return dateKey(value);
+}
+
 function dateKey(value: string | Date): string {
   const date = value instanceof Date ? value : new Date(value);
   const year = date.getFullYear();
@@ -113,6 +120,38 @@ function thresholdDraftFrom(profile?: AthleteThreshold): ThresholdDraft {
     thresholdPace: formatPaceSeconds(profile.threshold_pace_seconds_per_km),
     css: formatPaceSeconds(profile.critical_swim_speed_seconds_per_100m),
   };
+}
+
+function stepFromExercise(step: Workout["exercises"][number]): StepDraft {
+  return createStep({
+    stepType: step.step_type,
+    name: step.name,
+    repetitions: String(step.repetitions ?? 1),
+    durationMinutes: step.duration_seconds ? String(step.duration_seconds / 60) : "",
+    distanceMeters: step.distance_meters ? String(step.distance_meters) : "",
+    recoverySeconds: step.recovery_seconds ? String(step.recovery_seconds) : "",
+    targetType: step.target_type,
+    targetMin: step.target_min ?? "",
+    targetMax: step.target_max ?? "",
+    targetUnit: step.target_unit,
+    description: step.description,
+  });
+}
+
+function stepFromTemplate(step: Record<string, string | number | null>): StepDraft {
+  return createStep({
+    stepType: String(step.step_type ?? "work"),
+    name: String(step.name ?? ""),
+    repetitions: String(step.repetitions ?? 1),
+    durationMinutes: step.duration_seconds ? String(Number(step.duration_seconds) / 60) : "",
+    distanceMeters: step.distance_meters ? String(step.distance_meters) : "",
+    recoverySeconds: step.recovery_seconds ? String(step.recovery_seconds) : "",
+    targetType: String(step.target_type ?? "free"),
+    targetMin: step.target_min == null ? "" : String(step.target_min),
+    targetMax: step.target_max == null ? "" : String(step.target_max),
+    targetUnit: String(step.target_unit ?? ""),
+    description: String(step.description ?? ""),
+  });
 }
 
 function weekDays(startDate: string): Date[] {
@@ -187,10 +226,14 @@ export function EditorPanel({
     : undefined;
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [workoutSport, setWorkoutSport] = useState(editor.kind === "workout" ? editor.planSport : "");
-  const [workoutType, setWorkoutType] = useState("");
-  const [steps, setSteps] = useState<StepDraft[]>([]);
+  const editingWorkout = editor.kind === "workout" ? editor.workout : undefined;
+  const [planMode, setPlanMode] = useState<"automatic" | "manual">("automatic");
+  const [availableDays, setAvailableDays] = useState([0, 2, 4, 6]);
+  const [workoutSport, setWorkoutSport] = useState(editingWorkout?.sport ?? (editor.kind === "workout" ? editor.planSport : ""));
+  const [workoutType, setWorkoutType] = useState(editingWorkout?.workout_type ?? "");
+  const [steps, setSteps] = useState<StepDraft[]>(editingWorkout?.exercises.map(stepFromExercise) ?? []);
   const [zones, setZones] = useState<TrainingZone[]>([]);
+  const [templates, setTemplates] = useState<WorkoutTemplate[]>([]);
   const [zonesLoading, setZonesLoading] = useState(false);
   const [planAthleteId, setPlanAthleteId] = useState(initialPlanRelationship ? String(initialPlanRelationship.athlete.id) : "");
   const [planSport, setPlanSport] = useState(initialPlanRelationship?.athlete.profile?.sport || "");
@@ -216,6 +259,13 @@ export function EditorPanel({
   }, [editor, workoutSport]);
 
   useEffect(() => {
+    if (editor.kind !== "workout") return;
+    api.workoutTemplates()
+      .then((response) => setTemplates(response.results))
+      .catch(() => setTemplates([]));
+  }, [editor]);
+
+  useEffect(() => {
     if (editor.kind !== "plan" || !planAthleteId || !planSport) {
       setPlanThreshold({ ...EMPTY_THRESHOLD });
       setPlanZones([]);
@@ -227,7 +277,7 @@ export function EditorPanel({
     api.thresholds(Number(planAthleteId))
       .then((response) => {
         if (!active) return;
-        const profile = response.results.find((item) => item.sport === planSport);
+        const profile = response.results.find((item) => item.sport === planSport && item.is_current);
         setPlanThreshold(thresholdDraftFrom(profile));
         setPlanZones(profile?.zones ?? []);
         setPlanProfileExists(Boolean(profile));
@@ -245,7 +295,7 @@ export function EditorPanel({
   const titles = {
     plan: t("createPlan"),
     week: t("addWeek"),
-    workout: t("addWorkout"),
+    workout: editingWorkout ? t("editWorkout") : t("addWorkout"),
     exercise: t("addExercise"),
     comment: t("addComment"),
     log: t("markComplete"),
@@ -331,6 +381,14 @@ export function EditorPanel({
     setSteps(makeTemplate(type, workoutSport));
   }
 
+  function loadTemplate(templateId: string) {
+    const template = templates.find((item) => String(item.id) === templateId);
+    if (!template) return;
+    setWorkoutSport(template.sport);
+    setWorkoutType(template.workout_type);
+    setSteps(template.structured_steps.map(stepFromTemplate));
+  }
+
   function updateStep(id: number, field: keyof StepDraft, value: string) {
     setSteps((current) => current.map((step) => (step.id === id ? { ...step, [field]: value } : step)));
   }
@@ -381,6 +439,11 @@ export function EditorPanel({
 
     try {
       if (editor.kind === "plan") {
+        if (planMode === "automatic" && availableDays.length < 3) {
+          setError(t("selectAtLeastThreeDays"));
+          setSubmitting(false);
+          return;
+        }
         const thresholdPace = parsePaceValue(planThreshold.thresholdPace);
         const css = parsePaceValue(planThreshold.css);
         const profileComplete =
@@ -398,18 +461,42 @@ export function EditorPanel({
           setSubmitting(false);
           return;
         }
-        await api.createPlan({
-          ...payload,
-          is_active: true,
-          threshold_profile: {
-            threshold_heart_rate: planThreshold.thresholdHeartRate ? Number(planThreshold.thresholdHeartRate) : null,
-            maximum_heart_rate: planThreshold.maximumHeartRate ? Number(planThreshold.maximumHeartRate) : null,
-            functional_threshold_power: planSport === "cycling" ? Number(planThreshold.ftp) : null,
-            threshold_pace_seconds_per_km: planSport === "running" ? thresholdPace : null,
-            critical_swim_speed_seconds_per_100m: planSport === "swimming" ? css : null,
-          },
-        });
-        await onSaved(t("planCreated"));
+        const thresholdProfile = {
+          threshold_heart_rate: planThreshold.thresholdHeartRate ? Number(planThreshold.thresholdHeartRate) : null,
+          maximum_heart_rate: planThreshold.maximumHeartRate ? Number(planThreshold.maximumHeartRate) : null,
+          functional_threshold_power: planSport === "cycling" ? Number(planThreshold.ftp) : null,
+          threshold_pace_seconds_per_km: planSport === "running" ? thresholdPace : null,
+          critical_swim_speed_seconds_per_100m: planSport === "swimming" ? css : null,
+        };
+        if (planMode === "automatic") {
+          await api.generatePlan({
+            athlete: Number(planAthleteId),
+            title: String(payload.title),
+            primary_sport: planSport,
+            start_date: String(payload.start_date),
+            event_date: String(payload.event_date),
+            event_name: String(payload.event_name),
+            weekly_minutes: Math.round(Number(payload.weekly_hours) * 60),
+            available_days: availableDays,
+            recovery_every: Number(payload.recovery_every),
+            taper_weeks: Number(payload.taper_weeks),
+            experience_level: String(payload.experience_level),
+            threshold_profile: thresholdProfile,
+          });
+          await onSaved(t("planGenerated"));
+        } else {
+          await api.createPlan({
+            athlete: Number(planAthleteId),
+            title: String(payload.title),
+            description: String(payload.description ?? ""),
+            primary_sport: planSport,
+            start_date: String(payload.start_date),
+            end_date: String(payload.end_date),
+            is_active: true,
+            threshold_profile: thresholdProfile,
+          });
+          await onSaved(t("planCreated"));
+        }
       } else if (editor.kind === "week") {
         await api.createWeek({ ...payload, training_plan: editor.plan.id });
         await onSaved(t("weekCreated"));
@@ -431,14 +518,20 @@ export function EditorPanel({
           if (step.targetUnit) exercise.target_unit = step.targetUnit;
           return exercise;
         });
-        await api.createWorkout({
+        const workoutPayload = {
           ...payload,
           weekly_plan: editor.week.id,
           planned_duration_minutes: structuredDuration,
           scheduled_at: new Date(String(payload.scheduled_at)).toISOString(),
           structured_steps: structuredSteps,
-        });
-        await onSaved(t("workoutCreated"));
+        };
+        if (editor.workout) {
+          await api.updateWorkout(editor.workout.id, workoutPayload);
+          await onSaved(t("workoutUpdated"));
+        } else {
+          await api.createWorkout(workoutPayload);
+          await onSaved(t("workoutCreated"));
+        }
       } else if (editor.kind === "exercise") {
         await api.createExercise({ ...payload, workout: editor.workout.id });
         await onSaved(t("exerciseCreated"));
@@ -472,6 +565,10 @@ export function EditorPanel({
         <form className="editor-form" onSubmit={submit}>
           {editor.kind === "plan" && (
             <>
+              <div className="plan-mode-switch" role="tablist" aria-label={t("planCreationMode")}>
+                <button aria-selected={planMode === "automatic"} className={planMode === "automatic" ? "active" : ""} onClick={() => setPlanMode("automatic")} role="tab" type="button"><strong>{t("smartPlan")}</strong><small>{t("smartPlanText")}</small></button>
+                <button aria-selected={planMode === "manual"} className={planMode === "manual" ? "active" : ""} onClick={() => setPlanMode("manual")} role="tab" type="button"><strong>{t("manualPlan")}</strong><small>{t("manualPlanText")}</small></button>
+              </div>
               <div className="plan-wizard-progress" aria-label={t("planSetupProgress")}>
                 <span className={planAthleteId ? "complete" : "active"}><b>1</b>{t("athleteAndSport")}</span>
                 <i />
@@ -522,11 +619,36 @@ export function EditorPanel({
               <fieldset className="builder-fieldset plan-builder-section">
                 <legend><b>3</b>{t("planGoalAndDates")}</legend>
                 <label>{t("planTitle")}<input name="title" required /></label>
-                <label className="wide">{t("planObjective")}<textarea name="description" rows={3} placeholder={t("planObjectivePlaceholder")} /></label>
-                <div className="form-grid">
-                  <label>{t("startDate")}<input name="start_date" type="date" defaultValue={dateOffset(0)} required /></label>
-                  <label>{t("endDate")}<input name="end_date" type="date" defaultValue={dateOffset(42)} required /></label>
-                </div>
+                {planMode === "automatic" ? (
+                  <>
+                    <label>{t("targetEvent")}<input name="event_name" placeholder={t("targetEventPlaceholder")} required /></label>
+                    <div className="form-grid">
+                      <label>{t("startDate")}<input name="start_date" type="date" defaultValue={nextMonday()} min={dateOffset(0)} required /></label>
+                      <label>{t("eventDate")}<input name="event_date" type="date" defaultValue={dateOffset(84)} min={dateOffset(42)} required /></label>
+                    </div>
+                    <div className="auto-plan-grid">
+                      <label>{t("currentWeeklyVolume")}<input defaultValue="6" max="30" min="2" name="weekly_hours" step="0.5" type="number" required /><small>{t("hoursPerWeek")}</small></label>
+                      <label>{t("experienceLevel")}<select defaultValue="intermediate" name="experience_level"><option value="beginner">{t("experienceBeginner")}</option><option value="intermediate">{t("experienceIntermediate")}</option><option value="advanced">{t("experienceAdvanced")}</option></select></label>
+                      <label>{t("recoveryCycle")}<select defaultValue="4" name="recovery_every"><option value="3">{t("everyThirdWeek")}</option><option value="4">{t("everyFourthWeek")}</option></select></label>
+                      <label>{t("taperDuration")}<select defaultValue="2" name="taper_weeks"><option value="1">1 {t("weekUnit")}</option><option value="2">2 {t("weeksUnit")}</option><option value="3">3 {t("weeksUnit")}</option></select></label>
+                    </div>
+                    <fieldset className="training-days">
+                      <legend>{t("availableTrainingDays")}</legend>
+                      {[t("mondayShort"), t("tuesdayShort"), t("wednesdayShort"), t("thursdayShort"), t("fridayShort"), t("saturdayShort"), t("sundayShort")].map((label, day) => (
+                        <label className={availableDays.includes(day) ? "selected" : ""} key={day}><input checked={availableDays.includes(day)} onChange={() => setAvailableDays((current) => current.includes(day) ? current.filter((item) => item !== day) : [...current, day].sort())} type="checkbox" />{label}</label>
+                      ))}
+                    </fieldset>
+                    <div className="auto-plan-review"><strong>{t("automaticPeriodization")}</strong><p>{t("automaticPeriodizationText")}</p></div>
+                  </>
+                ) : (
+                  <>
+                    <label className="wide">{t("planObjective")}<textarea name="description" rows={3} placeholder={t("planObjectivePlaceholder")} /></label>
+                    <div className="form-grid">
+                      <label>{t("startDate")}<input name="start_date" type="date" defaultValue={dateOffset(0)} required /></label>
+                      <label>{t("endDate")}<input name="end_date" type="date" defaultValue={dateOffset(42)} required /></label>
+                    </div>
+                  </>
+                )}
               </fieldset>
             </>
           )}
@@ -545,6 +667,7 @@ export function EditorPanel({
           {editor.kind === "workout" && (
             <>
               <div className="editor-context"><strong>{t("week", { number: editor.week.week_number })}</strong><small>{editor.week.start_date}</small></div>
+              <label className="template-picker">{t("templateLibrary")}<select defaultValue="" onChange={(event) => loadTemplate(event.target.value)}><option value="">{templates.length ? t("chooseTemplate") : t("noTemplates")}</option>{templates.map((template) => <option key={template.id} value={template.id}>{template.title} · {workoutTypeLabels[template.workout_type] ?? template.workout_type}</option>)}</select><small>{t("templateLibraryHelp")}</small></label>
               <fieldset className="builder-fieldset">
                 <legend><b>1</b>{t("chooseWorkoutSport")}</legend>
                 <div className="sport-choice-grid">
@@ -572,10 +695,10 @@ export function EditorPanel({
               )}
 
               <div className="form-grid">
-                <label>{t("workoutTitle")}<input name="title" required /></label>
-                <label>{t("scheduledAt")}<input name="scheduled_at" type="datetime-local" defaultValue={`${editor.scheduledDate || editor.week.start_date}T07:00`} required /></label>
-                <label>{t("intensity")}<input name="intensity" placeholder="Z2 / easy / tempo" /></label>
-                <label>{t("distanceKm")}<input name="planned_distance_km" type="number" min="0" step="0.01" /></label>
+                <label>{t("workoutTitle")}<input defaultValue={editor.workout?.title} name="title" required /></label>
+                <label>{t("scheduledAt")}<input name="scheduled_at" type="datetime-local" defaultValue={editor.workout ? localDateTime(new Date(editor.workout.scheduled_at)) : `${editor.scheduledDate || editor.week.start_date}T07:00`} required /></label>
+                <label>{t("intensity")}<input defaultValue={editor.workout?.intensity} name="intensity" placeholder="Z2 / easy / tempo" /></label>
+                <label>{t("distanceKm")}<input defaultValue={editor.workout?.planned_distance_km ?? ""} name="planned_distance_km" type="number" min="0" step="0.01" /></label>
               </div>
 
               {workoutType && (
@@ -615,7 +738,7 @@ export function EditorPanel({
                   <button className="secondary add-step-button" onClick={() => setSteps((current) => [...current, createStep({ name: t("stepWork") })])} type="button">+ {t("addStep")}</button>
                 </fieldset>
               )}
-              <label>{t("workoutNotes")}<textarea name="notes" rows={3} /></label>
+              <label>{t("workoutNotes")}<textarea defaultValue={editor.workout?.notes} name="notes" rows={3} /></label>
             </>
           )}
 
@@ -680,6 +803,7 @@ export function TrainingPlansPage() {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [dragOverDate, setDragOverDate] = useState("");
 
   const reload = useCallback(async () => {
     const planResponse = await api.plans();
@@ -707,6 +831,103 @@ export function TrainingPlansPage() {
     await reload();
   }
 
+  async function moveWorkout(workout: Workout, week: WeeklyPlan, targetDate: string) {
+    const source = new Date(workout.scheduled_at);
+    const hours = String(source.getHours()).padStart(2, "0");
+    const minutes = String(source.getMinutes()).padStart(2, "0");
+    try {
+      await api.updateWorkout(workout.id, {
+        weekly_plan: week.id,
+        scheduled_at: new Date(`${targetDate}T${hours}:${minutes}`).toISOString(),
+      });
+      setMessage(t("workoutMoved"));
+      setError("");
+      await reload();
+    } catch (caught) {
+      setError(localizeApiError((caught as Error).message, t));
+    } finally {
+      setDragOverDate("");
+    }
+  }
+
+  async function duplicateWorkout(workout: Workout, week: WeeklyPlan) {
+    const target = new Date(workout.scheduled_at);
+    const nextDay = new Date(target);
+    nextDay.setDate(nextDay.getDate() + 1);
+    const weekEnd = new Date(`${week.start_date}T23:59:59`);
+    weekEnd.setDate(weekEnd.getDate() + 6);
+    if (nextDay > weekEnd) target.setHours(target.getHours() + 1);
+    else target.setDate(target.getDate() + 1);
+    try {
+      await api.duplicateWorkout(workout.id, { weekly_plan: week.id, scheduled_at: target.toISOString() });
+      await saved(t("workoutDuplicated"));
+    } catch (caught) {
+      setError(localizeApiError((caught as Error).message, t));
+    }
+  }
+
+  async function removeWorkout(workout: Workout) {
+    if (!window.confirm(t("confirmDeleteWorkout"))) return;
+    try {
+      await api.deleteWorkout(workout.id);
+      setExpandedWorkout(null);
+      await saved(t("workoutDeleted"));
+    } catch (caught) {
+      setError(localizeApiError((caught as Error).message, t));
+    }
+  }
+
+  async function saveWorkoutTemplate(workout: Workout) {
+    try {
+      await api.createWorkoutTemplate({
+        title: workout.title,
+        sport: workout.sport,
+        workout_type: workout.workout_type,
+        description: workout.notes,
+        planned_duration_minutes: workout.planned_duration_minutes,
+        planned_distance_km: workout.planned_distance_km,
+        intensity: workout.intensity,
+        structured_steps: workout.exercises.map((step) => ({
+          name: step.name,
+          step_type: step.step_type,
+          order: step.order,
+          description: step.description,
+          repetitions: step.repetitions,
+          duration_seconds: step.duration_seconds,
+          distance_meters: step.distance_meters,
+          recovery_seconds: step.recovery_seconds,
+          target_type: step.target_type,
+          target_min: step.target_min,
+          target_max: step.target_max,
+          target_unit: step.target_unit,
+        })),
+      });
+      setMessage(t("templateSaved"));
+      setError("");
+    } catch (caught) {
+      setError(localizeApiError((caught as Error).message, t));
+    }
+  }
+
+  async function duplicateWeek(plan: TrainingPlan, week: WeeklyPlan) {
+    const lastStart = plan.weeks.reduce((latest, item) => item.start_date > latest ? item.start_date : latest, week.start_date);
+    const targetStart = new Date(`${lastStart}T12:00:00`);
+    targetStart.setDate(targetStart.getDate() + 7);
+    if (dateKey(targetStart) > plan.end_date) {
+      setError(t("extendPlanBeforeCopyingWeek"));
+      return;
+    }
+    try {
+      await api.duplicateWeek(week.id, {
+        start_date: dateKey(targetStart),
+        week_number: Math.max(...plan.weeks.map((item) => item.week_number)) + 1,
+      });
+      await saved(t("weekDuplicated"));
+    } catch (caught) {
+      setError(localizeApiError((caught as Error).message, t));
+    }
+  }
+
   const dateLocale = locale === "ru" ? "ru-RU" : "en-US";
   const sportLabels: Record<string, string> = {
     running: t("sportRunning"),
@@ -731,6 +952,14 @@ export function TrainingPlansPage() {
     brick: t("typeBrick"),
     race: t("typeRace"),
     strength: t("typeStrength"),
+  };
+  const phaseLabels: Record<string, string> = {
+    base: t("phaseBase"),
+    build: t("phaseBuild"),
+    peak: t("phasePeak"),
+    taper: t("phaseTaper"),
+    recovery: t("phaseRecovery"),
+    race: t("phaseRace"),
   };
   const allWorkouts = plans.flatMap((plan) => plan.weeks.flatMap((week) => week.workouts));
 
@@ -788,22 +1017,35 @@ export function TrainingPlansPage() {
             return (
               <div className="week-block calendar-week" key={week.id}>
                 <div className="week-head">
-                  <div><span className="eyebrow">{t("weeklyCalendar")}</span><h4>{t("week", { number: week.week_number })}</h4><small>{week.start_date}{week.notes ? ` · ${week.notes}` : ""}</small></div>
-                  {user?.role === "coach" && <button className="secondary compact" onClick={() => setEditor({ kind: "workout", week, planSport: plan.primary_sport, athleteId: plan.athlete, scheduledDate: week.start_date })} type="button">+ {t("addWorkout")}</button>}
+                  <div><span className="eyebrow">{t("weeklyCalendar")}</span><h4>{t("week", { number: week.week_number })}{week.phase && <span className={`phase-badge ${week.phase}`}>{phaseLabels[week.phase] ?? week.phase}</span>}</h4><small>{week.start_date}{week.planned_duration_minutes ? ` · ${Math.round(week.planned_duration_minutes / 6) / 10} ${t("hoursShort")}` : ""}{week.notes ? ` · ${week.notes}` : ""}</small></div>
+                  {user?.role === "coach" && <div className="week-actions"><button className="secondary compact" onClick={() => void duplicateWeek(plan, week)} type="button">{t("copyWeek")}</button><button className="secondary compact" onClick={() => setEditor({ kind: "workout", week, planSport: plan.primary_sport, athleteId: plan.athlete, scheduledDate: week.start_date })} type="button">+ {t("addWorkout")}</button></div>}
                 </div>
 
                 <div className="week-calendar">
                   {weekDays(week.start_date).map((day) => {
                     const dayWorkouts = visibleWorkouts.filter((workout) => dateKey(workout.scheduled_at) === dateKey(day));
                     return (
-                      <section className="calendar-day" key={dateKey(day)}>
+                      <section className={`calendar-day ${dragOverDate === dateKey(day) ? "drag-over" : ""}`} key={dateKey(day)} onDragLeave={() => setDragOverDate("")} onDragOver={(event) => {
+                        if (user?.role === "coach") {
+                          event.preventDefault();
+                          setDragOverDate(dateKey(day));
+                        }
+                      }} onDrop={(event) => {
+                        if (user?.role !== "coach") return;
+                        event.preventDefault();
+                        const workout = allWorkouts.find((item) => item.id === Number(event.dataTransfer.getData("text/workout-id")));
+                        if (workout) void moveWorkout(workout, week, dateKey(day));
+                      }}>
                         <header>
                           <div><span>{day.toLocaleDateString(dateLocale, { weekday: "short" })}</span><strong>{day.getDate()}</strong></div>
                           {user?.role === "coach" && <button aria-label={t("addWorkoutOnDate", { date: day.toLocaleDateString(dateLocale) })} onClick={() => setEditor({ kind: "workout", week, planSport: plan.primary_sport, athleteId: plan.athlete, scheduledDate: dateKey(day) })} type="button">+</button>}
                         </header>
                         <div className="day-workouts">
                           {dayWorkouts.map((workout) => (
-                            <article className={`calendar-workout ${workout.sport} ${workout.status}`} key={workout.id}>
+                            <article className={`calendar-workout ${workout.sport} ${workout.status}`} draggable={user?.role === "coach"} key={workout.id} onDragEnd={() => setDragOverDate("")} onDragStart={(event) => {
+                              event.dataTransfer.effectAllowed = "move";
+                              event.dataTransfer.setData("text/workout-id", String(workout.id));
+                            }}>
                               <button onClick={() => setExpandedWorkout(expandedWorkout === workout.id ? null : workout.id)} type="button">
                                 <span className="sport-card-label"><i>{SPORT_MARKS[workout.sport]}</i>{sportLabels[workout.sport] || workout.sport}</span>
                                 <strong>{workout.title}</strong>
@@ -825,7 +1067,15 @@ export function TrainingPlansPage() {
                   <div className={`workout-detail calendar-quick-view ${selectedWorkout.sport}`}>
                     <div className="quick-view-head">
                       <div><span className="sport-card-label"><i>{SPORT_MARKS[selectedWorkout.sport]}</i>{sportLabels[selectedWorkout.sport]} · {workoutTypeLabels[selectedWorkout.workout_type] || selectedWorkout.workout_type}</span><h4>{selectedWorkout.title}</h4><small>{new Date(selectedWorkout.scheduled_at).toLocaleString(dateLocale)} · {selectedWorkout.intensity || t("openIntensity")}</small></div>
-                      <button aria-label={t("close")} className="icon-button" onClick={() => setExpandedWorkout(null)} type="button">×</button>
+                      <div className="quick-view-actions">
+                        {user?.role === "coach" && <>
+                          <button className="secondary compact" onClick={() => setEditor({ kind: "workout", week, planSport: plan.primary_sport, athleteId: plan.athlete, workout: selectedWorkout })} type="button">{t("edit")}</button>
+                          <button className="secondary compact" onClick={() => void duplicateWorkout(selectedWorkout, week)} type="button">{t("duplicate")}</button>
+                          <button className="secondary compact" onClick={() => void saveWorkoutTemplate(selectedWorkout)} type="button">{t("saveAsTemplate")}</button>
+                          <button className="danger compact" onClick={() => void removeWorkout(selectedWorkout)} type="button">{t("delete")}</button>
+                        </>}
+                        <button aria-label={t("close")} className="icon-button" onClick={() => setExpandedWorkout(null)} type="button">×</button>
+                      </div>
                     </div>
                     <div className="planned-metrics">
                       <span><small>{t("durationMinutes")}</small><strong>{selectedWorkout.planned_duration_minutes || "—"} {t("minutes")}</strong></span>

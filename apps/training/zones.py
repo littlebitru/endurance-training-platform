@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from decimal import ROUND_HALF_UP, Decimal
 
 from django.db import transaction
+from django.utils import timezone
 
 from .models import AthleteThreshold, TrainingZone
 
@@ -84,8 +85,24 @@ def _build_zones(
     ]
 
 
+def current_threshold(athlete_id: int, sport: str) -> AthleteThreshold | None:
+    return (
+        AthleteThreshold.objects.filter(
+            athlete_id=athlete_id,
+            sport=sport,
+            effective_from__lte=timezone.localdate(),
+        )
+        .order_by("-effective_from", "-created_at")
+        .first()
+    )
+
+
 @transaction.atomic
 def recalculate_training_zones(threshold: AthleteThreshold) -> list[TrainingZone]:
+    active_threshold = current_threshold(threshold.athlete_id, threshold.sport)
+    if active_threshold is None or active_threshold.pk != threshold.pk:
+        return []
+
     zones: list[TrainingZone] = []
 
     if threshold.threshold_heart_rate:
