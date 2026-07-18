@@ -1,17 +1,33 @@
-from django.db import transaction
+import hashlib
+from pathlib import Path
+
+from django.conf import settings
+from django.db import IntegrityError, transaction
 from django.db.models import Prefetch, Q
 from django.utils import timezone
 from drf_spectacular.utils import extend_schema
-from rest_framework import serializers, status, viewsets
+from rest_framework import mixins, serializers, status, viewsets
 from rest_framework.decorators import action
+from rest_framework.parsers import FormParser, MultiPartParser
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
 from apps.users.models import CoachingRelationship, User
 from apps.users.permissions import IsAthlete, IsCoach
 
+from .activity_analysis import (
+    calculate_activity_metrics,
+    calculate_compliance,
+    find_matching_workout,
+    synchronize_workout_log,
+)
+from .activity_import import ActivityImportError, parse_activity_file
 from .analytics import build_athlete_summary, build_coach_summary
 from .models import (
+    Activity,
+    ActivityStream,
     AthleteThreshold,
     CoachComment,
     Exercise,
@@ -25,6 +41,9 @@ from .models import (
 from .permissions import AthleteWriteCoachRead, CoachWriteAthleteReadOnly
 from .plan_generation import generate_periodized_plan
 from .serializers import (
+    ActivityDetailSerializer,
+    ActivityImportSerializer,
+    ActivitySummarySerializer,
     AnalyticsDateRangeSerializer,
     AthleteThresholdSerializer,
     CoachAnalyticsQuerySerializer,
@@ -42,6 +61,133 @@ from .serializers import (
     WorkoutTemplateSerializer,
 )
 from .zones import current_threshold, recalculate_training_zones
+
+
+class ActivityViewSet(
+    mixins.ListModelMixin,
+    mixins.RetrieveModelMixin,
+    mixins.DestroyModelMixin,
+    viewsets.GenericViewSet,
+):
+    queryset = Activity.objects.none()
+    permission_classes = (IsAuthenticated,)
+    throttle_scope = "activity_import"
+    filterset_fields = ("athlete", "workout", "sport", "file_type", "compliance_status", "started_at")
+    search_fields = ("source_file_name", "external_id", "workout__title", "athlete__username", "athlete__email")
+    ordering_fields = ("started_at", "duration_seconds", "distance_meters", "training_load_score", "created_at")
+
+    def get_serializer_class(self):
+        if self.action == "list":
+            return ActivitySummarySerializer
+        if self.action == "import_activity":
+            return ActivityImportSerializer
+        return ActivityDetailSerializer
+
+    def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return self.queryset
+        queryset = Activity.objects.select_related("athlete", "workout").prefetch_related("stream")
+        if self.request.user.role == User.Role.COACH:
+            return queryset.filter(
+                athlete__coach_relationship__coach=self.request.user,
+                athlete__coach_relationship__is_active=True,
+            )
+        return queryset.filter(athlete=self.request.user)
+
+    @extend_schema(
+        request=ActivityImportSerializer,
+        responses={status.HTTP_201_CREATED: ActivityDetailSerializer},
+        summary="Import a completed FIT, TCX, or GPX activity",
+    )
+    @action(
+        detail=False,
+        methods=("post",),
+        url_path="import",
+        url_name="import",
+        parser_classes=(MultiPartParser, FormParser),
+        throttle_classes=(ScopedRateThrottle,),
+    )
+    @transaction.atomic
+    def import_activity(self, request):
+        serializer = ActivityImportSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        upload = serializer.validated_data["file"]
+        if upload.size > settings.ACTIVITY_UPLOAD_MAX_BYTES:
+            raise serializers.ValidationError({"file": "Activity files must not exceed 20 MB."})
+        athlete = serializer.validated_data.get("athlete")
+        if request.user.role == User.Role.ATHLETE:
+            if athlete and athlete.pk != request.user.pk:
+                raise serializers.ValidationError({"athlete": "Athletes can only import their own activities."})
+            athlete = request.user
+        elif not athlete:
+            raise serializers.ValidationError({"athlete": "Select the athlete who completed this activity."})
+        if (
+            request.user.role == User.Role.COACH
+            and not CoachingRelationship.objects.filter(
+                coach=request.user,
+                athlete=athlete,
+                is_active=True,
+            ).exists()
+        ):
+            raise serializers.ValidationError({"athlete": "The athlete is not assigned to this coach."})
+
+        content = upload.read()
+        checksum = hashlib.sha256(content).hexdigest()
+        if Activity.objects.filter(athlete=athlete, file_sha256=checksum).exists():
+            raise serializers.ValidationError({"file": "This activity file has already been imported."})
+        file_name = Path(upload.name).name[:255]
+        try:
+            parsed = parse_activity_file(file_name, content, serializer.validated_data.get("sport"))
+        except ActivityImportError as exc:
+            raise serializers.ValidationError({"file": str(exc)}) from exc
+
+        workout = serializer.validated_data.get("workout")
+        confidence = Activity.MatchConfidence.MANUAL if workout else Activity.MatchConfidence.NONE
+        if workout:
+            if workout.weekly_plan.training_plan.athlete_id != athlete.id:
+                raise serializers.ValidationError({"workout": "The workout does not belong to the selected athlete."})
+            if workout.sport not in (parsed.sport, Workout.Sport.TRIATHLON):
+                raise serializers.ValidationError({"workout": "The workout sport does not match the activity."})
+        else:
+            workout, confidence = find_matching_workout(athlete.id, parsed.sport, parsed.started_at)
+
+        try:
+            with transaction.atomic():
+                activity = Activity.objects.create(
+                    athlete=athlete,
+                    workout=workout,
+                    source_file_name=file_name,
+                    file_type=parsed.file_type,
+                    file_sha256=checksum,
+                    external_id=parsed.external_id[:255],
+                    sport=parsed.sport,
+                    started_at=parsed.started_at,
+                    match_confidence=confidence,
+                    **calculate_activity_metrics(parsed, athlete.id),
+                )
+        except IntegrityError as exc:
+            raise serializers.ValidationError({"file": "This activity file has already been imported."}) from exc
+        sample_interval = round(parsed.duration_seconds / (len(parsed.points) - 1)) if len(parsed.points) > 1 else None
+        ActivityStream.objects.create(
+            activity=activity,
+            points=parsed.points,
+            point_count=len(parsed.points),
+            sample_interval_seconds=sample_interval,
+        )
+        activity.compliance_score, activity.compliance_status = calculate_compliance(activity)
+        activity.save(update_fields=("compliance_score", "compliance_status", "updated_at"))
+        if workout:
+            synchronize_workout_log(workout)
+        return Response(ActivityDetailSerializer(activity).data, status=status.HTTP_201_CREATED)
+
+    @transaction.atomic
+    def perform_destroy(self, instance):
+        if self.request.user.role != User.Role.ATHLETE or instance.athlete_id != self.request.user.id:
+            raise serializers.ValidationError("Only the athlete can delete an imported activity.")
+        workout = instance.workout
+        instance.delete()
+        if workout:
+            synchronize_workout_log(workout)
 
 
 class CoachAnalyticsSummaryView(APIView):

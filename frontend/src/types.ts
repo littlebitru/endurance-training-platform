@@ -14,3 +14,41 @@ export interface Analytics { total_workouts: number; completed_workouts: number;
 export interface TrainingZone { id: number; athlete: number; sport: string; metric: string; zone_number: number; name: string; lower_bound: string; upper_bound: string; unit: string; display_range: string }
 export interface AthleteThreshold { id: number; athlete: number; sport: string; effective_from: string; source: string; notes: string; is_current: boolean; threshold_heart_rate: number | null; maximum_heart_rate: number | null; functional_threshold_power: number | null; threshold_pace_seconds_per_km: number | null; critical_swim_speed_seconds_per_100m: number | null; heart_rate_basis: string; zones: TrainingZone[]; updated_at: string }
 export interface WorkoutTemplate { id: number; coach: number; title: string; sport: string; workout_type: string; description: string; planned_duration_minutes: number | null; planned_distance_km: string | null; intensity: string; structured_steps: Array<Record<string, string | number | null>> }
+export interface ActivityStreamPoint { elapsed: number; heart_rate?: number; power?: number; cadence?: number; speed?: number; distance?: number; elevation?: number }
+export interface ActivityZone { zone: number; name: string; seconds: number; percentage: number }
+export interface Activity {
+  id: number;
+  athlete: number;
+  athlete_name: string;
+  workout: number | null;
+  workout_title: string | null;
+  planned_duration_minutes: number | null;
+  planned_distance_km: string | null;
+  source_file_name: string;
+  file_type: "fit" | "tcx" | "gpx";
+  sport: string;
+  started_at: string;
+  duration_seconds: number;
+  moving_time_seconds: number | null;
+  distance_meters: string | null;
+  elevation_gain_meters: string | null;
+  calories: number | null;
+  average_heart_rate: number | null;
+  maximum_heart_rate: number | null;
+  average_power: number | null;
+  maximum_power: number | null;
+  normalized_power: number | null;
+  average_cadence: number | null;
+  maximum_cadence: number | null;
+  average_speed_mps: string | null;
+  average_pace_seconds_per_km: number | null;
+  intensity_factor: string | null;
+  training_load_score: string | null;
+  training_load_method: string;
+  compliance_score: number | null;
+  compliance_status: string;
+  match_confidence: string;
+  zone_distribution: { metric?: string; unit?: string; zones?: ActivityZone[] };
+  created_at: string;
+  stream?: { points: ActivityStreamPoint[]; point_count: number; sample_interval_seconds: number | null };
+}

@@ -2,6 +2,7 @@ from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
 from .views import (
+    ActivityViewSet,
     AthleteAnalyticsSummaryView,
     AthleteThresholdViewSet,
     CoachAnalyticsSummaryView,
@@ -16,6 +17,7 @@ from .views import (
 )
 
 router = DefaultRouter()
+router.register("activities", ActivityViewSet, basename="activity")
 router.register("training-plans", TrainingPlanViewSet, basename="training-plan")
 router.register("athlete-thresholds", AthleteThresholdViewSet, basename="athlete-threshold")
 router.register("training-zones", TrainingZoneViewSet, basename="training-zone")

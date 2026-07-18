@@ -39,7 +39,7 @@ async function parseError(response: Response): Promise<string> {
 export async function request<T>(path: string, options: RequestInit = {}, retry = true): Promise<T> {
   const tokens = tokenStore.get();
   const headers = new Headers(options.headers);
-  headers.set("Content-Type", "application/json");
+  if (!(options.body instanceof FormData)) headers.set("Content-Type", "application/json");
   if (tokens?.access) headers.set("Authorization", `Bearer ${tokens.access}`);
   const response = await fetch(`${API_URL}${path}`, { ...options, headers, credentials: "include" });
   if (response.status === 401 && retry) {
@@ -87,4 +87,8 @@ export const api = {
   createExercise: (data: object) => request<import("./types").Exercise>("/exercises/", { method: "POST", body: JSON.stringify(data) }),
   createComment: (data: object) => request<import("./types").CoachComment>("/coach-comments/", { method: "POST", body: JSON.stringify(data) }),
   logWorkout: (data: object) => request<import("./types").WorkoutLog>("/workout-logs/", { method: "POST", body: JSON.stringify(data) }),
+  activities: (athleteId?: number) => request<import("./types").Page<import("./types").Activity>>(`/activities/?page_size=100${athleteId ? `&athlete=${athleteId}` : ""}`),
+  activity: (id: number) => request<import("./types").Activity>(`/activities/${id}/`),
+  importActivity: (data: FormData) => request<import("./types").Activity>("/activities/import/", { method: "POST", body: data }),
+  deleteActivity: (id: number) => request<void>(`/activities/${id}/`, { method: "DELETE" }),
 };

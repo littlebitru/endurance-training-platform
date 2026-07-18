@@ -18,6 +18,8 @@ The repository also includes a responsive React and TypeScript web application w
 - Structured workout targets that dynamically follow the athlete's latest thresholds
 - Coach comments and athlete workout logs
 - Coach and athlete analytics with weekly planned-versus-completed volume and session load
+- Secure FIT, TCX, and GPX activity imports with duplicate detection and automatic workout matching
+- Actual heart-rate, pace, power, elevation, training-load, compliance, and time-in-zone analysis
 - Filtering, full-text-style search, ordering, and pagination
 - OpenAPI schema and interactive Swagger UI
 - PostgreSQL, Docker, automated tests, code quality checks, and GitHub Actions
@@ -94,10 +96,20 @@ On Windows, activate the environment with `.venv\\Scripts\\activate`.
 | Exercises | `/api/v1/exercises/` |
 | Coach comments | `/api/v1/coach-comments/` |
 | Workout logs | `/api/v1/workout-logs/` |
+| Completed activities | `GET /api/v1/activities/` |
+| Import activity file | `POST /api/v1/activities/import/` |
 | Coach analytics | `GET /api/v1/coach/analytics/summary/` |
 | Athlete analytics | `GET /api/v1/athlete/analytics/summary/` |
 
 Collection endpoints accept `page`, `page_size`, `ordering`, and resource-specific filters. Search-enabled endpoints accept `search`. Discover the complete contract in Swagger or download `/api/schema/`.
+
+### Completed activity imports
+
+Athletes can import their own device files from the **Activities** workspace. Coaches can import and review files only for athletes in an active coaching relationship. The multipart import endpoint accepts a required `file`, an optional sport override, an optional planned `workout`, and a required `athlete` when a coach performs the import.
+
+Imported activities are matched to a compatible planned workout within a 24-hour window. The API calculates actual duration and distance, heart-rate, pace, power, cadence, elevation gain, threshold-based training load, compliance, and time in configured training zones. Multiple activity files may belong to one multisport workout, and the workout log is synchronized from their combined duration and distance.
+
+For privacy and compatibility with ephemeral deployments, original files and GPS coordinates are not retained. The database stores the SHA-256 checksum, source metadata, calculated summaries, and a downsampled stream capped at 1,000 points. Files are limited to 20 MB, parsed with hardened XML handling, rate-limited, and deduplicated per athlete.
 
 The coach analytics endpoint accepts optional `athlete_id`, `date_from`, and `date_to` query parameters. Both analytics endpoints return planned and actual volume, completed and skipped workout counts, completion rate, average perceived exertion, and weekly session load. Coach athlete filtering is limited to active coaching relationships; athletes can retrieve only their own summary.
 
