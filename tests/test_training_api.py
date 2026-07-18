@@ -78,6 +78,32 @@ def test_athlete_cannot_create_plan(api_client, athlete):
 
 
 @pytest.mark.django_db
+def test_workout_date_must_fall_within_selected_week(api_client, coach, athlete, relationship):
+    plan = TrainingPlan.objects.create(
+        coach=coach,
+        athlete=athlete,
+        title="Base training",
+        start_date=date.today(),
+        end_date=date.today() + timedelta(days=14),
+    )
+    week = WeeklyPlan.objects.create(training_plan=plan, week_number=1, start_date=date.today())
+    api_client.force_authenticate(coach)
+
+    response = api_client.post(
+        reverse("workout-list"),
+        {
+            "weekly_plan": week.id,
+            "title": "Workout outside the week",
+            "sport": Workout.Sport.RUNNING,
+            "scheduled_at": timezone.now() + timedelta(days=8),
+        },
+    )
+
+    assert response.status_code == 400
+    assert "scheduled_at" in response.data
+
+
+@pytest.mark.django_db
 def test_coach_can_review_assigned_athlete_workout_logs(api_client, coach, athlete, relationship):
     plan = TrainingPlan.objects.create(
         coach=coach,

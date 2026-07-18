@@ -284,34 +284,61 @@ function Overview() {
   const { user } = useAuth();
   const { t } = useLanguage();
   const [plans, setPlans] = useState<TrainingPlan[]>([]);
+  const [relationships, setRelationships] = useState<Relationship[]>([]);
   const [stats, setStats] = useState<Analytics | null>(null);
   useEffect(() => {
     api.plans().then((response) => setPlans(response.results));
-    if (user?.role === "coach") api.analytics().then(setStats);
+    if (user?.role === "coach") {
+      api.analytics().then(setStats);
+      api.athletes().then((response) => setRelationships(response.results));
+    }
   }, [user]);
-  const workouts = plans.flatMap((plan) => plan.weeks.flatMap((week) => week.workouts));
-  const next = workouts
-    .filter((workout) => new Date(workout.scheduled_at) >= new Date())
-    .sort((left, right) => left.scheduled_at.localeCompare(right.scheduled_at))
+  const scheduledWorkouts = plans.flatMap((plan) =>
+    plan.weeks.flatMap((week) => week.workouts.map((workout) => ({ athleteId: plan.athlete, workout }))),
+  );
+  const workouts = scheduledWorkouts.map((item) => item.workout);
+  const next = scheduledWorkouts
+    .filter((item) => new Date(item.workout.scheduled_at) >= new Date())
+    .sort((left, right) => left.workout.scheduled_at.localeCompare(right.workout.scheduled_at))
     .slice(0, 4);
+  const athleteNames = new Map(
+    relationships.map((relationship) => [
+      relationship.athlete.id,
+      `${relationship.athlete.first_name} ${relationship.athlete.last_name}`.trim() || relationship.athlete.username,
+    ]),
+  );
+  const activeAthleteCount = relationships.filter((relationship) => relationship.is_active).length;
+  const isCoach = user?.role === "coach";
   const coachName = user?.coach
     ? `${user.coach.first_name} ${user.coach.last_name}`.trim() || user.coach.username
     : "";
   return (
     <>
-      <section className="hero-panel">
-        <img className="hero-panel-image" src={heroImage} alt="" />
-        <div>
-          <span className="eyebrow">{t("currentCycle")}</span>
-          <h2>{plans[0]?.title ?? t("cycleReady")}</h2>
-          <p>{plans[0]?.description || t("cycleDescription")}</p>
-        </div>
-        <div className="ring"><strong>{stats?.completion_rate ?? workouts.filter((workout) => workout.status === "completed").length}</strong><small>{stats ? t("percentComplete") : t("completed")}</small></div>
-      </section>
+      {isCoach ? (
+        <section className="hero-panel coach-hero">
+          <img className="hero-panel-image" src={heroImage} alt="" />
+          <div>
+            <span className="eyebrow">{t("coachOverview")}</span>
+            <h2>{t("coachOverviewTitle")}</h2>
+            <p>{t("coachOverviewDescription")}</p>
+            <NavLink className="hero-action" to="/plans">{t("openPlanningCalendar")} →</NavLink>
+          </div>
+        </section>
+      ) : (
+        <section className="hero-panel">
+          <img className="hero-panel-image" src={heroImage} alt="" />
+          <div>
+            <span className="eyebrow">{t("currentCycle")}</span>
+            <h2>{plans[0]?.title ?? t("cycleReady")}</h2>
+            <p>{plans[0]?.description || t("cycleDescription")}</p>
+          </div>
+          <div className="ring"><strong>{workouts.filter((workout) => workout.status === "completed").length}</strong><small>{t("completed")}</small></div>
+        </section>
+      )}
       <section className="stat-grid">
-        <Stat label={t("activePlans")} value={plans.filter((plan) => plan.is_active).length} />
+        <Stat label={isCoach ? t("athletesUnderCoaching") : t("activePlans")} value={isCoach ? activeAthleteCount : plans.filter((plan) => plan.is_active).length} />
         <Stat label={t("plannedSessions")} value={stats?.total_workouts ?? workouts.length} />
-        <Stat label={t("distanceCompleted")} value={`${stats?.actual_distance_km ?? "0.00"} km`} />
+        <Stat label={isCoach ? t("completedSessions") : t("distanceCompleted")} value={isCoach ? stats?.completed_workouts ?? 0 : `${stats?.actual_distance_km ?? "0.00"} km`} />
         <Stat label={t("averageEffort")} value={stats?.average_perceived_exertion ?? "—"} />
       </section>
       {user?.role === "athlete" && (
@@ -326,11 +353,11 @@ function Overview() {
         </section>
       )}
       <div className="section-title">
-        <div><span className="eyebrow">{t("comingUp")}</span><h2>{t("nextSessions")}</h2></div>
+        <div><span className="eyebrow">{t("comingUp")}</span><h2>{isCoach ? t("coachNextSessions") : t("nextSessions")}</h2></div>
         <NavLink to="/plans">{t("viewAll")}</NavLink>
       </div>
       <section className="session-list">
-        {next.length ? next.map((workout) => <WorkoutRow key={workout.id} workout={workout} />) : <Empty text={t("noUpcoming")} />}
+        {next.length ? next.map((item) => <WorkoutRow athleteName={isCoach ? athleteNames.get(item.athleteId) : undefined} key={item.workout.id} workout={item.workout} />) : <Empty text={t("noUpcoming")} />}
       </section>
     </>
   );
@@ -340,7 +367,7 @@ function Stat({ label, value }: { label: string; value: string | number }) {
   return <article className="stat"><small>{label}</small><strong>{value}</strong></article>;
 }
 
-function WorkoutRow({ workout }: { workout: Workout }) {
+function WorkoutRow({ athleteName, workout }: { athleteName?: string; workout: Workout }) {
   const { locale, t } = useLanguage();
   const dateLocale = locale === "ru" ? "ru-RU" : "en-US";
   const sportLabels: Record<string, string> = {
@@ -353,7 +380,7 @@ function WorkoutRow({ workout }: { workout: Workout }) {
     <article className="workout-row">
       <time><strong>{new Date(workout.scheduled_at).toLocaleDateString(dateLocale, { day: "2-digit" })}</strong><small>{new Date(workout.scheduled_at).toLocaleDateString(dateLocale, { month: "short" })}</small></time>
       <div className={`sport ${workout.sport}`} />
-      <div className="grow"><strong>{workout.title}</strong><small>{sportLabels[workout.sport] || workout.sport} · {workout.intensity || t("openIntensity")}</small></div>
+      <div className="grow"><strong>{workout.title}</strong><small>{sportLabels[workout.sport] || workout.sport} · {workout.intensity || t("openIntensity")}</small>{athleteName && <small className="athlete-context">{athleteName}</small>}</div>
       <div><strong>{workout.planned_duration_minutes ?? "—"} {t("minutes")}</strong><small>{workout.planned_distance_km ? `${workout.planned_distance_km} km` : t("distanceOpen")}</small></div>
       <span className={`status ${workout.status}`}>{statusLabels[workout.status] || workout.status}</span>
     </article>

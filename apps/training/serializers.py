@@ -1,3 +1,6 @@
+from datetime import timedelta
+
+from django.utils import timezone
 from rest_framework import serializers
 
 from apps.users.models import User
@@ -60,6 +63,18 @@ class WorkoutSerializer(serializers.ModelSerializer):
     class Meta:
         model = Workout
         fields = "__all__"
+
+    def validate(self, attrs):
+        week = attrs.get("weekly_plan", getattr(self.instance, "weekly_plan", None))
+        scheduled_at = attrs.get("scheduled_at", getattr(self.instance, "scheduled_at", None))
+        if week and scheduled_at:
+            scheduled_date = timezone.localtime(scheduled_at).date()
+            week_end = week.start_date + timedelta(days=6)
+            if not week.start_date <= scheduled_date <= week_end:
+                raise serializers.ValidationError(
+                    {"scheduled_at": "The workout date must fall within the selected training week."}
+                )
+        return attrs
 
 
 class WeeklyPlanSerializer(serializers.ModelSerializer):

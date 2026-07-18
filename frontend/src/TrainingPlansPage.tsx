@@ -7,7 +7,7 @@ import type { Relationship, TrainingPlan, WeeklyPlan, Workout } from "./types";
 type Editor =
   | { kind: "plan" }
   | { kind: "week"; plan: TrainingPlan }
-  | { kind: "workout"; week: WeeklyPlan }
+  | { kind: "workout"; week: WeeklyPlan; scheduledDate?: string }
   | { kind: "exercise"; workout: Workout }
   | { kind: "comment"; workout: Workout }
   | { kind: "log"; workout: Workout };
@@ -31,6 +31,31 @@ function dateOffset(days: number): string {
   value.setDate(value.getDate() + days);
   return value.toISOString().slice(0, 10);
 }
+
+function dateKey(value: string | Date): string {
+  const date = value instanceof Date ? value : new Date(value);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function weekDays(startDate: string): Date[] {
+  const start = new Date(`${startDate}T12:00:00`);
+  return Array.from({ length: 7 }, (_, index) => {
+    const day = new Date(start);
+    day.setDate(start.getDate() + index);
+    return day;
+  });
+}
+
+const SPORT_IDS = ["running", "cycling", "swimming", "triathlon"] as const;
+const SPORT_MARKS: Record<string, string> = {
+  running: "RUN",
+  cycling: "BIKE",
+  swimming: "SWIM",
+  triathlon: "TRI",
+};
 
 function displayName(relationship: Relationship): string {
   const athlete = relationship.athlete;
@@ -141,8 +166,8 @@ function EditorPanel({
               <div className="editor-context"><strong>{t("week", { number: editor.week.week_number })}</strong><small>{editor.week.start_date}</small></div>
               <div className="form-grid">
                 <label>{t("workoutTitle")}<input name="title" required /></label>
-                <label>{t("sport")}<select name="sport" required><option value="running">{t("sportRunning")}</option><option value="cycling">{t("sportCycling")}</option><option value="swimming">{t("sportSwimming")}</option><option value="triathlon">{t("sportTriathlon")}</option></select></label>
-                <label>{t("scheduledAt")}<input name="scheduled_at" type="datetime-local" defaultValue={localDateTime()} required /></label>
+                <label>{t("sport")}<select name="sport" required defaultValue=""><option value="" disabled>{t("selectSport")}</option><option value="running">{t("sportRunning")}</option><option value="cycling">{t("sportCycling")}</option><option value="swimming">{t("sportSwimming")}</option><option value="triathlon">{t("sportTriathlon")}</option></select></label>
+                <label>{t("scheduledAt")}<input name="scheduled_at" type="datetime-local" defaultValue={`${editor.scheduledDate || editor.week.start_date}T07:00`} required /></label>
                 <label>{t("intensity")}<input name="intensity" placeholder="Z2 / easy / tempo" /></label>
                 <label>{t("durationMinutes")}<input name="planned_duration_minutes" type="number" min="1" /></label>
                 <label>{t("distanceKm")}<input name="planned_distance_km" type="number" min="0" step="0.01" /></label>
@@ -203,6 +228,7 @@ export function TrainingPlansPage() {
   const [relationships, setRelationships] = useState<Relationship[]>([]);
   const [editor, setEditor] = useState<Editor | null>(null);
   const [expandedWorkout, setExpandedWorkout] = useState<number | null>(null);
+  const [sportFilter, setSportFilter] = useState("all");
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -245,6 +271,7 @@ export function TrainingPlansPage() {
     completed: t("statusCompleted"),
     skipped: t("statusSkipped"),
   };
+  const allWorkouts = plans.flatMap((plan) => plan.weeks.flatMap((week) => week.workouts));
 
   return (
     <>
@@ -260,6 +287,17 @@ export function TrainingPlansPage() {
           <article><strong>3</strong><div><h3>{t("planStepThree")}</h3><p>{t("planStepThreeText")}</p></div></article>
         </section>
       )}
+
+      <nav className="sport-filter" aria-label={t("sportFilter")}>
+        <button className={sportFilter === "all" ? "active" : ""} onClick={() => setSportFilter("all")} type="button">
+          {t("allSports")} <span>{allWorkouts.length}</span>
+        </button>
+        {SPORT_IDS.map((sport) => (
+          <button className={sportFilter === sport ? `active ${sport}` : sport} key={sport} onClick={() => setSportFilter(sport)} type="button">
+            <i>{SPORT_MARKS[sport]}</i> {sportLabels[sport]} <span>{allWorkouts.filter((workout) => workout.sport === sport).length}</span>
+          </button>
+        ))}
+      </nav>
 
       {message && <div className="notice" role="status">{message}</div>}
       {error && <div className="error" role="alert">{error}</div>}
@@ -282,59 +320,84 @@ export function TrainingPlansPage() {
           </div>
 
           {!plan.weeks.length && <div className="plan-empty">{t("noWeeks")}</div>}
-          {plan.weeks.map((week) => (
-            <div className="week-block" key={week.id}>
-              <div className="week-head">
-                <div><h4>{t("week", { number: week.week_number })}</h4><small>{week.start_date}{week.notes ? ` · ${week.notes}` : ""}</small></div>
-                {user?.role === "coach" && <button className="secondary compact" onClick={() => setEditor({ kind: "workout", week })} type="button">+ {t("addWorkout")}</button>}
-              </div>
+          {plan.weeks.map((week) => {
+            const visibleWorkouts = week.workouts.filter((workout) => sportFilter === "all" || workout.sport === sportFilter);
+            const selectedWorkout = visibleWorkouts.find((workout) => workout.id === expandedWorkout);
+            return (
+              <div className="week-block calendar-week" key={week.id}>
+                <div className="week-head">
+                  <div><span className="eyebrow">{t("weeklyCalendar")}</span><h4>{t("week", { number: week.week_number })}</h4><small>{week.start_date}{week.notes ? ` · ${week.notes}` : ""}</small></div>
+                  {user?.role === "coach" && <button className="secondary compact" onClick={() => setEditor({ kind: "workout", week, scheduledDate: week.start_date })} type="button">+ {t("addWorkout")}</button>}
+                </div>
 
-              {!week.workouts.length && <div className="plan-empty small">{t("noWeekWorkouts")}</div>}
-              {week.workouts.map((workout) => {
-                const expanded = expandedWorkout === workout.id;
-                return (
-                  <article className={`manage-workout ${expanded ? "expanded" : ""}`} key={workout.id}>
-                    <button className="workout-summary" onClick={() => setExpandedWorkout(expanded ? null : workout.id)} type="button">
-                      <time><strong>{new Date(workout.scheduled_at).toLocaleDateString(dateLocale, { day: "2-digit" })}</strong><small>{new Date(workout.scheduled_at).toLocaleDateString(dateLocale, { month: "short" })}</small></time>
-                      <span className={`sport ${workout.sport}`} />
-                      <span className="grow"><strong>{workout.title}</strong><small>{sportLabels[workout.sport] || workout.sport} · {workout.intensity || t("openIntensity")}</small></span>
-                      <span><strong>{workout.planned_duration_minutes || "—"} {t("minutes")}</strong><small>{workout.planned_distance_km ? `${workout.planned_distance_km} km` : t("distanceOpen")}</small></span>
-                      <span className={`status ${workout.status}`}>{statusLabels[workout.status] || workout.status}</span>
-                      <span className="expand-mark">{expanded ? "−" : "+"}</span>
-                    </button>
-
-                    {expanded && (
-                      <div className="workout-detail">
-                        {workout.notes && <p className="workout-notes">{workout.notes}</p>}
-                        <div className="detail-columns">
-                          <section>
-                            <div className="detail-title"><h5>{t("exercises")}</h5>{user?.role === "coach" && <button className="link-action" onClick={() => setEditor({ kind: "exercise", workout })} type="button">+ {t("addExercise")}</button>}</div>
-                            {workout.exercises.length ? <ol className="exercise-list">{workout.exercises.map((exercise) => <li key={exercise.id}><strong>{exercise.name}</strong><span>{exercise.description || t("exerciseDetails")}</span><small>{exercise.duration_seconds ? `${exercise.duration_seconds} ${t("seconds")}` : ""}{exercise.distance_meters ? ` · ${exercise.distance_meters} m` : ""}{exercise.recovery_seconds ? ` · ${t("recovery")} ${exercise.recovery_seconds} ${t("seconds")}` : ""}</small></li>)}</ol> : <p className="muted">{t("noExercises")}</p>}
-                          </section>
-                          <section>
-                            <div className="detail-title"><h5>{t("coachComments")}</h5>{user?.role === "coach" && <button className="link-action" onClick={() => setEditor({ kind: "comment", workout })} type="button">+ {t("addComment")}</button>}</div>
-                            {workout.coach_comments.length ? <div className="comment-list">{workout.coach_comments.map((comment) => <blockquote key={comment.id}>{comment.body}<small>{comment.coach_name || t("coach")}</small></blockquote>)}</div> : <p className="muted">{t("noCoachComments")}</p>}
-                          </section>
+                <div className="week-calendar">
+                  {weekDays(week.start_date).map((day) => {
+                    const dayWorkouts = visibleWorkouts.filter((workout) => dateKey(workout.scheduled_at) === dateKey(day));
+                    return (
+                      <section className="calendar-day" key={dateKey(day)}>
+                        <header>
+                          <div><span>{day.toLocaleDateString(dateLocale, { weekday: "short" })}</span><strong>{day.getDate()}</strong></div>
+                          {user?.role === "coach" && <button aria-label={t("addWorkoutOnDate", { date: day.toLocaleDateString(dateLocale) })} onClick={() => setEditor({ kind: "workout", week, scheduledDate: dateKey(day) })} type="button">+</button>}
+                        </header>
+                        <div className="day-workouts">
+                          {dayWorkouts.map((workout) => (
+                            <article className={`calendar-workout ${workout.sport} ${workout.status}`} key={workout.id}>
+                              <button onClick={() => setExpandedWorkout(expandedWorkout === workout.id ? null : workout.id)} type="button">
+                                <span className="sport-card-label"><i>{SPORT_MARKS[workout.sport]}</i>{sportLabels[workout.sport] || workout.sport}</span>
+                                <strong>{workout.title}</strong>
+                                <small>{new Date(workout.scheduled_at).toLocaleTimeString(dateLocale, { hour: "2-digit", minute: "2-digit" })} · {workout.intensity || t("openIntensity")}</small>
+                                <span className="sport-card-metrics"><b>{workout.planned_duration_minutes || "—"} {t("minutes")}</b><b>{workout.planned_distance_km ? `${workout.planned_distance_km} km` : "—"}</b></span>
+                                <span className={`calendar-status ${workout.status}`}>{statusLabels[workout.status] || workout.status}</span>
+                              </button>
+                            </article>
+                          ))}
+                          {!dayWorkouts.length && <span className="day-rest">{t("restDay")}</span>}
                         </div>
+                      </section>
+                    );
+                  })}
+                </div>
 
-                        {workout.log ? (
-                          <section className="completion-card">
-                            <div><span className="eyebrow">{t("workoutResult")}</span><strong>{t("statusCompleted")}</strong></div>
-                            <span>{workout.log.actual_duration_minutes || "—"} {t("minutes")}</span>
-                            <span>{workout.log.actual_distance_km ? `${workout.log.actual_distance_km} km` : "—"}</span>
-                            <span>RPE {workout.log.perceived_exertion || "—"}</span>
-                            {workout.log.notes && <p>{workout.log.notes}</p>}
-                          </section>
-                        ) : user?.role === "athlete" ? (
-                          <button className="primary complete-button" onClick={() => setEditor({ kind: "log", workout })} type="button">{t("markComplete")}</button>
-                        ) : <p className="muted completion-pending">{t("awaitingCompletion")}</p>}
-                      </div>
-                    )}
-                  </article>
-                );
-              })}
-            </div>
-          ))}
+                {!visibleWorkouts.length && <div className="plan-empty small">{sportFilter === "all" ? t("noWeekWorkouts") : t("noSportWorkouts")}</div>}
+                {selectedWorkout && (
+                  <div className={`workout-detail calendar-quick-view ${selectedWorkout.sport}`}>
+                    <div className="quick-view-head">
+                      <div><span className="sport-card-label"><i>{SPORT_MARKS[selectedWorkout.sport]}</i>{sportLabels[selectedWorkout.sport]}</span><h4>{selectedWorkout.title}</h4><small>{new Date(selectedWorkout.scheduled_at).toLocaleString(dateLocale)} · {selectedWorkout.intensity || t("openIntensity")}</small></div>
+                      <button aria-label={t("close")} className="icon-button" onClick={() => setExpandedWorkout(null)} type="button">×</button>
+                    </div>
+                    <div className="planned-metrics">
+                      <span><small>{t("durationMinutes")}</small><strong>{selectedWorkout.planned_duration_minutes || "—"} {t("minutes")}</strong></span>
+                      <span><small>{t("distanceKm")}</small><strong>{selectedWorkout.planned_distance_km ? `${selectedWorkout.planned_distance_km} km` : "—"}</strong></span>
+                      <span><small>{t("status")}</small><strong>{statusLabels[selectedWorkout.status] || selectedWorkout.status}</strong></span>
+                    </div>
+                    {selectedWorkout.notes && <p className="workout-notes">{selectedWorkout.notes}</p>}
+                    <div className="detail-columns">
+                      <section>
+                        <div className="detail-title"><h5>{t("exercises")}</h5>{user?.role === "coach" && <button className="link-action" onClick={() => setEditor({ kind: "exercise", workout: selectedWorkout })} type="button">+ {t("addExercise")}</button>}</div>
+                        {selectedWorkout.exercises.length ? <ol className="exercise-list">{selectedWorkout.exercises.map((exercise) => <li key={exercise.id}><strong>{exercise.name}</strong><span>{exercise.description || t("exerciseDetails")}</span><small>{exercise.duration_seconds ? `${exercise.duration_seconds} ${t("seconds")}` : ""}{exercise.distance_meters ? ` · ${exercise.distance_meters} m` : ""}{exercise.recovery_seconds ? ` · ${t("recovery")} ${exercise.recovery_seconds} ${t("seconds")}` : ""}</small></li>)}</ol> : <p className="muted">{t("noExercises")}</p>}
+                      </section>
+                      <section>
+                        <div className="detail-title"><h5>{t("coachComments")}</h5>{user?.role === "coach" && <button className="link-action" onClick={() => setEditor({ kind: "comment", workout: selectedWorkout })} type="button">+ {t("addComment")}</button>}</div>
+                        {selectedWorkout.coach_comments.length ? <div className="comment-list">{selectedWorkout.coach_comments.map((comment) => <blockquote key={comment.id}>{comment.body}<small>{comment.coach_name || t("coach")}</small></blockquote>)}</div> : <p className="muted">{t("noCoachComments")}</p>}
+                      </section>
+                    </div>
+
+                    {selectedWorkout.log ? (
+                      <section className="completion-card">
+                        <div><span className="eyebrow">{t("workoutResult")}</span><strong>{t("statusCompleted")}</strong></div>
+                        <span>{selectedWorkout.log.actual_duration_minutes || "—"} {t("minutes")}</span>
+                        <span>{selectedWorkout.log.actual_distance_km ? `${selectedWorkout.log.actual_distance_km} km` : "—"}</span>
+                        <span>RPE {selectedWorkout.log.perceived_exertion || "—"}</span>
+                        {selectedWorkout.log.notes && <p>{selectedWorkout.log.notes}</p>}
+                      </section>
+                    ) : user?.role === "athlete" ? (
+                      <button className="primary complete-button" onClick={() => setEditor({ kind: "log", workout: selectedWorkout })} type="button">{t("markComplete")}</button>
+                    ) : <p className="muted completion-pending">{t("awaitingCompletion")}</p>}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </section>
       ))}
 
