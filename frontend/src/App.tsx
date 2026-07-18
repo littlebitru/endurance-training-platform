@@ -2,7 +2,7 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 import { Link, Navigate, NavLink, Route, Routes, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { api } from "./api";
 import { AthleteThresholdPanel } from "./AthleteThresholdPanel";
-import heroImage from "./assets/endurance-hero-v1.webp";
+import heroImage from "./assets/endurance-hero-v2.webp";
 import { useAuth } from "./auth";
 import { localizeApiError, useLanguage } from "./i18n";
 import { TrainingPlansPage } from "./TrainingPlansPage";
