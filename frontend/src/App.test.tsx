@@ -3,7 +3,7 @@ import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { AuthProvider } from "./auth";
 import { LanguageProvider } from "./i18n";
-import App, { AthletePlanPortfolio } from "./App";
+import App, { AthleteOverviewHero, AthletePlanPortfolio } from "./App";
 import type { TrainingPlan } from "./types";
 
 beforeEach(() => {
@@ -106,4 +106,19 @@ test("shows every active athlete plan as a direct workspace link", () => {
 
   expect(screen.getByRole("link", { name: /Marathon build/ })).toHaveAttribute("href", "/plans?plan_id=20");
   expect(screen.getByRole("link", { name: /5 km speed/ })).toHaveAttribute("href", "/plans?plan_id=21");
+});
+
+test("keeps the athlete overview neutral and fully localized", () => {
+  localStorage.setItem("endurance_locale", "ru");
+
+  render(
+    <MemoryRouter>
+      <LanguageProvider><AthleteOverviewHero completionRate={68.4} /></LanguageProvider>
+    </MemoryRouter>,
+  );
+
+  expect(screen.getByRole("heading", { name: "Тренируйтесь осознанно. Прогрессируйте уверенно." })).toBeInTheDocument();
+  expect(screen.getByText("68%")).toBeInTheDocument();
+  expect(screen.getByText("Процент выполнения")).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: /Открыть календарь тренировок/ })).toHaveAttribute("href", "/calendar");
 });
