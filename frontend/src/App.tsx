@@ -326,7 +326,6 @@ function Overview() {
       const rightValue = Date.parse(right.updated_at || right.created_at || right.start_date);
       return rightValue - leftValue || right.id - left.id;
     });
-  const focusPlan = athletePlans[0];
   const coachName = user?.coach
     ? `${user.coach.first_name} ${user.coach.last_name}`.trim() || user.coach.username
     : "";
@@ -342,17 +341,7 @@ function Overview() {
             <NavLink className="hero-action" to="/plans">{t("openPlanningCalendar")} →</NavLink>
           </div>
         </section>
-      ) : (
-        <section className="hero-panel">
-          <img className="hero-panel-image" src={heroImage} alt="" />
-          <div>
-            <span className="eyebrow">{t("currentCycle")}</span>
-            <h2>{focusPlan?.title ?? t("cycleReady")}</h2>
-            <p>{focusPlan?.description || focusPlan?.target_event_name || t("cycleDescription")}</p>
-          </div>
-          <div className="ring"><strong>{workouts.filter((workout) => workout.status === "completed").length}</strong><small>{t("completed")}</small></div>
-        </section>
-      )}
+      ) : <AthleteOverviewHero completionRate={stats?.completion_rate ?? 0} />}
       {!isCoach && athletePlans.length > 0 && <AthletePlanPortfolio plans={athletePlans} />}
       <section className="stat-grid">
         <Stat label={isCoach ? t("athletesUnderCoaching") : t("activePlans")} value={isCoach ? activeAthleteCount : athletePlans.length} />
@@ -381,6 +370,25 @@ function Overview() {
         {next.length ? next.map((item) => <WorkoutRow athleteName={isCoach ? athleteNames.get(item.athleteId) : undefined} key={item.workout.id} workout={item.workout} />) : <Empty text={t("noUpcoming")} />}
       </section>
     </>
+  );
+}
+
+export function AthleteOverviewHero({ completionRate }: { completionRate: number }) {
+  const { t } = useLanguage();
+  return (
+    <section className="hero-panel athlete-hero">
+      <img className="hero-panel-image" src={heroImage} alt="" />
+      <div>
+        <span className="eyebrow">{t("athleteOverview")}</span>
+        <h2>{t("athleteOverviewTitle")}</h2>
+        <p>{t("athleteOverviewDescription")}</p>
+        <NavLink className="hero-action" to="/calendar">{t("openTrainingCalendar")} →</NavLink>
+      </div>
+      <div className="ring">
+        <strong>{Math.round(Number(completionRate) || 0)}%</strong>
+        <small>{t("completionRate")}</small>
+      </div>
+    </section>
   );
 }
 

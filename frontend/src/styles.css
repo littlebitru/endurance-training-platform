@@ -497,6 +497,8 @@ h1, h2, h3, h4, h5, strong, b, .brand-mark, .logo, .activity-sport, .eyebrow {
 .hero-panel p { animation: contentRise .6s .28s ease both; }
 .coach-hero { min-height: 270px; align-items: center; }
 .coach-hero > div:not(.ring) { max-width: 720px; }
+.athlete-hero { min-height: 270px; }
+.athlete-hero > div:not(.ring) { max-width: 720px; }
 .hero-action { display: inline-flex; margin-top: 13px; padding: 10px 14px; border: 1px solid #bcd0c3; border-radius: 8px; color: #f3f8f3; background: #ffffff12; font-size: 12px; font-weight: 600; text-decoration: none; backdrop-filter: blur(8px); transition: border-color .2s ease, background .2s ease, transform .2s ease; }
 .hero-action:hover { border-color: #d6ec9e; background: #ffffff20; transform: translateY(-1px); }
 
