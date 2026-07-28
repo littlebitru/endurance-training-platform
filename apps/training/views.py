@@ -39,6 +39,7 @@ from .models import (
     WorkoutLog,
     WorkoutTemplate,
 )
+from .performance import build_performance_insights
 from .permissions import AthleteWriteCoachRead, CoachWriteAthleteReadOnly
 from .plan_generation import generate_periodized_plan
 from .serializers import (
@@ -52,6 +53,8 @@ from .serializers import (
     CoachAnalyticsSummarySerializer,
     CoachCommentSerializer,
     ExerciseSerializer,
+    PerformanceInsightsQuerySerializer,
+    PerformanceInsightsSerializer,
     PeriodizedPlanSerializer,
     TrainingCalendarSerializer,
     TrainingGoalProfileSerializer,
@@ -286,6 +289,43 @@ class AthleteAnalyticsSummaryView(APIView):
         query.is_valid(raise_exception=True)
         summary = build_athlete_summary(athlete=request.user, **query.validated_data)
         return Response(CoachAnalyticsSummarySerializer(summary).data)
+
+
+class PerformanceInsightsView(APIView):
+    permission_classes = (IsAuthenticated,)
+
+    @extend_schema(
+        parameters=[PerformanceInsightsQuerySerializer],
+        responses={status.HTTP_200_OK: PerformanceInsightsSerializer},
+        summary="Get historical and projected athlete training load insights",
+    )
+    def get(self, request):
+        query = PerformanceInsightsQuerySerializer(data=request.query_params)
+        query.is_valid(raise_exception=True)
+        athlete_id = query.validated_data.pop("athlete_id", None)
+
+        if request.user.role == User.Role.COACH:
+            if not athlete_id:
+                raise serializers.ValidationError({"athlete_id": "Select an assigned athlete."})
+            relationship = (
+                CoachingRelationship.objects.filter(
+                    coach=request.user,
+                    athlete_id=athlete_id,
+                    is_active=True,
+                )
+                .select_related("athlete")
+                .first()
+            )
+            if not relationship:
+                raise serializers.ValidationError({"athlete_id": "The athlete is not assigned to this coach."})
+            athlete = relationship.athlete
+        else:
+            if athlete_id and athlete_id != request.user.id:
+                raise serializers.ValidationError({"athlete_id": "Athletes can only view their own performance."})
+            athlete = request.user
+
+        payload = build_performance_insights(athlete=athlete, **query.validated_data)
+        return Response(PerformanceInsightsSerializer(payload).data)
 
 
 def accessible_plans(user):

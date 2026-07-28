@@ -8,6 +8,7 @@ from .views import (
     CoachAnalyticsSummaryView,
     CoachCommentViewSet,
     ExerciseViewSet,
+    PerformanceInsightsView,
     TrainingCalendarView,
     TrainingGoalCatalogView,
     TrainingPlanViewSet,
@@ -31,6 +32,7 @@ router.register("workout-logs", WorkoutLogViewSet, basename="workout-log")
 router.register("workout-templates", WorkoutTemplateViewSet, basename="workout-template")
 urlpatterns = [
     path("calendar/", TrainingCalendarView.as_view(), name="training-calendar"),
+    path("performance/insights/", PerformanceInsightsView.as_view(), name="performance-insights"),
     path("training-goals/", TrainingGoalCatalogView.as_view(), name="training-goal-catalog"),
     path("coach/analytics/summary/", CoachAnalyticsSummaryView.as_view(), name="coach-analytics-summary"),
     path("athlete/analytics/summary/", AthleteAnalyticsSummaryView.as_view(), name="athlete-analytics-summary"),

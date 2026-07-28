@@ -22,6 +22,7 @@ The repository also includes a responsive React and TypeScript web application w
 - Secure FIT, TCX, and GPX activity imports with duplicate detection and automatic workout matching
 - Actual heart-rate, pace, power, elevation, training-load, compliance, and time-in-zone analysis
 - Unified plan-versus-execution calendar with coach attention queues, sport filters, and athlete scoping
+- Interactive fitness, fatigue, and form analysis with published-plan load forecasting
 - Filtering, full-text-style search, ordering, and pagination
 - OpenAPI schema and interactive Swagger UI
 - PostgreSQL, Docker, automated tests, code quality checks, and GitHub Actions
@@ -105,6 +106,7 @@ On Windows, activate the environment with `.venv\\Scripts\\activate`.
 | Completed activities | `GET /api/v1/activities/` |
 | Import activity file | `POST /api/v1/activities/import/` |
 | Unified training calendar | `GET /api/v1/calendar/` |
+| Performance insights | `GET /api/v1/performance/insights/` |
 | Coach analytics | `GET /api/v1/coach/analytics/summary/` |
 | Athlete analytics | `GET /api/v1/athlete/analytics/summary/` |
 
@@ -125,6 +127,14 @@ For privacy and compatibility with ephemeral deployments, original files and GPS
 The endpoint accepts `date_from`, `date_to`, optional `sport`, and optional `athlete_id`. Ranges are capped at 63 days. Athletes can retrieve only their own calendar; coaches can retrieve all active assigned athletes or select one assigned athlete. The web workspace offers week and month views, athlete and sport filters, a mobile agenda layout, deep links to activity analysis, and a coach review queue.
 
 The coach analytics endpoint accepts optional `athlete_id`, `date_from`, and `date_to` query parameters. Both analytics endpoints return planned and actual volume, completed and skipped workout counts, completion rate, average perceived exertion, and weekly session load. Coach athlete filtering is limited to active coaching relationships; athletes can retrieve only their own summary.
+
+### Performance insights
+
+`GET /api/v1/performance/insights/` returns one daily series containing completed training load, estimated published-plan load, long-term fitness, short-term fatigue, and form. Historical calculations use completed imported activities. Dates after today use the estimated load of published workouts, keeping recorded history and the forecast logically separate.
+
+Fitness is calculated as a 42-day exponentially weighted load, fatigue as a 7-day exponentially weighted load, and each day's form as the previous day's fitness minus fatigue. Planned load is a transparent estimate based on workout duration and a workout-type intensity factor. The response also includes 7-day and 28-day load, recent fitness change, forecast-end values, data-coverage metadata, and a descriptive training-balance status. These values are coaching decision support, not a medical assessment or an automatic instruction to train.
+
+The endpoint accepts optional `date_from`, `date_to`, and `sport` parameters. Ranges are capped at 183 days. Athletes can retrieve only their own insights. Coaches must provide `athlete_id`, which is accepted only for an active assigned athlete. The bilingual web workspace offers 12-week and 6-month views, sport filtering, an accessible day scrubber, animated load curves, and responsive layouts.
 
 ### Periodized plan generation
 
@@ -164,7 +174,7 @@ New accounts must verify their email before JWT tokens are issued. In developmen
 
 ## Delivery roadmap
 
-The current version is a tested API foundation, not yet a complete public SaaS release. See [`docs/ROADMAP.md`](docs/ROADMAP.md) for the prioritized path to production, including account verification, richer training metrics, observability, deployment, security review, and release criteria.
+The current version is a tested staging product, not yet a complete public SaaS release. See [`docs/ROADMAP.md`](docs/ROADMAP.md) for the prioritized path to production, including recovery context, notifications, observability, security review, and release criteria.
 
 ## Frontend development
 

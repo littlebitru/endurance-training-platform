@@ -13,6 +13,44 @@ export interface Relationship { id: number; coach: User; athlete: User; is_activ
 export interface TrainingGoalProfile { code: string; sport: string; label: string; distance_km: string | null; minimum_weeks: number; recommended_taper_weeks: number; recommended_weekly_minutes: Record<"beginner" | "intermediate" | "advanced", number> }
 export interface WeeklyAnalytics { week_start: string; total_workouts: number; completed_workouts: number; completion_rate: number; planned_duration_minutes: string; actual_duration_minutes: string; planned_distance_km: string; actual_distance_km: string; session_load: string }
 export interface Analytics { total_workouts: number; completed_workouts: number; skipped_workouts: number; completion_rate: number; planned_duration_minutes: string; actual_duration_minutes: string; planned_distance_km: string; actual_distance_km: string; average_perceived_exertion: number | null; weekly: WeeklyAnalytics[] }
+export type TrainingBalanceStatus = "very_fresh" | "fresh" | "balanced" | "building" | "high_load";
+export interface PerformancePoint {
+  date: string;
+  actual_load: string;
+  planned_load: string;
+  effective_load: string;
+  fitness: string;
+  fatigue: string;
+  form: string;
+  projected: boolean;
+}
+export interface PerformanceInsights {
+  athlete: { id: number; name: string };
+  date_from: string;
+  date_to: string;
+  sport: string;
+  summary: {
+    as_of: string;
+    fitness: string;
+    fatigue: string;
+    form: string;
+    balance_status: TrainingBalanceStatus;
+    seven_day_load: string;
+    twenty_eight_day_load: string;
+    fitness_change_7d: string;
+    forecast_fitness: string;
+    forecast_form: string;
+    forecast_fitness_change: string;
+  };
+  data_quality: {
+    activities_count: number;
+    actual_load_days: number;
+    planned_workouts_count: number;
+    has_history: boolean;
+    has_forecast: boolean;
+  };
+  points: PerformancePoint[];
+}
 export interface TrainingZone { id: number; athlete: number; sport: string; metric: string; zone_number: number; name: string; lower_bound: string; upper_bound: string; unit: string; display_range: string }
 export interface AthleteThreshold { id: number; athlete: number; sport: string; effective_from: string; source: string; notes: string; is_current: boolean; threshold_heart_rate: number | null; maximum_heart_rate: number | null; functional_threshold_power: number | null; threshold_pace_seconds_per_km: number | null; critical_swim_speed_seconds_per_100m: number | null; heart_rate_basis: string; zones: TrainingZone[]; updated_at: string }
 export interface WorkoutTemplate { id: number; coach: number; title: string; sport: string; workout_type: string; description: string; planned_duration_minutes: number | null; planned_distance_km: string | null; intensity: string; structured_steps: Array<Record<string, string | number | null>> }

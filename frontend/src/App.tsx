@@ -8,6 +8,7 @@ import heroImage from "./assets/endurance-hero-v2.webp";
 import { useAuth } from "./auth";
 import { localizeGeneratedWorkoutTitle } from "./generatedContent";
 import { localizeApiError, useLanguage } from "./i18n";
+import { PerformancePage } from "./PerformancePage";
 import { TrainingPlansPage } from "./TrainingPlansPage";
 import type { Analytics, Relationship, Role, TrainingCalendar, TrainingPlan, WeeklyAnalytics, Workout } from "./types";
 
@@ -257,6 +258,7 @@ function Layout({ children }: { children: React.ReactNode }) {
         <nav>
           <NavLink to="/">{t("overview")}</NavLink>
           <NavLink to="/calendar">{t("calendar")}</NavLink>
+          <NavLink to="/performance">{t("performance")}</NavLink>
           <NavLink to="/plans">{t("trainingPlans")}</NavLink>
           <NavLink to="/activities">{t("activities")}</NavLink>
           {user?.role === "coach" && <NavLink to="/athletes">{t("athletes")}</NavLink>}
@@ -649,7 +651,10 @@ function AthletesPage() {
             <span>{relationship.athlete.first_name?.[0] || relationship.athlete.username[0]}</span>
             <h3>{relationship.athlete.first_name ? `${relationship.athlete.first_name} ${relationship.athlete.last_name}` : relationship.athlete.username}</h3>
             <p>{relationship.athlete.profile?.sport || t("sportMissing")}</p>
-            <button className="secondary athlete-threshold-button" onClick={() => setSelectedAthlete(relationship)} type="button">{t("thresholdsAndZones")}</button>
+            <div className="athlete-actions">
+              <NavLink className="secondary" to={`/performance?athlete_id=${relationship.athlete.id}`}>{t("performance")}</NavLink>
+              <button className="secondary" onClick={() => setSelectedAthlete(relationship)} type="button">{t("thresholdsAndZones")}</button>
+            </div>
           </article>
         ))}
       </section>
@@ -669,6 +674,7 @@ export default function App() {
       <Route path="/invitations/:token" element={<InvitationPage />} />
       <Route path="/" element={<Protected><Overview /></Protected>} />
       <Route path="/calendar" element={<Protected><CalendarPage /></Protected>} />
+      <Route path="/performance" element={<Protected><PerformancePage /></Protected>} />
       <Route path="/plans" element={<Protected><TrainingPlansPage /></Protected>} />
       <Route path="/activities" element={<Protected><ActivitiesPage /></Protected>} />
       <Route path="/athletes" element={<Protected><AthletesPage /></Protected>} />

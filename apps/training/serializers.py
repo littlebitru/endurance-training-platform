@@ -590,6 +590,73 @@ class AnalyticsDateRangeSerializer(serializers.Serializer):
         return attrs
 
 
+class PerformanceInsightsQuerySerializer(serializers.Serializer):
+    athlete_id = serializers.IntegerField(min_value=1, required=False)
+    date_from = serializers.DateField(required=False)
+    date_to = serializers.DateField(required=False)
+    sport = serializers.ChoiceField(choices=Workout.Sport.choices, required=False)
+
+    def validate(self, attrs):
+        today = timezone.localdate()
+        date_from = attrs.get("date_from", today - timedelta(days=55))
+        date_to = attrs.get("date_to", today + timedelta(days=28))
+        if date_to < date_from:
+            raise serializers.ValidationError({"date_to": "Date to must not precede date from."})
+        if (date_to - date_from).days > 182:
+            raise serializers.ValidationError({"date_to": "Performance ranges cannot exceed 183 days."})
+        attrs["date_from"] = date_from
+        attrs["date_to"] = date_to
+        return attrs
+
+
+class PerformanceAthleteSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    name = serializers.CharField()
+
+
+class PerformancePointSerializer(serializers.Serializer):
+    date = serializers.DateField()
+    actual_load = serializers.DecimalField(max_digits=10, decimal_places=2)
+    planned_load = serializers.DecimalField(max_digits=10, decimal_places=2)
+    effective_load = serializers.DecimalField(max_digits=10, decimal_places=2)
+    fitness = serializers.DecimalField(max_digits=10, decimal_places=2)
+    fatigue = serializers.DecimalField(max_digits=10, decimal_places=2)
+    form = serializers.DecimalField(max_digits=10, decimal_places=2)
+    projected = serializers.BooleanField()
+
+
+class PerformanceSummarySerializer(serializers.Serializer):
+    as_of = serializers.DateField()
+    fitness = serializers.DecimalField(max_digits=10, decimal_places=2)
+    fatigue = serializers.DecimalField(max_digits=10, decimal_places=2)
+    form = serializers.DecimalField(max_digits=10, decimal_places=2)
+    balance_status = serializers.ChoiceField(choices=("very_fresh", "fresh", "balanced", "building", "high_load"))
+    seven_day_load = serializers.DecimalField(max_digits=10, decimal_places=2)
+    twenty_eight_day_load = serializers.DecimalField(max_digits=10, decimal_places=2)
+    fitness_change_7d = serializers.DecimalField(max_digits=10, decimal_places=2)
+    forecast_fitness = serializers.DecimalField(max_digits=10, decimal_places=2)
+    forecast_form = serializers.DecimalField(max_digits=10, decimal_places=2)
+    forecast_fitness_change = serializers.DecimalField(max_digits=10, decimal_places=2)
+
+
+class PerformanceDataQualitySerializer(serializers.Serializer):
+    activities_count = serializers.IntegerField()
+    actual_load_days = serializers.IntegerField()
+    planned_workouts_count = serializers.IntegerField()
+    has_history = serializers.BooleanField()
+    has_forecast = serializers.BooleanField()
+
+
+class PerformanceInsightsSerializer(serializers.Serializer):
+    athlete = PerformanceAthleteSerializer()
+    date_from = serializers.DateField()
+    date_to = serializers.DateField()
+    sport = serializers.CharField(allow_blank=True)
+    summary = PerformanceSummarySerializer()
+    data_quality = PerformanceDataQualitySerializer()
+    points = PerformancePointSerializer(many=True)
+
+
 class PeriodizedPlanSerializer(serializers.Serializer):
     athlete = serializers.PrimaryKeyRelatedField(queryset=User.objects.filter(role=User.Role.ATHLETE))
     title = serializers.CharField(max_length=200)
