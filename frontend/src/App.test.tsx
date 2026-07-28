@@ -16,7 +16,7 @@ afterEach(() => {
 
 function renderApp() {
   return render(
-    <MemoryRouter initialEntries={["/auth"]}>
+    <MemoryRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }} initialEntries={["/auth"]}>
       <LanguageProvider><AuthProvider><App /></AuthProvider></LanguageProvider>
     </MemoryRouter>,
   );

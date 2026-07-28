@@ -20,6 +20,7 @@ The repository also includes a responsive React and TypeScript web application w
 - Coach and athlete analytics with weekly planned-versus-completed volume and session load
 - Secure FIT, TCX, and GPX activity imports with duplicate detection and automatic workout matching
 - Actual heart-rate, pace, power, elevation, training-load, compliance, and time-in-zone analysis
+- Unified plan-versus-execution calendar with coach attention queues, sport filters, and athlete scoping
 - Filtering, full-text-style search, ordering, and pagination
 - OpenAPI schema and interactive Swagger UI
 - PostgreSQL, Docker, automated tests, code quality checks, and GitHub Actions
@@ -98,6 +99,7 @@ On Windows, activate the environment with `.venv\\Scripts\\activate`.
 | Workout logs | `/api/v1/workout-logs/` |
 | Completed activities | `GET /api/v1/activities/` |
 | Import activity file | `POST /api/v1/activities/import/` |
+| Unified training calendar | `GET /api/v1/calendar/` |
 | Coach analytics | `GET /api/v1/coach/analytics/summary/` |
 | Athlete analytics | `GET /api/v1/athlete/analytics/summary/` |
 
@@ -110,6 +112,12 @@ Athletes can import their own device files from the **Activities** workspace. Co
 Imported activities are matched to a compatible planned workout within a 24-hour window. The API calculates actual duration and distance, heart-rate, pace, power, cadence, elevation gain, threshold-based training load, compliance, and time in configured training zones. Multiple activity files may belong to one multisport workout, and the workout log is synchronized from their combined duration and distance.
 
 For privacy and compatibility with ephemeral deployments, original files and GPS coordinates are not retained. The database stores the SHA-256 checksum, source metadata, calculated summaries, and a downsampled stream capped at 1,000 points. Files are limited to 20 MB, parsed with hardened XML handling, rate-limited, and deduplicated per athlete.
+
+### Unified training calendar
+
+`GET /api/v1/calendar/` combines scheduled workouts, matched completed activities, manual workout logs, and unplanned activities in one bounded date range. The response includes planned-versus-actual duration and distance, training load, compliance, completion metrics, and an attention reason for missed, skipped, or materially deviating sessions.
+
+The endpoint accepts `date_from`, `date_to`, optional `sport`, and optional `athlete_id`. Ranges are capped at 63 days. Athletes can retrieve only their own calendar; coaches can retrieve all active assigned athletes or select one assigned athlete. The web workspace offers week and month views, athlete and sport filters, a mobile agenda layout, deep links to activity analysis, and a coach review queue.
 
 The coach analytics endpoint accepts optional `athlete_id`, `date_from`, and `date_to` query parameters. Both analytics endpoints return planned and actual volume, completed and skipped workout counts, completion rate, average perceived exertion, and weekly session load. Coach athlete filtering is limited to active coaching relationships; athletes can retrieve only their own summary.
 

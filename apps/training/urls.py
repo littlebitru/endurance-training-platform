@@ -8,6 +8,7 @@ from .views import (
     CoachAnalyticsSummaryView,
     CoachCommentViewSet,
     ExerciseViewSet,
+    TrainingCalendarView,
     TrainingPlanViewSet,
     TrainingZoneViewSet,
     WeeklyPlanViewSet,
@@ -28,6 +29,7 @@ router.register("coach-comments", CoachCommentViewSet, basename="coach-comment")
 router.register("workout-logs", WorkoutLogViewSet, basename="workout-log")
 router.register("workout-templates", WorkoutTemplateViewSet, basename="workout-template")
 urlpatterns = [
+    path("calendar/", TrainingCalendarView.as_view(), name="training-calendar"),
     path("coach/analytics/summary/", CoachAnalyticsSummaryView.as_view(), name="coach-analytics-summary"),
     path("athlete/analytics/summary/", AthleteAnalyticsSummaryView.as_view(), name="athlete-analytics-summary"),
     path("", include(router.urls)),

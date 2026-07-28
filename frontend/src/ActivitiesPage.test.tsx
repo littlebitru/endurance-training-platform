@@ -1,4 +1,5 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { ActivitiesPage } from "./ActivitiesPage";
 import { api } from "./api";
@@ -76,7 +77,7 @@ afterEach(() => {
 });
 
 test("imports an activity file and opens its professional analysis", async () => {
-  render(<LanguageProvider><ActivitiesPage /></LanguageProvider>);
+  render(<MemoryRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}><LanguageProvider><ActivitiesPage /></LanguageProvider></MemoryRouter>);
   expect(await screen.findByRole("heading", { name: "Activity analysis" })).toBeInTheDocument();
   const upload = new File(["<gpx />"], "morning-run.gpx", { type: "application/gpx+xml" });
   fireEvent.change(screen.getByLabelText(/Choose an activity file/), { target: { files: [upload] } });

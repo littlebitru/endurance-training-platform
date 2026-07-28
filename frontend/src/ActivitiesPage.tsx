@@ -1,4 +1,5 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { api } from "./api";
 import { useAuth } from "./auth";
 import { localizeApiError, useLanguage } from "./i18n";
@@ -24,6 +25,7 @@ export function ActivitiesPage() {
   const [uploading, setUploading] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [searchParams] = useSearchParams();
   const fileInput = useRef<HTMLInputElement>(null);
   const isCoach = user?.role === "coach";
 
@@ -36,6 +38,10 @@ export function ActivitiesPage() {
     if (!user) return;
     setLoading(true);
     const requests: Promise<unknown>[] = [loadActivities()];
+    const selectedActivityId = Number(searchParams.get("activity"));
+    if (Number.isInteger(selectedActivityId) && selectedActivityId > 0) {
+      requests.push(api.activity(selectedActivityId).then(setSelected));
+    }
     if (isCoach) {
       requests.push(api.athletes().then((response) => {
         setRelationships(response.results.filter((item) => item.is_active));
@@ -45,7 +51,7 @@ export function ActivitiesPage() {
     Promise.all(requests)
       .catch((caught) => setError(localizeApiError((caught as Error).message, t)))
       .finally(() => setLoading(false));
-  }, [isCoach, loadActivities, t, user]);
+  }, [isCoach, loadActivities, searchParams, t, user]);
 
   async function filterByAthlete(value: string) {
     setAthleteId(value);

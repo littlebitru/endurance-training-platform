@@ -25,6 +25,7 @@ from .activity_analysis import (
 )
 from .activity_import import ActivityImportError, parse_activity_file
 from .analytics import build_athlete_summary, build_coach_summary
+from .calendar import build_training_calendar
 from .models import (
     Activity,
     ActivityStream,
@@ -46,11 +47,13 @@ from .serializers import (
     ActivitySummarySerializer,
     AnalyticsDateRangeSerializer,
     AthleteThresholdSerializer,
+    CalendarQuerySerializer,
     CoachAnalyticsQuerySerializer,
     CoachAnalyticsSummarySerializer,
     CoachCommentSerializer,
     ExerciseSerializer,
     PeriodizedPlanSerializer,
+    TrainingCalendarSerializer,
     TrainingPlanSerializer,
     TrainingZoneSerializer,
     WeekDuplicateSerializer,
@@ -188,6 +191,41 @@ class ActivityViewSet(
         instance.delete()
         if workout:
             synchronize_workout_log(workout)
+
+
+class TrainingCalendarView(APIView):
+    permission_classes = (IsAuthenticated,)
+
+    @extend_schema(
+        parameters=[CalendarQuerySerializer],
+        responses={status.HTTP_200_OK: TrainingCalendarSerializer},
+        summary="Return a unified planned and completed training calendar",
+    )
+    def get(self, request):
+        query = CalendarQuerySerializer(data=request.query_params)
+        query.is_valid(raise_exception=True)
+        athlete_id = query.validated_data.get("athlete_id")
+        if request.user.role == User.Role.COACH:
+            athlete_ids = list(
+                CoachingRelationship.objects.filter(coach=request.user, is_active=True).values_list(
+                    "athlete_id", flat=True
+                )
+            )
+            if athlete_id and athlete_id not in athlete_ids:
+                raise serializers.ValidationError({"athlete_id": "The athlete is not assigned to this coach."})
+            if athlete_id:
+                athlete_ids = [athlete_id]
+        else:
+            if athlete_id and athlete_id != request.user.id:
+                raise serializers.ValidationError({"athlete_id": "Athletes can only view their own calendar."})
+            athlete_ids = [request.user.id]
+        payload = build_training_calendar(
+            athlete_ids=athlete_ids,
+            date_from=query.validated_data["date_from"],
+            date_to=query.validated_data["date_to"],
+            sport=query.validated_data.get("sport"),
+        )
+        return Response(TrainingCalendarSerializer(payload).data)
 
 
 class CoachAnalyticsSummaryView(APIView):
