@@ -8,6 +8,8 @@ from rest_framework import serializers
 from apps.users.models import User
 
 from .models import (
+    Activity,
+    ActivityStream,
     AthleteThreshold,
     CoachComment,
     Exercise,
@@ -270,6 +272,84 @@ class WorkoutLogSerializer(serializers.ModelSerializer):
         if value is not None and not 1 <= value <= 10:
             raise serializers.ValidationError("Perceived exertion must be between 1 and 10.")
         return value
+
+
+class ActivityStreamSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ActivityStream
+        fields = ("points", "point_count", "sample_interval_seconds")
+
+
+class ActivitySummarySerializer(serializers.ModelSerializer):
+    athlete_name = serializers.CharField(source="athlete.get_full_name", read_only=True)
+    workout_title = serializers.CharField(source="workout.title", read_only=True, default=None)
+    planned_duration_minutes = serializers.IntegerField(
+        source="workout.planned_duration_minutes",
+        read_only=True,
+        default=None,
+    )
+    planned_distance_km = serializers.DecimalField(
+        source="workout.planned_distance_km",
+        max_digits=7,
+        decimal_places=2,
+        read_only=True,
+        default=None,
+    )
+
+    class Meta:
+        model = Activity
+        fields = (
+            "id",
+            "athlete",
+            "athlete_name",
+            "workout",
+            "workout_title",
+            "planned_duration_minutes",
+            "planned_distance_km",
+            "source_file_name",
+            "file_type",
+            "sport",
+            "started_at",
+            "duration_seconds",
+            "moving_time_seconds",
+            "distance_meters",
+            "elevation_gain_meters",
+            "calories",
+            "average_heart_rate",
+            "maximum_heart_rate",
+            "average_power",
+            "maximum_power",
+            "normalized_power",
+            "average_cadence",
+            "maximum_cadence",
+            "average_speed_mps",
+            "average_pace_seconds_per_km",
+            "intensity_factor",
+            "training_load_score",
+            "training_load_method",
+            "compliance_score",
+            "compliance_status",
+            "match_confidence",
+            "zone_distribution",
+            "created_at",
+        )
+
+
+class ActivityDetailSerializer(ActivitySummarySerializer):
+    stream = ActivityStreamSerializer(read_only=True)
+
+    class Meta(ActivitySummarySerializer.Meta):
+        fields = ActivitySummarySerializer.Meta.fields + ("stream",)
+
+
+class ActivityImportSerializer(serializers.Serializer):
+    file = serializers.FileField()
+    athlete = serializers.PrimaryKeyRelatedField(
+        queryset=User.objects.filter(role=User.Role.ATHLETE),
+        required=False,
+    )
+    sport = serializers.ChoiceField(choices=Workout.Sport.choices, required=False)
+    workout = serializers.PrimaryKeyRelatedField(queryset=Workout.objects.all(), required=False)
 
 
 class WorkoutSerializer(serializers.ModelSerializer):

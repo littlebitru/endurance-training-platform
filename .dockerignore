@@ -4,6 +4,8 @@
 .vscode
 .env
 .venv
+.codex-test-deps
+.pnpm-store
 venv
 env
 __pycache__

@@ -264,3 +264,97 @@ class WorkoutLog(TimeStampedModel):
 
     class Meta:
         indexes = [models.Index(fields=("athlete", "completed_at"), name="log_athlete_completed_idx")]
+
+
+class Activity(TimeStampedModel):
+    class Source(models.TextChoices):
+        FILE_UPLOAD = "file_upload", "File upload"
+
+    class FileType(models.TextChoices):
+        FIT = "fit", "FIT"
+        TCX = "tcx", "TCX"
+        GPX = "gpx", "GPX"
+
+    class ComplianceStatus(models.TextChoices):
+        ON_TARGET = "on_target", "On target"
+        UNDER = "under", "Below target"
+        OVER = "over", "Above target"
+        UNPLANNED = "unplanned", "Unplanned"
+        INSUFFICIENT_DATA = "insufficient_data", "Insufficient data"
+
+    class MatchConfidence(models.TextChoices):
+        HIGH = "high", "High"
+        MEDIUM = "medium", "Medium"
+        LOW = "low", "Low"
+        MANUAL = "manual", "Manual"
+        NONE = "none", "None"
+
+    athlete = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="activities")
+    workout = models.ForeignKey(
+        Workout,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="activities",
+    )
+    source = models.CharField(max_length=20, choices=Source.choices, default=Source.FILE_UPLOAD)
+    source_file_name = models.CharField(max_length=255)
+    file_type = models.CharField(max_length=8, choices=FileType.choices)
+    file_sha256 = models.CharField(max_length=64)
+    external_id = models.CharField(max_length=255, blank=True)
+    sport = models.CharField(max_length=16, choices=SportType.choices)
+    started_at = models.DateTimeField()
+    duration_seconds = models.PositiveIntegerField(default=0)
+    moving_time_seconds = models.PositiveIntegerField(null=True, blank=True)
+    distance_meters = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    elevation_gain_meters = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    calories = models.PositiveIntegerField(null=True, blank=True)
+    average_heart_rate = models.PositiveSmallIntegerField(null=True, blank=True)
+    maximum_heart_rate = models.PositiveSmallIntegerField(null=True, blank=True)
+    average_power = models.PositiveSmallIntegerField(null=True, blank=True)
+    maximum_power = models.PositiveSmallIntegerField(null=True, blank=True)
+    normalized_power = models.PositiveSmallIntegerField(null=True, blank=True)
+    average_cadence = models.PositiveSmallIntegerField(null=True, blank=True)
+    maximum_cadence = models.PositiveSmallIntegerField(null=True, blank=True)
+    average_speed_mps = models.DecimalField(max_digits=8, decimal_places=3, null=True, blank=True)
+    average_pace_seconds_per_km = models.PositiveIntegerField(null=True, blank=True)
+    intensity_factor = models.DecimalField(max_digits=5, decimal_places=3, null=True, blank=True)
+    training_load_score = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
+    training_load_method = models.CharField(max_length=32, blank=True)
+    compliance_score = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(0), MaxValueValidator(100)],
+    )
+    compliance_status = models.CharField(
+        max_length=24,
+        choices=ComplianceStatus.choices,
+        default=ComplianceStatus.UNPLANNED,
+    )
+    match_confidence = models.CharField(
+        max_length=12,
+        choices=MatchConfidence.choices,
+        default=MatchConfidence.NONE,
+    )
+    zone_distribution = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        ordering = ("-started_at", "-created_at")
+        constraints = [
+            models.UniqueConstraint(
+                fields=("athlete", "file_sha256"),
+                name="unique_athlete_activity_file",
+            )
+        ]
+        indexes = [
+            models.Index(fields=("athlete", "started_at"), name="activity_athlete_start_idx"),
+            models.Index(fields=("workout", "started_at"), name="activity_workout_start_idx"),
+            models.Index(fields=("sport", "started_at"), name="activity_sport_start_idx"),
+        ]
+
+
+class ActivityStream(TimeStampedModel):
+    activity = models.OneToOneField(Activity, on_delete=models.CASCADE, related_name="stream")
+    points = models.JSONField(default=list)
+    point_count = models.PositiveIntegerField(default=0)
+    sample_interval_seconds = models.PositiveSmallIntegerField(null=True, blank=True)
