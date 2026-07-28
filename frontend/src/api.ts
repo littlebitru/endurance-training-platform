@@ -71,6 +71,15 @@ export const api = {
   updateThreshold: (id: number, data: object) => request<import("./types").AthleteThreshold>(`/athlete-thresholds/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
   analytics: (athleteId?: number) => request<import("./types").Analytics>(`/coach/analytics/summary/${athleteId ? `?athlete_id=${athleteId}` : ""}`),
   athleteAnalytics: () => request<import("./types").Analytics>("/athlete/analytics/summary/"),
+  performanceInsights: (athleteId?: number, dateFrom?: string, dateTo?: string, sport?: string) => {
+    const params = new URLSearchParams();
+    if (athleteId) params.set("athlete_id", String(athleteId));
+    if (dateFrom) params.set("date_from", dateFrom);
+    if (dateTo) params.set("date_to", dateTo);
+    if (sport) params.set("sport", sport);
+    const query = params.toString();
+    return request<import("./types").PerformanceInsights>(`/performance/insights/${query ? `?${query}` : ""}`);
+  },
   calendar: (dateFrom: string, dateTo: string, athleteId?: number, sport?: string) => {
     const params = new URLSearchParams({ date_from: dateFrom, date_to: dateTo });
     if (athleteId) params.set("athlete_id", String(athleteId));

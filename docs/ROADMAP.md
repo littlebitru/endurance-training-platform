@@ -1,59 +1,55 @@
 # Product Delivery Roadmap
 
-## Current milestone: API foundation
+## Delivered foundation
 
-- Role-based registration and JWT authentication
-- Coach and athlete profiles
-- Active coach–athlete relationships
-- Training plans, weeks, workouts, exercises, comments, and logs
-- Coach analytics summary with date and athlete filters
-- Consent-based athlete invitations with expiration and revocation
-- Email verification, password reset, and refresh-token revocation
-- Heart-rate, pace, and power zones
-- Structured interval targets and recovery durations
-- Production settings, health checks, throttling, structured logs, and operations runbook
-- PostgreSQL and Docker Compose development environment
-- OpenAPI documentation, automated tests, formatting, linting, and CI
+- Role-based registration, JWT authentication, email verification, password reset, and logout
+- Coach and athlete profiles with consent-based coaching relationships
+- Training plans, weeks, workouts, structured exercises, comments, and workout logs
+- Event-specific automatic periodization with protected rest days and coach-controlled publication
+- Historical sport thresholds with automatic heart-rate, pace, power, and swim-pace zones
+- FIT, TCX, and GPX imports with matching, compliance, training load, and time-in-zone analysis
+- Unified plan-versus-execution calendar with coach attention queues
+- Weekly adherence analytics and interactive fitness, fatigue, form, and load forecasting
+- Responsive bilingual React application for coach and athlete workflows
+- PostgreSQL, Docker Compose, OpenAPI, automated tests, quality checks, CI, and Render staging
 
-## Milestone 2: Complete core product
+## Current milestone: Complete coaching context
 
-- Athlete physiological profile and automatic zone calculation
-- Workout status synchronization when a log is created or removed
-- Weekly workload and adherence trends
-- Coach dashboard endpoints with athlete alerts and missed-workout indicators
-- Notification preferences and an asynchronous email worker
-- Expanded permission, validation, and concurrency tests
+- Athlete daily wellness and recovery check-ins
+- Coach recovery-context view alongside load and adherence
+- Explicit separation between subjective athlete feedback and calculated load indicators
+- Notification preferences and asynchronous email delivery
+- Expanded permission, validation, accessibility, and concurrency tests
 
-Exit criteria: every primary coach and athlete workflow is covered by integration tests and documented in OpenAPI.
+Exit criteria: a coach can review plan, execution, load, recovery context, and communication needs without leaving the product.
 
-## Milestone 3: Production readiness
+## Production readiness
 
 - Redis-backed caching and background jobs
-- Request correlation IDs, error tracking, and metrics
+- Request correlation IDs, error tracking, and service metrics
 - Database backups and a tested restore procedure
 - Rate limiting, login protection, and a formal security review
-- Optimized database indexes and query-performance tests
-- Production container health checks and zero-downtime migrations
-- Managed PostgreSQL deployment and secret-manager integration
+- Query-performance budgets and representative load tests
+- Zero-downtime migration and rollback drills
+- Production-grade managed PostgreSQL and secret-manager integration
 
 Exit criteria: staging passes load, security, backup-restore, and deployment rollback tests.
 
-## Milestone 4: First release
+## First release
 
 - Seeded demonstration workspace and acceptance-test script
 - API versioning and backward-compatibility policy
-- Privacy policy, terms, data-retention rules, and account deletion flow
-- Release notes and operational runbook
+- Privacy policy, terms, data-retention rules, export, and account deletion flow
+- Release notes and finalized operational runbook
 - Production deployment through an approval-gated GitHub Actions workflow
-- Post-release dashboards and alert thresholds
+- Post-release dashboards, alert thresholds, and incident ownership
 
-Exit criteria: product owner accepts the staging build and the operations owner approves the runbook.
+Exit criteria: the product owner accepts the release candidate and the operations owner approves the runbook.
 
 ## Recommended implementation order
 
-1. Workload analytics and coach alerts
+1. Daily wellness and recovery context
 2. Notifications and background jobs
 3. Caching, error tracking, and metrics
-4. Staging deployment and acceptance tests
-5. Security and performance review
-6. Production release
+4. Security, accessibility, and performance review
+5. Production acceptance and release
