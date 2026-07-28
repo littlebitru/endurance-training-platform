@@ -14,6 +14,15 @@ class SportType(models.TextChoices):
 
 
 class TrainingPlan(TimeStampedModel):
+    class GenerationMethod(models.TextChoices):
+        MANUAL = "manual", "Manual"
+        PERIODIZED = "periodized", "Periodized"
+
+    class ExperienceLevel(models.TextChoices):
+        BEGINNER = "beginner", "Beginner"
+        INTERMEDIATE = "intermediate", "Intermediate"
+        ADVANCED = "advanced", "Advanced"
+
     class PublicationStatus(models.TextChoices):
         DRAFT = "draft", "Draft"
         PUBLISHED = "published", "Published"
@@ -51,6 +60,12 @@ class TrainingPlan(TimeStampedModel):
     target_event_name = models.CharField(max_length=200, blank=True)
     target_event_type = models.CharField(max_length=32, choices=TargetEvent.choices, blank=True)
     target_distance_km = models.DecimalField(max_digits=7, decimal_places=2, null=True, blank=True)
+    generation_method = models.CharField(
+        max_length=16,
+        choices=GenerationMethod.choices,
+        default=GenerationMethod.MANUAL,
+    )
+    experience_level = models.CharField(max_length=16, choices=ExperienceLevel.choices, blank=True)
     start_date = models.DateField()
     end_date = models.DateField()
     is_active = models.BooleanField(default=True)

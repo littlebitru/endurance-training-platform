@@ -362,6 +362,8 @@ def generate_periodized_plan(
         target_event_name=event_name,
         target_event_type=goal.code,
         target_distance_km=goal.distance_km,
+        generation_method=TrainingPlan.GenerationMethod.PERIODIZED,
+        experience_level=experience_level,
         start_date=plan_start,
         end_date=event_date,
         publication_status=TrainingPlan.PublicationStatus.DRAFT,

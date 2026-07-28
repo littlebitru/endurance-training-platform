@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "./api";
 import { useAuth } from "./auth";
+import { localizeGeneratedWorkoutTitle } from "./generatedContent";
 import { localizeApiError, useLanguage } from "./i18n";
 import type { CalendarEvent, PlanPublicationStatus, Relationship, TrainingCalendar } from "./types";
 
@@ -26,6 +27,7 @@ export function CalendarPage() {
   const { locale, t } = useLanguage();
   const [searchParams] = useSearchParams();
   const reviewPlanId = positiveInteger(searchParams.get("plan_id"));
+  const targetWorkoutId = positiveInteger(searchParams.get("workout_id"));
   const [view, setView] = useState<CalendarView>("month");
   const [anchor, setAnchor] = useState(() => parseCalendarDate(searchParams.get("date")) ?? new Date());
   const [calendar, setCalendar] = useState<TrainingCalendar | null>(null);
@@ -60,15 +62,18 @@ export function CalendarPage() {
           setReviewPlanStatus(reviewEvent.plan_publication_status);
         }
       }
-      setSelected((current) => current
-        ? result.events.find((event) => event.event_id === current.event_id) ?? null
-        : null);
+      const linkedWorkout = targetWorkoutId
+        ? result.events.find((event) => event.workout_id === targetWorkoutId)
+        : null;
+      setSelected((current) => linkedWorkout ?? (
+        current ? result.events.find((event) => event.event_id === current.event_id) ?? null : null
+      ));
     } catch (caught) {
       setError(localizeApiError((caught as Error).message, t));
     } finally {
       setLoading(false);
     }
-  }, [athleteId, range.end, range.start, reviewPlanId, sport, t]);
+  }, [athleteId, range.end, range.start, reviewPlanId, sport, t, targetWorkoutId]);
 
   useEffect(() => {
     if (!user) return;
@@ -207,7 +212,7 @@ export function CalendarPage() {
                       <button className={`unified-calendar-event ${event.sport} ${event.status} ${event.plan_publication_status === "draft" ? "draft-plan" : ""} ${event.attention_required ? "needs-attention" : ""}`} key={event.event_id} onClick={() => setSelected(event)} type="button">
                         <span className="event-sport">{sportMarks[event.sport] ?? "ACT"}</span>
                         {isCoach && event.plan_publication_status === "draft" && <span className="event-draft">{t("draft")}</span>}
-                        <strong>{event.title || t("unplannedActivity")}</strong>
+                        <strong>{event.title ? localizeGeneratedWorkoutTitle(event, t) : t("unplannedActivity")}</strong>
                         {isCoach && <small className="event-athlete">{event.athlete.name}</small>}
                         <small>{new Date(event.starts_at).toLocaleTimeString(dateLocale, { hour: "2-digit", minute: "2-digit" })} · {eventMetrics(event, t("minutes"))}</small>
                         <EventState event={event} />
@@ -232,7 +237,7 @@ export function CalendarPage() {
             {attentionEvents.slice(0, 8).map((event) => (
               <button key={event.event_id} onClick={() => setSelected(event)} type="button">
                 <span className={`attention-sport ${event.sport}`}>{sportMarks[event.sport] ?? "ACT"}</span>
-                <div><strong>{event.title}</strong><small>{event.athlete.name} · {new Date(event.starts_at).toLocaleDateString(dateLocale, { day: "numeric", month: "short" })}</small></div>
+                <div><strong>{localizeGeneratedWorkoutTitle(event, t)}</strong><small>{event.athlete.name} · {new Date(event.starts_at).toLocaleDateString(dateLocale, { day: "numeric", month: "short" })}</small></div>
                 <span className="attention-reason">{t(attentionKey(event.attention_reason))}</span>
                 <i>→</i>
               </button>
@@ -272,7 +277,7 @@ function CalendarEventDetail({ event, onClose }: { event: CalendarEvent; onClose
           <div>
             <span className="eyebrow">{event.plan_title || t("unplannedActivity")}</span>
             {event.plan_publication_status === "draft" && <span className="calendar-detail-draft">{t("draftPlanPrivate")}</span>}
-            <h2>{event.title || t("unplannedActivity")}</h2>
+            <h2>{event.title ? localizeGeneratedWorkoutTitle(event, t) : t("unplannedActivity")}</h2>
             <p>{event.athlete.name} · {new Date(event.starts_at).toLocaleString(dateLocale, { dateStyle: "long", timeStyle: "short" })}</p>
           </div>
           <EventState event={event} />

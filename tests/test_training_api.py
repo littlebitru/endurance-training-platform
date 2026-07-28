@@ -583,6 +583,8 @@ def test_coach_can_generate_periodized_plan_with_recovery_and_taper(api_client, 
     plan = TrainingPlan.objects.get(pk=response.data["id"])
     assert plan.publication_status == TrainingPlan.PublicationStatus.DRAFT
     assert plan.published_at is None
+    assert plan.generation_method == TrainingPlan.GenerationMethod.PERIODIZED
+    assert plan.experience_level == TrainingPlan.ExperienceLevel.INTERMEDIATE
     assert plan.weeks.filter(phase=WeeklyPlan.Phase.RECOVERY, is_recovery=True).exists()
     assert plan.weeks.filter(phase=WeeklyPlan.Phase.TAPER).count() == 2
     assert plan.weeks.filter(phase=WeeklyPlan.Phase.RACE).count() == 1

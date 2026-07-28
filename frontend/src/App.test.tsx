@@ -164,6 +164,11 @@ test("shows a compact localized weekly command center for an athlete", () => {
   expect(screen.getByText("60%")).toBeInTheDocument();
   expect(screen.getByText("241")).toBeInTheDocument();
   expect(screen.getByText("Процент выполнения")).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: /Активные планы/ })).toHaveAttribute("href", "/plans");
+  expect(screen.getByRole("link", { name: /Следующая тренировка/ })).toHaveAttribute(
+    "href",
+    "/calendar?date=2026-07-29&workout_id=30",
+  );
   expect(screen.getByRole("link", { name: /Открыть календарь тренировок/ })).toHaveAttribute("href", "/calendar");
 });
 
