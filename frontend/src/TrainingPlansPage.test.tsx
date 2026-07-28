@@ -1,8 +1,8 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { LanguageProvider } from "./i18n";
-import { EditorPanel } from "./TrainingPlansPage";
-import type { Relationship } from "./types";
+import { EditorPanel, PlanLibrary, sortPlansByRecency } from "./TrainingPlansPage";
+import type { Relationship, TrainingPlan } from "./types";
 
 const relationship = {
   id: 1,
@@ -26,6 +26,29 @@ const relationship = {
     profile: { sport: "running", bio: "", date_of_birth: null },
   },
 } satisfies Relationship;
+
+function plan(overrides: Partial<TrainingPlan>): TrainingPlan {
+  return {
+    id: 1,
+    coach: 1,
+    title: "Marathon plan",
+    description: "",
+    primary_sport: "running",
+    target_event_name: "City Marathon",
+    target_event_type: "run_marathon",
+    target_distance_km: "42.20",
+    athlete: 2,
+    start_date: "2026-08-03",
+    end_date: "2026-11-22",
+    is_active: true,
+    publication_status: "published",
+    published_at: "2026-07-20T08:00:00Z",
+    created_at: "2026-07-19T08:00:00Z",
+    updated_at: "2026-07-20T08:00:00Z",
+    weeks: [],
+    ...overrides,
+  };
+}
 
 beforeEach(() => {
   localStorage.setItem("endurance_locale", "en");
@@ -155,4 +178,41 @@ test("submits event settings to the periodized plan generator", async () => {
       { calendarDate: "2026-08-03", athleteId: 2, planId: 44 },
     );
   });
+});
+
+test("keeps multiple plans compact, searchable, and ordered by recent work", () => {
+  const marathon = plan({ id: 10 });
+  const fiveKilometers = plan({
+    id: 11,
+    title: "5 km speed plan",
+    target_event_name: "Summer 5K",
+    target_event_type: "run_5k",
+    target_distance_km: "5.00",
+    end_date: "2026-09-12",
+    updated_at: "2026-07-25T08:00:00Z",
+  });
+  const onSelect = vi.fn();
+
+  expect(sortPlansByRecency([marathon, fiveKilometers]).map((item) => item.id)).toEqual([11, 10]);
+
+  render(
+    <LanguageProvider>
+      <PlanLibrary
+        athleteNames={new Map([[2, "Alex Miles"]])}
+        isCoach
+        onSelect={onSelect}
+        plans={sortPlansByRecency([marathon, fiveKilometers])}
+        selectedPlanId={11}
+      />
+    </LanguageProvider>,
+  );
+
+  expect(screen.getByText("Marathon plan")).toBeInTheDocument();
+  expect(screen.getByText("5 km speed plan")).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: /Marathon plan/ }));
+  expect(onSelect).toHaveBeenCalledWith(10);
+
+  fireEvent.change(screen.getByLabelText("Search plans"), { target: { value: "Summer 5K" } });
+  expect(screen.queryByText("Marathon plan")).not.toBeInTheDocument();
+  expect(screen.getByText("5 km speed plan")).toBeInTheDocument();
 });

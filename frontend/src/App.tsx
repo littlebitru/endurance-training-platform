@@ -319,6 +319,14 @@ function Overview() {
   );
   const activeAthleteCount = relationships.filter((relationship) => relationship.is_active).length;
   const isCoach = user?.role === "coach";
+  const athletePlans = [...plans]
+    .filter((plan) => plan.is_active && plan.publication_status !== "archived")
+    .sort((left, right) => {
+      const leftValue = Date.parse(left.updated_at || left.created_at || left.start_date);
+      const rightValue = Date.parse(right.updated_at || right.created_at || right.start_date);
+      return rightValue - leftValue || right.id - left.id;
+    });
+  const focusPlan = athletePlans[0];
   const coachName = user?.coach
     ? `${user.coach.first_name} ${user.coach.last_name}`.trim() || user.coach.username
     : "";
@@ -339,14 +347,15 @@ function Overview() {
           <img className="hero-panel-image" src={heroImage} alt="" />
           <div>
             <span className="eyebrow">{t("currentCycle")}</span>
-            <h2>{plans[0]?.title ?? t("cycleReady")}</h2>
-            <p>{plans[0]?.description || t("cycleDescription")}</p>
+            <h2>{focusPlan?.title ?? t("cycleReady")}</h2>
+            <p>{focusPlan?.description || focusPlan?.target_event_name || t("cycleDescription")}</p>
           </div>
           <div className="ring"><strong>{workouts.filter((workout) => workout.status === "completed").length}</strong><small>{t("completed")}</small></div>
         </section>
       )}
+      {!isCoach && athletePlans.length > 0 && <AthletePlanPortfolio plans={athletePlans} />}
       <section className="stat-grid">
-        <Stat label={isCoach ? t("athletesUnderCoaching") : t("activePlans")} value={isCoach ? activeAthleteCount : plans.filter((plan) => plan.is_active).length} />
+        <Stat label={isCoach ? t("athletesUnderCoaching") : t("activePlans")} value={isCoach ? activeAthleteCount : athletePlans.length} />
         <Stat label={t("plannedSessions")} value={stats?.total_workouts ?? workouts.length} />
         <Stat label={isCoach ? t("completedSessions") : t("distanceCompleted")} value={isCoach ? stats?.completed_workouts ?? 0 : `${stats?.actual_distance_km ?? "0.00"} km`} />
         <Stat label={t("averageEffort")} value={stats?.average_perceived_exertion ?? "—"} />
@@ -372,6 +381,52 @@ function Overview() {
         {next.length ? next.map((item) => <WorkoutRow athleteName={isCoach ? athleteNames.get(item.athleteId) : undefined} key={item.workout.id} workout={item.workout} />) : <Empty text={t("noUpcoming")} />}
       </section>
     </>
+  );
+}
+
+const overviewSportKeys = {
+  running: "sportRunning",
+  cycling: "sportCycling",
+  swimming: "sportSwimming",
+  triathlon: "sportTriathlon",
+} as const;
+
+export function AthletePlanPortfolio({ plans }: { plans: TrainingPlan[] }) {
+  const { locale, t } = useLanguage();
+  const dateLocale = locale === "ru" ? "ru-RU" : "en-US";
+  return (
+    <section className="athlete-plan-portfolio" aria-labelledby="athlete-plans-title">
+      <div className="athlete-plan-portfolio-head">
+        <div>
+          <span className="eyebrow">{t("myTrainingPlans")}</span>
+          <h3 id="athlete-plans-title">{t("activeGoals")}</h3>
+          <p>{t("activeGoalsIntro")}</p>
+        </div>
+        <span>{plans.length}</span>
+      </div>
+      <div className="athlete-plan-portfolio-list">
+        {plans.map((plan) => {
+          const sessions = plan.weeks.reduce((total, week) => total + week.workouts.length, 0);
+          const sportKey = overviewSportKeys[plan.primary_sport as keyof typeof overviewSportKeys];
+          return (
+            <NavLink className={`athlete-plan-card ${plan.primary_sport}`} key={plan.id} to={`/plans?plan_id=${plan.id}`}>
+              <span className="athlete-plan-card-top">
+                <i>{sportKey ? t(sportKey) : plan.primary_sport}</i>
+                <small>{t("sessionsCount", { count: sessions })}</small>
+              </span>
+              <strong>{plan.title}</strong>
+              <span>{plan.target_event_name || t("trainingPlan")}</span>
+              <small>
+                {new Date(`${plan.start_date}T12:00:00`).toLocaleDateString(dateLocale, { day: "numeric", month: "short" })}
+                {" — "}
+                {new Date(`${plan.end_date}T12:00:00`).toLocaleDateString(dateLocale, { day: "numeric", month: "short", year: "numeric" })}
+              </small>
+              <b>{t("openPlan")} →</b>
+            </NavLink>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 
