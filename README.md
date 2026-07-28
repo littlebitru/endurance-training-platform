@@ -12,6 +12,7 @@ The repository also includes a responsive React and TypeScript web application w
 - User profiles and coach–athlete assignments
 - Consent-based athlete invitations with expiration and revocation
 - Automatic event-based periodization across Base, Build, Peak, Taper, Recovery, and Race phases
+- Coach-controlled draft, review, publication, retraction, and archival lifecycle for athlete plans
 - Interactive weekly calendar with workout editing, drag-and-drop rescheduling, duplication, and reusable libraries
 - Training plans, weekly plans, structured workouts, and exercises
 - Historical sport-specific thresholds with automatically calculated heart-rate, pace, and power zones
@@ -88,6 +89,9 @@ On Windows, activate the environment with `.venv\\Scripts\\activate`.
 | Assigned athletes | `/api/v1/athletes/` |
 | Training plans | `/api/v1/training-plans/` |
 | Generate periodized plan | `POST /api/v1/training-plans/generate/` |
+| Publish reviewed plan | `POST /api/v1/training-plans/{id}/publish/` |
+| Return plan to draft | `POST /api/v1/training-plans/{id}/return-to-draft/` |
+| Archive plan | `POST /api/v1/training-plans/{id}/archive/` |
 | Training goal catalog | `GET /api/v1/training-goals/` |
 | Athlete thresholds | `/api/v1/athlete-thresholds/` |
 | Training zones | `/api/v1/training-zones/` |
@@ -131,6 +135,8 @@ The coach analytics endpoint accepts optional `athlete_id`, `date_from`, and `da
 The generator schedules no more than six training days per week, preserving at least one complete rest day even when all seven weekdays are marked as available. Beginner plans use at most five days, recovery weeks remove another session, and race weeks reduce frequency and avoid scheduling on the day immediately before the event.
 
 Generated plans are decision support, not a substitute for coaching judgment. The coach remains responsible for reviewing athlete readiness, recent training response, injury context, and schedule constraints before publishing or adapting the calendar.
+
+Every new manual or generated plan starts as a private coach draft. Coaches can review and edit draft workouts in their calendar, while athletes cannot retrieve, complete, or match activities to those workouts. Publishing exposes the approved schedule to the assigned athlete. A published plan can return to draft only before athlete work has been recorded; archiving makes the schedule read-only while preserving athlete history.
 
 ### Automatic training zones
 

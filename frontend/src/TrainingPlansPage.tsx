@@ -48,6 +48,7 @@ interface ThresholdDraft {
 interface SavedDestination {
   calendarDate: string;
   athleteId: number;
+  planId: number;
 }
 
 const EMPTY_THRESHOLD: ThresholdDraft = {
@@ -606,6 +607,7 @@ export function EditorPanel({
           await onSaved(t("planGenerated"), {
             calendarDate: generatedPlan.start_date,
             athleteId: generatedPlan.athlete,
+            planId: generatedPlan.id,
           });
         } else {
           await api.createPlan({
@@ -986,6 +988,7 @@ export function TrainingPlansPage() {
       const params = new URLSearchParams({
         date: destination.calendarDate,
         athlete_id: String(destination.athleteId),
+        plan_id: String(destination.planId),
       });
       navigate(`/calendar?${params.toString()}`);
       return;
@@ -1034,6 +1037,41 @@ export function TrainingPlansPage() {
       await api.deleteWorkout(workout.id);
       setExpandedWorkout(null);
       await saved(t("workoutDeleted"));
+    } catch (caught) {
+      setError(localizeApiError((caught as Error).message, t));
+    }
+  }
+
+  async function publishPlan(plan: TrainingPlan) {
+    try {
+      await api.publishPlan(plan.id);
+      setMessage(t("planPublished"));
+      setError("");
+      await reload();
+    } catch (caught) {
+      setError(localizeApiError((caught as Error).message, t));
+    }
+  }
+
+  async function returnPlanToDraft(plan: TrainingPlan) {
+    if (!window.confirm(t("confirmReturnToDraft"))) return;
+    try {
+      await api.returnPlanToDraft(plan.id);
+      setMessage(t("planReturnedToDraft"));
+      setError("");
+      await reload();
+    } catch (caught) {
+      setError(localizeApiError((caught as Error).message, t));
+    }
+  }
+
+  async function archivePlan(plan: TrainingPlan) {
+    if (!window.confirm(t("confirmArchivePlan"))) return;
+    try {
+      await api.archivePlan(plan.id);
+      setMessage(t("planArchived"));
+      setError("");
+      await reload();
     } catch (caught) {
       setError(localizeApiError((caught as Error).message, t));
     }
@@ -1161,7 +1199,7 @@ export function TrainingPlansPage() {
       {!loading && user?.role === "coach" && !relationships.some((item) => item.is_active) && <div className="training-empty">{t("connectAthleteFirst")}</div>}
 
       {!loading && plans.map((plan) => (
-        <section className="manage-plan" key={plan.id}>
+        <section className={`manage-plan publication-${plan.publication_status}`} key={plan.id}>
           <div className="plan-head">
             <div>
               <span className="eyebrow">{user?.role === "coach" ? athletesById.get(plan.athlete) || t("athlete") : t("trainingPlan")}</span>
@@ -1178,10 +1216,29 @@ export function TrainingPlansPage() {
               <small>{plan.start_date} — {plan.end_date}</small>
             </div>
             <div className="plan-actions">
-              <span className={`status ${plan.is_active ? "active" : ""}`}>{plan.is_active ? t("active") : t("archived")}</span>
-              {user?.role === "coach" && <button className="secondary compact" onClick={() => setEditor({ kind: "week", plan })} type="button">+ {t("addWeek")}</button>}
+              <span className={`status publication-status ${plan.publication_status}`}>{t(plan.publication_status)}</span>
+              {user?.role === "coach" && plan.publication_status === "draft" && (
+                <button className="primary compact" onClick={() => void publishPlan(plan)} type="button">{t("publishToAthlete")}</button>
+              )}
+              {user?.role === "coach" && plan.publication_status === "published" && (
+                <>
+                  <button className="secondary compact" onClick={() => void returnPlanToDraft(plan)} type="button">{t("returnToDraft")}</button>
+                  <button className="secondary compact" onClick={() => void archivePlan(plan)} type="button">{t("archivePlan")}</button>
+                </>
+              )}
+              {user?.role === "coach" && plan.publication_status === "archived" && (
+                <button className="secondary compact" onClick={() => void publishPlan(plan)} type="button">{t("reactivatePlan")}</button>
+              )}
+              {user?.role === "coach" && plan.publication_status !== "archived" && <button className="secondary compact" onClick={() => setEditor({ kind: "week", plan })} type="button">+ {t("addWeek")}</button>}
             </div>
           </div>
+
+          {user?.role === "coach" && plan.publication_status === "draft" && (
+            <div className="plan-publication-note">
+              <span>PRIVATE</span>
+              <div><strong>{t("draftPlanPrivate")}</strong><small>{t("draftPlanPrivateText")}</small></div>
+            </div>
+          )}
 
           {!plan.weeks.length && <div className="plan-empty">{t("noWeeks")}</div>}
           {plan.weeks.map((week) => {
@@ -1194,7 +1251,7 @@ export function TrainingPlansPage() {
                 <div className="week-head">
                   <div><span className="eyebrow">{t("weeklyCalendar")}</span><h4>{t("week", { number: week.week_number })}{week.phase && <span className={`phase-badge ${week.phase}`}>{phaseLabels[week.phase] ?? week.phase}</span>}</h4><small>{week.start_date}{week.planned_duration_minutes ? ` · ${Math.round(week.planned_duration_minutes / 6) / 10} ${t("hoursShort")}` : ""}{week.notes ? ` · ${week.notes}` : ""}</small></div>
                   <span className="week-recovery-summary">{t("weekScheduleSummary", { workouts: week.workouts.length, restDays })}</span>
-                  {user?.role === "coach" && <div className="week-actions"><button className="secondary compact" onClick={() => void duplicateWeek(plan, week)} type="button">{t("copyWeek")}</button><button className="secondary compact" onClick={() => setEditor({ kind: "workout", week, planSport: plan.primary_sport, athleteId: plan.athlete, scheduledDate: week.start_date })} type="button">+ {t("addWorkout")}</button></div>}
+                  {user?.role === "coach" && plan.publication_status !== "archived" && <div className="week-actions"><button className="secondary compact" onClick={() => void duplicateWeek(plan, week)} type="button">{t("copyWeek")}</button><button className="secondary compact" onClick={() => setEditor({ kind: "workout", week, planSport: plan.primary_sport, athleteId: plan.athlete, scheduledDate: week.start_date })} type="button">+ {t("addWorkout")}</button></div>}
                 </div>
 
                 <div className="week-calendar">
@@ -1203,23 +1260,23 @@ export function TrainingPlansPage() {
                     const hasScheduledWorkout = scheduledDates.has(dateKey(day));
                     return (
                       <section className={`calendar-day ${hasScheduledWorkout ? "" : "is-rest"} ${dragOverDate === dateKey(day) ? "drag-over" : ""}`} key={dateKey(day)} onDragLeave={() => setDragOverDate("")} onDragOver={(event) => {
-                        if (user?.role === "coach") {
+                        if (user?.role === "coach" && plan.publication_status !== "archived") {
                           event.preventDefault();
                           setDragOverDate(dateKey(day));
                         }
                       }} onDrop={(event) => {
-                        if (user?.role !== "coach") return;
+                        if (user?.role !== "coach" || plan.publication_status === "archived") return;
                         event.preventDefault();
                         const workout = allWorkouts.find((item) => item.id === Number(event.dataTransfer.getData("text/workout-id")));
                         if (workout) void moveWorkout(workout, week, dateKey(day));
                       }}>
                         <header>
                           <div><span>{day.toLocaleDateString(dateLocale, { weekday: "short" })}</span><strong>{day.getDate()}</strong></div>
-                          {user?.role === "coach" && <button aria-label={t("addWorkoutOnDate", { date: day.toLocaleDateString(dateLocale) })} onClick={() => setEditor({ kind: "workout", week, planSport: plan.primary_sport, athleteId: plan.athlete, scheduledDate: dateKey(day) })} type="button">+</button>}
+                          {user?.role === "coach" && plan.publication_status !== "archived" && <button aria-label={t("addWorkoutOnDate", { date: day.toLocaleDateString(dateLocale) })} onClick={() => setEditor({ kind: "workout", week, planSport: plan.primary_sport, athleteId: plan.athlete, scheduledDate: dateKey(day) })} type="button">+</button>}
                         </header>
                         <div className="day-workouts">
                           {dayWorkouts.map((workout) => (
-                            <article className={`calendar-workout ${workout.sport} ${workout.status}`} draggable={user?.role === "coach"} key={workout.id} onDragEnd={() => setDragOverDate("")} onDragStart={(event) => {
+                            <article className={`calendar-workout ${workout.sport} ${workout.status}`} draggable={user?.role === "coach" && plan.publication_status !== "archived"} key={workout.id} onDragEnd={() => setDragOverDate("")} onDragStart={(event) => {
                               event.dataTransfer.effectAllowed = "move";
                               event.dataTransfer.setData("text/workout-id", String(workout.id));
                             }}>
@@ -1248,7 +1305,7 @@ export function TrainingPlansPage() {
                     <div className="quick-view-head">
                       <div><span className="sport-card-label"><i>{SPORT_MARKS[selectedWorkout.sport]}</i>{sportLabels[selectedWorkout.sport]} · {workoutTypeLabels[selectedWorkout.workout_type] || selectedWorkout.workout_type}</span><h4>{selectedWorkout.title}</h4><small>{new Date(selectedWorkout.scheduled_at).toLocaleString(dateLocale)} · {selectedWorkout.intensity || t("openIntensity")}</small></div>
                       <div className="quick-view-actions">
-                        {user?.role === "coach" && <>
+                        {user?.role === "coach" && plan.publication_status !== "archived" && <>
                           <button className="secondary compact" onClick={() => setEditor({ kind: "workout", week, planSport: plan.primary_sport, athleteId: plan.athlete, workout: selectedWorkout })} type="button">{t("edit")}</button>
                           <button className="secondary compact" onClick={() => void duplicateWorkout(selectedWorkout, week)} type="button">{t("duplicate")}</button>
                           <button className="secondary compact" onClick={() => void saveWorkoutTemplate(selectedWorkout)} type="button">{t("saveAsTemplate")}</button>
@@ -1265,11 +1322,11 @@ export function TrainingPlansPage() {
                     {selectedWorkout.notes && <p className="workout-notes">{selectedWorkout.notes}</p>}
                     <div className="detail-columns">
                       <section>
-                        <div className="detail-title"><h5>{t("exercises")}</h5>{user?.role === "coach" && <button className="link-action" onClick={() => setEditor({ kind: "exercise", workout: selectedWorkout })} type="button">+ {t("addExercise")}</button>}</div>
+                        <div className="detail-title"><h5>{t("exercises")}</h5>{user?.role === "coach" && plan.publication_status !== "archived" && <button className="link-action" onClick={() => setEditor({ kind: "exercise", workout: selectedWorkout })} type="button">+ {t("addExercise")}</button>}</div>
                         {selectedWorkout.exercises.length ? <ol className="exercise-list">{selectedWorkout.exercises.map((exercise) => <li className={exercise.step_type} key={exercise.id}><strong>{exercise.name}</strong><span>{exercise.description || t("exerciseDetails")}</span><small>{exercise.repetitions && exercise.repetitions > 1 ? `${exercise.repetitions}× · ` : ""}{exercise.duration_seconds ? `${exercise.duration_seconds} ${t("seconds")}` : ""}{exercise.distance_meters ? ` · ${exercise.distance_meters} m` : ""}{exercise.resolved_target_label ? ` · ${exercise.resolved_target_label}` : exercise.target_min ? ` · ${exercise.target_type} ${exercise.target_min}${exercise.target_max && exercise.target_max !== exercise.target_min ? `–${exercise.target_max}` : ""} ${exercise.target_unit}` : ""}{exercise.recovery_seconds ? ` · ${t("recovery")} ${exercise.recovery_seconds} ${t("seconds")}` : ""}</small></li>)}</ol> : <p className="muted">{t("noExercises")}</p>}
                       </section>
                       <section>
-                        <div className="detail-title"><h5>{t("coachComments")}</h5>{user?.role === "coach" && <button className="link-action" onClick={() => setEditor({ kind: "comment", workout: selectedWorkout })} type="button">+ {t("addComment")}</button>}</div>
+                        <div className="detail-title"><h5>{t("coachComments")}</h5>{user?.role === "coach" && plan.publication_status !== "archived" && <button className="link-action" onClick={() => setEditor({ kind: "comment", workout: selectedWorkout })} type="button">+ {t("addComment")}</button>}</div>
                         {selectedWorkout.coach_comments.length ? <div className="comment-list">{selectedWorkout.coach_comments.map((comment) => <blockquote key={comment.id}>{comment.body}<small>{comment.coach_name || t("coach")}</small></blockquote>)}</div> : <p className="muted">{t("noCoachComments")}</p>}
                       </section>
                     </div>

@@ -151,8 +151,8 @@ test("submits event settings to the periodized plan generator", async () => {
       taper_weeks: 3,
     });
     expect(onSaved).toHaveBeenCalledWith(
-      "Periodized plan generated with structured workouts.",
-      { calendarDate: "2026-08-03", athleteId: 2 },
+      "Periodized plan generated as a private coach draft.",
+      { calendarDate: "2026-08-03", athleteId: 2, planId: 44 },
     );
   });
 });

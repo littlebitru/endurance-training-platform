@@ -34,7 +34,9 @@ def test_coach_can_create_plan_for_assigned_athlete(api_client, coach, athlete, 
     )
 
     assert response.status_code == 201
-    assert TrainingPlan.objects.filter(coach=coach, athlete=athlete, primary_sport="running").exists()
+    plan = TrainingPlan.objects.get(coach=coach, athlete=athlete, primary_sport="running")
+    assert plan.publication_status == TrainingPlan.PublicationStatus.DRAFT
+    assert plan.published_at is None
 
 
 @pytest.mark.django_db
@@ -140,6 +142,146 @@ def test_athlete_cannot_create_plan(api_client, athlete):
     api_client.force_authenticate(athlete)
     response = api_client.post(reverse("training-plan-list"), {})
     assert response.status_code == 403
+
+
+@pytest.mark.django_db
+def test_coach_reviews_and_publishes_plan_before_athlete_access(
+    api_client,
+    coach,
+    athlete,
+    relationship,
+):
+    scheduled_at = timezone.now() + timedelta(hours=2)
+    api_client.force_authenticate(coach)
+    create_response = api_client.post(
+        reverse("training-plan-list"),
+        {
+            "athlete": athlete.id,
+            "title": "Reviewed race plan",
+            "primary_sport": Workout.Sport.RUNNING,
+            "start_date": scheduled_at.date(),
+            "end_date": scheduled_at.date() + timedelta(days=7),
+        },
+    )
+    plan = TrainingPlan.objects.get(pk=create_response.data["id"])
+    week = WeeklyPlan.objects.create(
+        training_plan=plan,
+        week_number=1,
+        start_date=scheduled_at.date(),
+    )
+    workout = Workout.objects.create(
+        weekly_plan=week,
+        title="Private threshold session",
+        sport=Workout.Sport.RUNNING,
+        scheduled_at=scheduled_at,
+    )
+
+    api_client.force_authenticate(athlete)
+    athlete_plans = api_client.get(reverse("training-plan-list"))
+    athlete_calendar = api_client.get(
+        reverse("training-calendar"),
+        {
+            "date_from": scheduled_at.date().isoformat(),
+            "date_to": scheduled_at.date().isoformat(),
+        },
+    )
+    draft_log = api_client.post(
+        reverse("workout-log-list"),
+        {
+            "workout": workout.id,
+            "completed_at": scheduled_at,
+        },
+    )
+
+    assert athlete_plans.data["results"] == []
+    assert athlete_calendar.data["events"] == []
+    assert draft_log.status_code == 400
+
+    api_client.force_authenticate(coach)
+    coach_calendar = api_client.get(
+        reverse("training-calendar"),
+        {
+            "athlete_id": athlete.id,
+            "date_from": scheduled_at.date().isoformat(),
+            "date_to": scheduled_at.date().isoformat(),
+        },
+    )
+    publish_response = api_client.post(
+        reverse("training-plan-publish", args=(plan.id,)),
+    )
+
+    assert coach_calendar.data["events"][0]["plan_id"] == plan.id
+    assert coach_calendar.data["events"][0]["plan_publication_status"] == "draft"
+    assert publish_response.status_code == 200
+    assert publish_response.data["publication_status"] == "published"
+    assert publish_response.data["published_at"] is not None
+
+    api_client.force_authenticate(athlete)
+    athlete_plans = api_client.get(reverse("training-plan-list"))
+    athlete_calendar = api_client.get(
+        reverse("training-calendar"),
+        {
+            "date_from": scheduled_at.date().isoformat(),
+            "date_to": scheduled_at.date().isoformat(),
+        },
+    )
+
+    assert [item["id"] for item in athlete_plans.data["results"]] == [plan.id]
+    assert athlete_calendar.data["events"][0]["workout_id"] == workout.id
+    assert athlete_calendar.data["events"][0]["plan_publication_status"] == "published"
+
+    api_client.force_authenticate(coach)
+    archive_response = api_client.post(
+        reverse("training-plan-archive", args=(plan.id,)),
+    )
+    api_client.force_authenticate(athlete)
+    archived_plans = api_client.get(reverse("training-plan-list"))
+
+    assert archive_response.data["publication_status"] == "archived"
+    assert archive_response.data["is_active"] is False
+    assert archived_plans.data["results"][0]["publication_status"] == "archived"
+
+
+@pytest.mark.django_db
+def test_recorded_plan_cannot_be_returned_to_draft(
+    api_client,
+    coach,
+    athlete,
+    relationship,
+):
+    plan = TrainingPlan.objects.create(
+        coach=coach,
+        athlete=athlete,
+        title="Started plan",
+        start_date=timezone.localdate(),
+        end_date=timezone.localdate() + timedelta(days=7),
+    )
+    week = WeeklyPlan.objects.create(
+        training_plan=plan,
+        week_number=1,
+        start_date=timezone.localdate(),
+    )
+    workout = Workout.objects.create(
+        weekly_plan=week,
+        title="Completed endurance run",
+        sport=Workout.Sport.RUNNING,
+        scheduled_at=timezone.now(),
+        status=Workout.Status.COMPLETED,
+    )
+    WorkoutLog.objects.create(
+        workout=workout,
+        athlete=athlete,
+        completed_at=timezone.now(),
+    )
+    api_client.force_authenticate(coach)
+
+    response = api_client.post(
+        reverse("training-plan-return-to-draft", args=(plan.id,)),
+    )
+
+    assert response.status_code == 400
+    plan.refresh_from_db()
+    assert plan.publication_status == TrainingPlan.PublicationStatus.PUBLISHED
 
 
 @pytest.mark.django_db
@@ -439,6 +581,8 @@ def test_coach_can_generate_periodized_plan_with_recovery_and_taper(api_client, 
 
     assert response.status_code == 201
     plan = TrainingPlan.objects.get(pk=response.data["id"])
+    assert plan.publication_status == TrainingPlan.PublicationStatus.DRAFT
+    assert plan.published_at is None
     assert plan.weeks.filter(phase=WeeklyPlan.Phase.RECOVERY, is_recovery=True).exists()
     assert plan.weeks.filter(phase=WeeklyPlan.Phase.TAPER).count() == 2
     assert plan.weeks.filter(phase=WeeklyPlan.Phase.RACE).count() == 1

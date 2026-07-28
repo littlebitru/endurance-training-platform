@@ -4,17 +4,20 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { api } from "./api";
 import { CalendarPage } from "./CalendarPage";
 import { LanguageProvider } from "./i18n";
-import type { TrainingCalendar } from "./types";
+import type { TrainingCalendar, TrainingPlan } from "./types";
 
+const authState = vi.hoisted(() => ({
+  user: {
+    id: 2,
+    username: "runner",
+    role: "athlete" as "athlete" | "coach",
+    first_name: "Alex",
+    last_name: "Miles",
+  },
+}));
 vi.mock("./auth", () => ({
   useAuth: () => ({
-    user: {
-      id: 2,
-      username: "runner",
-      role: "athlete",
-      first_name: "Alex",
-      last_name: "Miles",
-    },
+    user: authState.user,
   }),
 }));
 
@@ -22,6 +25,7 @@ vi.mock("./api", () => ({
   api: {
     calendar: vi.fn(),
     athletes: vi.fn(),
+    publishPlan: vi.fn(),
   },
 }));
 
@@ -48,7 +52,9 @@ const calendar: TrainingCalendar = {
     athlete: { id: 2, name: "Alex Miles" },
     workout_id: 12,
     activity_ids: [44],
+    plan_id: 44,
     plan_title: "Marathon preparation",
+    plan_publication_status: "published",
     title: "Aerobic endurance run",
     sport: "running",
     workout_type: "endurance",
@@ -82,7 +88,18 @@ const calendar: TrainingCalendar = {
 
 beforeEach(() => {
   localStorage.setItem("endurance_locale", "en");
+  authState.user.id = 2;
+  authState.user.username = "runner";
+  authState.user.role = "athlete";
+  authState.user.first_name = "Alex";
+  authState.user.last_name = "Miles";
   vi.mocked(api.calendar).mockResolvedValue(calendar);
+  vi.mocked(api.athletes).mockResolvedValue({
+    count: 0,
+    next: null,
+    previous: null,
+    results: [],
+  });
 });
 
 afterEach(() => {
@@ -127,4 +144,44 @@ test("opens the generated plan month and athlete from the calendar deep link", a
       undefined,
     );
   });
+});
+
+test("lets the coach publish a reviewed generated plan from the calendar", async () => {
+  authState.user.id = 1;
+  authState.user.username = "coach";
+  authState.user.role = "coach";
+  authState.user.first_name = "Coach";
+  authState.user.last_name = "One";
+  const draftCalendar: TrainingCalendar = {
+    ...calendar,
+    events: calendar.events.map((event) => ({
+      ...event,
+      status: "planned",
+      plan_publication_status: "draft",
+      activity_ids: [],
+      activities: [],
+    })),
+  };
+  vi.mocked(api.calendar)
+    .mockResolvedValueOnce(draftCalendar)
+    .mockResolvedValueOnce(calendar);
+  vi.mocked(api.publishPlan).mockResolvedValue({
+    id: 44,
+    publication_status: "published",
+  } as TrainingPlan);
+
+  render(
+    <MemoryRouter
+      initialEntries={["/calendar?date=2026-08-03&athlete_id=2&plan_id=44"]}
+      future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+    >
+      <LanguageProvider><CalendarPage /></LanguageProvider>
+    </MemoryRouter>,
+  );
+
+  expect(await screen.findByText("Review the generated plan before publication")).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Publish to athlete" }));
+
+  await waitFor(() => expect(api.publishPlan).toHaveBeenCalledWith(44));
+  expect(await screen.findByText("The reviewed plan is now visible to the athlete.")).toBeInTheDocument();
 });

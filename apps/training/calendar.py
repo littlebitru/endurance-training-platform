@@ -4,10 +4,10 @@ from decimal import Decimal
 from django.db.models import Prefetch
 from django.utils import timezone
 
-from .models import Activity, Workout
+from .models import Activity, TrainingPlan, Workout
 
 
-def build_training_calendar(*, athlete_ids, date_from, date_to, sport=None):
+def build_training_calendar(*, athlete_ids, date_from, date_to, sport=None, include_drafts=False):
     start_at = timezone.make_aware(datetime.combine(date_from, time.min))
     end_at = timezone.make_aware(datetime.combine(date_to + timedelta(days=1), time.min))
     activity_queryset = Activity.objects.order_by("started_at")
@@ -31,6 +31,8 @@ def build_training_calendar(*, athlete_ids, date_from, date_to, sport=None):
         .select_related("athlete")
         .order_by("started_at", "id")
     )
+    if not include_drafts:
+        workouts = workouts.exclude(weekly_plan__training_plan__publication_status=TrainingPlan.PublicationStatus.DRAFT)
     if sport:
         workouts = workouts.filter(sport=sport)
         unplanned_activities = unplanned_activities.filter(sport=sport)
@@ -67,20 +69,29 @@ def _workout_event(workout):
     )
     compliance_score = round(sum(compliance_scores) / len(compliance_scores)) if compliance_scores else None
     compliance_status = _combined_compliance_status(activities)
+    plan = workout.weekly_plan.training_plan
     status = workout.status
-    if status == Workout.Status.PLANNED and workout.scheduled_at < timezone.now() and not activities and not log:
+    if (
+        plan.publication_status != TrainingPlan.PublicationStatus.DRAFT
+        and status == Workout.Status.PLANNED
+        and workout.scheduled_at < timezone.now()
+        and not activities
+        and not log
+    ):
         status = "missed"
     elif activities or log:
         status = Workout.Status.COMPLETED
     attention_reason = _attention_reason(status, compliance_status, compliance_score)
-    athlete = workout.weekly_plan.training_plan.athlete
+    athlete = plan.athlete
     return {
         "event_id": f"workout-{workout.id}",
         "kind": "workout",
         "athlete": _athlete_summary(athlete),
         "workout_id": workout.id,
         "activity_ids": [activity["id"] for activity in activities],
-        "plan_title": workout.weekly_plan.training_plan.title,
+        "plan_id": plan.id,
+        "plan_title": plan.title,
+        "plan_publication_status": plan.publication_status,
         "title": workout.title,
         "sport": workout.sport,
         "workout_type": workout.workout_type,
@@ -108,7 +119,9 @@ def _unplanned_activity_event(activity):
         "athlete": _athlete_summary(activity.athlete),
         "workout_id": None,
         "activity_ids": [activity.id],
+        "plan_id": None,
         "plan_title": "",
+        "plan_publication_status": "",
         "title": "",
         "sport": activity.sport,
         "workout_type": "",
