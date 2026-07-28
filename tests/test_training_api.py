@@ -424,7 +424,7 @@ def test_coach_can_generate_periodized_plan_with_recovery_and_taper(api_client, 
             "event_name": "City Half Marathon",
             "target_event_type": TrainingPlan.TargetEvent.RUN_HALF_MARATHON,
             "weekly_minutes": 360,
-            "available_days": [0, 1, 2, 3, 4, 5, 6],
+            "available_days": [0, 1, 2, 3, 4, 5],
             "recovery_every": 4,
             "taper_weeks": 2,
             "experience_level": "intermediate",
@@ -448,9 +448,53 @@ def test_coach_can_generate_periodized_plan_with_recovery_and_taper(api_client, 
     assert plan.target_event_type == TrainingPlan.TargetEvent.RUN_HALF_MARATHON
     assert plan.target_distance_km == Decimal("21.10")
     assert all(week.workouts.count() <= 6 for week in plan.weeks.all())
+    assert all(len({workout.scheduled_at.date() for workout in week.workouts.all()}) <= 6 for week in plan.weeks.all())
     race = Workout.objects.get(weekly_plan__training_plan=plan, workout_type=Workout.Type.RACE)
     assert race.planned_distance_km == Decimal("21.10")
     assert response.data["weeks"][-1]["phase"] == WeeklyPlan.Phase.RACE
+
+    first_week = plan.weeks.order_by("week_number").first()
+    calendar_response = api_client.get(
+        reverse("training-calendar"),
+        {
+            "athlete_id": athlete.id,
+            "date_from": first_week.start_date,
+            "date_to": first_week.start_date + timedelta(days=6),
+        },
+    )
+    assert calendar_response.status_code == 200
+    assert {event["workout_id"] for event in calendar_response.data["events"]} == {
+        workout.id for workout in first_week.workouts.all()
+    }
+
+
+@pytest.mark.django_db
+def test_periodized_plan_rejects_seven_training_days(api_client, coach, athlete, relationship):
+    start_date = timezone.localdate() + timedelta(days=1)
+    api_client.force_authenticate(coach)
+
+    response = api_client.post(
+        reverse("training-plan-generate"),
+        {
+            "athlete": athlete.id,
+            "title": "Unsafe seven-day schedule",
+            "primary_sport": Workout.Sport.RUNNING,
+            "start_date": start_date,
+            "event_date": start_date + timedelta(weeks=8),
+            "event_name": "Track 5 km",
+            "target_event_type": TrainingPlan.TargetEvent.RUN_5K,
+            "weekly_minutes": 330,
+            "available_days": [0, 1, 2, 3, 4, 5, 6],
+            "recovery_every": 4,
+            "taper_weeks": 1,
+            "experience_level": "intermediate",
+        },
+        format="json",
+    )
+
+    assert response.status_code == 400
+    assert "available_days" in response.data
+    assert not TrainingPlan.objects.filter(title="Unsafe seven-day schedule").exists()
 
 
 @pytest.mark.django_db

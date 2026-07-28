@@ -64,7 +64,15 @@ beforeEach(() => {
   }), { status: 200, headers: { "Content-Type": "application/json" } })));
   const thresholdFetch = vi.mocked(fetch);
   vi.stubGlobal("fetch", vi.fn().mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
-    if (!String(input).includes("/training-goals/")) return thresholdFetch(input, init);
+    const url = String(input);
+    if (url.endsWith("/training-plans/generate/")) {
+      return Promise.resolve(new Response(JSON.stringify({
+        id: 44,
+        athlete: 2,
+        start_date: "2026-08-03",
+      }), { status: 201, headers: { "Content-Type": "application/json" } }));
+    }
+    if (!url.includes("/training-goals/")) return thresholdFetch(input, init);
     return Promise.resolve(new Response(JSON.stringify([{
       code: "run_5k",
       sport: "running",
@@ -108,12 +116,13 @@ test("loads the athlete intensity profile inside plan creation", async () => {
 });
 
 test("submits event settings to the periodized plan generator", async () => {
+  const onSaved = vi.fn(async () => undefined);
   render(
     <LanguageProvider>
       <EditorPanel
         editor={{ kind: "plan" }}
         onClose={() => undefined}
-        onSaved={async () => undefined}
+        onSaved={onSaved}
         relationships={[relationship]}
       />
     </LanguageProvider>,
@@ -141,5 +150,9 @@ test("submits event settings to the periodized plan generator", async () => {
       recovery_every: 4,
       taper_weeks: 3,
     });
+    expect(onSaved).toHaveBeenCalledWith(
+      "Periodized plan generated with structured workouts.",
+      { calendarDate: "2026-08-03", athleteId: 2 },
+    );
   });
 });

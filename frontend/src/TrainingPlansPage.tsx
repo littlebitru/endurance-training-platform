@@ -1,4 +1,5 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { api } from "./api";
 import { useAuth } from "./auth";
 import { localizeApiError, useLanguage } from "./i18n";
@@ -42,6 +43,11 @@ interface ThresholdDraft {
   ftp: string;
   thresholdPace: string;
   css: string;
+}
+
+interface SavedDestination {
+  calendarDate: string;
+  athleteId: number;
 }
 
 const EMPTY_THRESHOLD: ThresholdDraft = {
@@ -253,7 +259,7 @@ export function EditorPanel({
   editor: Editor;
   relationships: Relationship[];
   onClose: () => void;
-  onSaved: (message: string) => Promise<void>;
+  onSaved: (message: string, destination?: SavedDestination) => Promise<void>;
 }) {
   const { t } = useLanguage();
   const activeRelationships = relationships.filter((item) => item.is_active);
@@ -581,7 +587,7 @@ export function EditorPanel({
           critical_swim_speed_seconds_per_100m: planSport === "swimming" ? css : null,
         };
         if (planMode === "automatic") {
-          await api.generatePlan({
+          const generatedPlan = await api.generatePlan({
             athlete: Number(planAthleteId),
             title: String(payload.title),
             primary_sport: planSport,
@@ -597,7 +603,10 @@ export function EditorPanel({
             experience_level: experienceLevel,
             threshold_profile: thresholdProfile,
           });
-          await onSaved(t("planGenerated"));
+          await onSaved(t("planGenerated"), {
+            calendarDate: generatedPlan.start_date,
+            athleteId: generatedPlan.athlete,
+          });
         } else {
           await api.createPlan({
             athlete: Number(planAthleteId),
@@ -939,6 +948,7 @@ export function EditorPanel({
 export function TrainingPlansPage() {
   const { user } = useAuth();
   const { locale, t } = useLanguage();
+  const navigate = useNavigate();
   const [plans, setPlans] = useState<TrainingPlan[]>([]);
   const [relationships, setRelationships] = useState<Relationship[]>([]);
   const [editor, setEditor] = useState<Editor | null>(null);
@@ -968,10 +978,18 @@ export function TrainingPlansPage() {
     [relationships],
   );
 
-  async function saved(notice: string) {
+  async function saved(notice: string, destination?: SavedDestination) {
     setEditor(null);
     setMessage(notice);
     setError("");
+    if (destination) {
+      const params = new URLSearchParams({
+        date: destination.calendarDate,
+        athlete_id: String(destination.athleteId),
+      });
+      navigate(`/calendar?${params.toString()}`);
+      return;
+    }
     await reload();
   }
 
@@ -1169,18 +1187,22 @@ export function TrainingPlansPage() {
           {plan.weeks.map((week) => {
             const visibleWorkouts = week.workouts.filter((workout) => sportFilter === "all" || workout.sport === sportFilter);
             const selectedWorkout = visibleWorkouts.find((workout) => workout.id === expandedWorkout);
+            const scheduledDates = new Set(week.workouts.map((workout) => dateKey(workout.scheduled_at)));
+            const restDays = Math.max(0, 7 - scheduledDates.size);
             return (
               <div className="week-block calendar-week" key={week.id}>
                 <div className="week-head">
                   <div><span className="eyebrow">{t("weeklyCalendar")}</span><h4>{t("week", { number: week.week_number })}{week.phase && <span className={`phase-badge ${week.phase}`}>{phaseLabels[week.phase] ?? week.phase}</span>}</h4><small>{week.start_date}{week.planned_duration_minutes ? ` · ${Math.round(week.planned_duration_minutes / 6) / 10} ${t("hoursShort")}` : ""}{week.notes ? ` · ${week.notes}` : ""}</small></div>
+                  <span className="week-recovery-summary">{t("weekScheduleSummary", { workouts: week.workouts.length, restDays })}</span>
                   {user?.role === "coach" && <div className="week-actions"><button className="secondary compact" onClick={() => void duplicateWeek(plan, week)} type="button">{t("copyWeek")}</button><button className="secondary compact" onClick={() => setEditor({ kind: "workout", week, planSport: plan.primary_sport, athleteId: plan.athlete, scheduledDate: week.start_date })} type="button">+ {t("addWorkout")}</button></div>}
                 </div>
 
                 <div className="week-calendar">
                   {weekDays(week.start_date).map((day) => {
                     const dayWorkouts = visibleWorkouts.filter((workout) => dateKey(workout.scheduled_at) === dateKey(day));
+                    const hasScheduledWorkout = scheduledDates.has(dateKey(day));
                     return (
-                      <section className={`calendar-day ${dragOverDate === dateKey(day) ? "drag-over" : ""}`} key={dateKey(day)} onDragLeave={() => setDragOverDate("")} onDragOver={(event) => {
+                      <section className={`calendar-day ${hasScheduledWorkout ? "" : "is-rest"} ${dragOverDate === dateKey(day) ? "drag-over" : ""}`} key={dateKey(day)} onDragLeave={() => setDragOverDate("")} onDragOver={(event) => {
                         if (user?.role === "coach") {
                           event.preventDefault();
                           setDragOverDate(dateKey(day));
@@ -1210,7 +1232,10 @@ export function TrainingPlansPage() {
                               </button>
                             </article>
                           ))}
-                          {!dayWorkouts.length && <span className="day-rest">{t("restDay")}</span>}
+                          {!dayWorkouts.length && !hasScheduledWorkout && (
+                            <span className="day-rest"><i>REST</i><strong>{t("recoveryDay")}</strong><small>{t("recoveryDayHelp")}</small></span>
+                          )}
+                          {!dayWorkouts.length && hasScheduledWorkout && <span className="day-filtered">{t("otherSportScheduled")}</span>}
                         </div>
                       </section>
                     );

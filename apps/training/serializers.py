@@ -601,7 +601,7 @@ class PeriodizedPlanSerializer(serializers.Serializer):
         child=serializers.IntegerField(min_value=0, max_value=6),
         allow_empty=False,
         min_length=3,
-        max_length=7,
+        max_length=6,
     )
     recovery_every = serializers.ChoiceField(choices=(3, 4), default=4)
     taper_weeks = serializers.IntegerField(min_value=1, max_value=3, required=False)

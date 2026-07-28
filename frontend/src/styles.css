@@ -717,6 +717,8 @@ h1, h2, h3, h4, h5, strong, b, .brand-mark, .logo, .activity-sport, .eyebrow {
 
 .week-calendar { display: grid; grid-template-columns: repeat(7, minmax(145px, 1fr)); gap: 1px; overflow-x: auto; border: 1px solid #dfe4de; border-radius: 11px; background: #dfe4de; scrollbar-width: thin; }
 .calendar-day { min-width: 145px; background: #f9faf7; }
+.calendar-day.is-rest { background: linear-gradient(150deg, #f2f6f2, #fafbf8); }
+.calendar-day.is-rest > header { color: #7a8b82; background: #f5f8f4; }
 .calendar-day.drag-over { outline: 2px solid #4d9a7c; outline-offset: -2px; background: #edf7ef; }
 .calendar-day.drag-over .day-workouts { background: #e7f3e9; }
 .calendar-day > header { display: flex; align-items: center; justify-content: space-between; min-height: 54px; padding: 9px 10px; border-bottom: 1px solid #e5e9e3; background: #fff; }
@@ -726,7 +728,12 @@ h1, h2, h3, h4, h5, strong, b, .brand-mark, .logo, .activity-sport, .eyebrow {
 .calendar-day > header button { display: grid; place-items: center; width: 25px; height: 25px; border: 1px solid #d7dfd8; border-radius: 50%; color: #3d725e; background: #fff; cursor: pointer; font: 500 16px Manrope; transition: border-color .2s ease, background .2s ease, transform .2s ease; }
 .calendar-day > header button:hover { border-color: #83b7a2; background: #edf6ef; transform: scale(1.07); }
 .day-workouts { display: grid; align-content: start; gap: 7px; min-height: 138px; padding: 8px; }
-.day-rest { align-self: center; justify-self: center; padding: 24px 0; color: #adb5b0; font-size: 10px; text-transform: uppercase; }
+.day-rest { display: grid; place-items: center; gap: 5px; min-height: 122px; padding: 10px 7px; border: 1px dashed #c9d8ce; border-radius: 8px; color: #61756a; text-align: center; background: #f8faf7; }
+.day-rest i { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; color: #527064; background: #e5ede7; font: 700 8px Manrope; letter-spacing: .08em; }
+.day-rest strong { color: #52675d; font: 600 10px Manrope; }
+.day-rest small, .day-filtered { color: #89958f; font-size: 8px; line-height: 1.45; }
+.day-filtered { display: block; padding: 18px 9px; text-align: center; }
+.week-recovery-summary { align-self: center; padding: 6px 9px; border-radius: 7px; color: #426653; background: #e9f2eb; font-size: 8px; font-weight: 600; }
 
 .calendar-workout.running, .calendar-quick-view.running, .sport-filter button.running { --sport-color: #288863; --sport-soft: #e8f5ef; }
 .calendar-workout.cycling, .calendar-quick-view.cycling, .sport-filter button.cycling { --sport-color: #d67b32; --sport-soft: #fff2e5; }

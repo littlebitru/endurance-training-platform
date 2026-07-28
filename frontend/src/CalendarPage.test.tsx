@@ -108,3 +108,23 @@ test("shows a unified plan and execution calendar with attention workflow", asyn
   expect(screen.getByRole("button", { name: "Open full analysis" })).toBeInTheDocument();
   expect(screen.getByText("149 bpm")).toBeInTheDocument();
 });
+
+test("opens the generated plan month and athlete from the calendar deep link", async () => {
+  render(
+    <MemoryRouter
+      initialEntries={["/calendar?date=2026-08-03&athlete_id=2"]}
+      future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+    >
+      <LanguageProvider><CalendarPage /></LanguageProvider>
+    </MemoryRouter>,
+  );
+
+  await waitFor(() => {
+    expect(api.calendar).toHaveBeenCalledWith(
+      "2026-07-27",
+      "2026-09-06",
+      2,
+      undefined,
+    );
+  });
+});

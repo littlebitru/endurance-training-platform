@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "./api";
 import { useAuth } from "./auth";
 import { localizeApiError, useLanguage } from "./i18n";
@@ -24,11 +24,12 @@ const sportMarks: Record<string, string> = {
 export function CalendarPage() {
   const { user } = useAuth();
   const { locale, t } = useLanguage();
+  const [searchParams] = useSearchParams();
   const [view, setView] = useState<CalendarView>("month");
-  const [anchor, setAnchor] = useState(() => new Date());
+  const [anchor, setAnchor] = useState(() => parseCalendarDate(searchParams.get("date")) ?? new Date());
   const [calendar, setCalendar] = useState<TrainingCalendar | null>(null);
   const [relationships, setRelationships] = useState<Relationship[]>([]);
-  const [athleteId, setAthleteId] = useState("");
+  const [athleteId, setAthleteId] = useState(() => searchParams.get("athlete_id") ?? "");
   const [sport, setSport] = useState("");
   const [selected, setSelected] = useState<CalendarEvent | null>(null);
   const [loading, setLoading] = useState(true);
@@ -306,6 +307,13 @@ function dateKey(value: Date) {
 
 function isSameDate(left: Date, right: Date) {
   return dateKey(left) === dateKey(right);
+}
+
+function parseCalendarDate(value: string | null) {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const [year, month, day] = value.split("-").map(Number);
+  const parsed = new Date(year, month - 1, day);
+  return dateKey(parsed) === value ? parsed : null;
 }
 
 function athleteName(relationship: Relationship) {
