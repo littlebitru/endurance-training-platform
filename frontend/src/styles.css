@@ -444,63 +444,43 @@ h1, h2, h3, h4, h5, strong, b, .brand-mark, .logo, .activity-sport, .eyebrow {
 .page-enter > :nth-child(4) { animation-delay: .2s; }
 .page-enter > :nth-child(n + 5) { animation-delay: .24s; }
 
-.hero-panel {
+.weekly-command-center {
+  --command-accent: #168f7d;
   position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 42px;
-  border-radius: 15px;
-  color: white;
-  background:
-    radial-gradient(circle at 86% 20%, #f0d76950 0, transparent 26%),
-    radial-gradient(circle at 12% 110%, #30c0bd45 0, transparent 38%),
-    linear-gradient(135deg, #0c685f, #163f51 55%, #362f56);
-  box-shadow: 0 20px 50px #173d3118;
-  transition: box-shadow .3s ease, transform .3s ease;
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(440px, .9fr);
+  gap: 24px;
   overflow: hidden;
+  padding: 24px;
+  border: 1px solid #d9e4dd;
+  border-radius: 15px;
+  background:
+    radial-gradient(circle at 96% -20%, color-mix(in srgb, var(--command-accent) 16%, transparent), transparent 36%),
+    linear-gradient(135deg, #fff, #f5faf7);
+  box-shadow: 0 18px 44px #173d310d;
+  animation: sectionReveal .45s ease backwards;
 }
-
-.hero-panel::after {
-  position: absolute;
-  z-index: 1;
-  inset: -80% -30%;
-  background: linear-gradient(105deg, transparent 42%, #ffffff18 49%, transparent 56%);
-  content: "";
-  pointer-events: none;
-  transform: translateX(-48%) rotate(5deg);
-  animation: heroLightSweep 8s 1.2s ease-in-out infinite;
-}
-
-.hero-panel:hover { box-shadow: 0 26px 60px #173d3129; transform: translateY(-2px); }
-.hero-panel > div { position: relative; z-index: 2; }
-.hero-panel > div:not(.ring) { max-width: 66%; }
-.hero-panel-image {
-  position: absolute;
-  z-index: 0;
-  top: 0;
-  right: 0;
-  width: 52%;
-  height: 100%;
-  object-fit: cover;
-  object-position: 68% center;
-  opacity: .68;
-  mask-image: linear-gradient(90deg, transparent, black 38%);
-  transition: opacity .4s ease, transform 1.2s cubic-bezier(.22, 1, .36, 1);
-  animation: heroImagePan 12s ease-in-out infinite alternate;
-}
-.hero-panel:hover .hero-panel-image { opacity: .82; transform: scale(1.035); }
-.hero-panel h2 { margin: 12px 0; font: 600 clamp(26px, 3vw, 42px) Manrope; }
-.hero-panel p { max-width: 650px; color: #b9c9c0; }
-.hero-panel .eyebrow { display: inline-block; animation: contentRise .55s .14s ease both; }
-.hero-panel h2 { animation: contentRise .6s .2s ease both; }
-.hero-panel p { animation: contentRise .6s .28s ease both; }
-.coach-hero { min-height: 270px; align-items: center; }
-.coach-hero > div:not(.ring) { max-width: 720px; }
-.athlete-hero { min-height: 270px; }
-.athlete-hero > div:not(.ring) { max-width: 720px; }
-.hero-action { display: inline-flex; margin-top: 13px; padding: 10px 14px; border: 1px solid #bcd0c3; border-radius: 8px; color: #f3f8f3; background: #ffffff12; font-size: 12px; font-weight: 600; text-decoration: none; backdrop-filter: blur(8px); transition: border-color .2s ease, background .2s ease, transform .2s ease; }
-.hero-action:hover { border-color: #d6ec9e; background: #ffffff20; transform: translateY(-1px); }
+.weekly-command-center.coach { --command-accent: #6f5aa5; }
+.weekly-command-center::before { position: absolute; top: 0; left: 0; width: 100%; height: 4px; background: linear-gradient(90deg, var(--command-accent), color-mix(in srgb, var(--command-accent) 20%, #cfe78c)); content: ""; }
+.weekly-command-center::after { position: absolute; right: -65px; bottom: -145px; width: 250px; height: 250px; border: 1px solid color-mix(in srgb, var(--command-accent) 18%, transparent); border-radius: 50%; content: ""; pointer-events: none; }
+.weekly-command-copy, .weekly-command-metrics { position: relative; z-index: 1; }
+.weekly-command-copy h2 { margin: 6px 0; color: #263c31; font: 600 clamp(21px, 2vw, 28px) Manrope; }
+.weekly-command-copy > p { max-width: 650px; margin: 0; color: #6b7a72; font-size: 13px; line-height: 1.55; }
+.command-action { display: inline-flex; align-items: center; margin-top: 14px; color: var(--command-accent); font-size: 12px; font-weight: 700; text-decoration: none; transition: color .2s ease, transform .2s ease; }
+.command-action:hover { color: #173d31; transform: translateX(3px); }
+.next-workout-insight { display: flex; align-items: center; gap: 13px; max-width: 620px; margin-top: 14px; padding: 11px 13px; border: 1px solid #d9e5dd; border-radius: 10px; background: #ffffffc9; }
+.next-workout-insight > span { flex: none; padding: 5px 7px; border-radius: 6px; color: #fff; background: var(--command-accent); font-size: 9px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
+.next-workout-insight strong, .next-workout-insight small { display: block; }
+.next-workout-insight strong { color: #30483c; font: 600 13px Manrope; text-transform: capitalize; }
+.next-workout-insight small { margin-top: 2px; color: #718078; font-size: 11px; line-height: 1.4; }
+.weekly-command-metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; align-self: stretch; }
+.weekly-command-metrics article { position: relative; display: grid; align-content: center; min-height: 78px; padding: 13px 15px; border: 1px solid #dfe6e0; border-radius: 10px; background: #ffffffde; box-shadow: 0 7px 18px #173d3108; }
+.weekly-command-metrics article::before { position: absolute; top: 12px; left: 0; width: 3px; height: calc(100% - 24px); border-radius: 0 3px 3px 0; background: var(--command-accent); content: ""; opacity: .45; }
+.weekly-command-metrics article.attention { border-color: #e5b9ab; background: #fff7f4; }
+.weekly-command-metrics article.attention::before { background: #c76f58; opacity: 1; }
+.weekly-command-metrics article.positive::before { background: #79a94f; opacity: 1; }
+.weekly-command-metrics small { color: #718078; font-size: 10px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
+.weekly-command-metrics strong { margin-top: 7px; color: #263e32; font: 650 23px Manrope; }
 
 .athlete-plan-portfolio { margin-top: 18px; padding: 22px 24px; border: 1px solid #dce5de; border-radius: 14px; background: linear-gradient(145deg, #fff, #f7fbf7); box-shadow: 0 14px 36px #173d310c; }
 .athlete-plan-portfolio-head { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin-bottom: 16px; }
@@ -521,61 +501,7 @@ h1, h2, h3, h4, h5, strong, b, .brand-mark, .logo, .activity-sport, .eyebrow {
 .athlete-plan-card > small { color: #839088; font-size: 11px; }
 .athlete-plan-card > b { margin-top: 3px; color: var(--plan-accent); font-size: 11px; }
 
-.ring {
-  display: grid;
-  flex: none;
-  place-content: center;
-  width: 125px;
-  height: 125px;
-  border: 8px solid #b9d67d;
-  border-radius: 50%;
-  text-align: center;
-  animation: ringBreathe 3s ease-in-out infinite;
-}
-
-.ring strong { font: 700 32px Manrope; }
-.ring small { color: #cbd8d1; }
-.stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin: 18px 0 45px; }
-
-.stat {
-  position: relative;
-  overflow: hidden;
-  padding: 22px;
-  border: 1px solid #e2e5df;
-  border-radius: 10px;
-  background: linear-gradient(145deg, #ffffff, #fbfcf8);
-  transition: border-color .25s ease, box-shadow .25s ease, transform .25s ease;
-  animation: cardReveal .4s ease backwards;
-}
-
-.stat::after {
-  position: absolute;
-  right: -38px;
-  bottom: -48px;
-  width: 105px;
-  height: 105px;
-  border-radius: 50%;
-  background: radial-gradient(circle, #61c8bc2b, transparent 68%);
-  content: "";
-  opacity: 0;
-  transform: scale(.6);
-  transition: opacity .3s ease, transform .45s cubic-bezier(.22, 1, .36, 1);
-}
-
-.stat:nth-child(2) { animation-delay: .05s; }
-.stat:nth-child(3) { animation-delay: .1s; }
-.stat:nth-child(4) { animation-delay: .15s; }
-.stat:nth-child(1) { border-top: 3px solid #56bdaa; }
-.stat:nth-child(2) { border-top: 3px solid #b8d96b; }
-.stat:nth-child(3) { border-top: 3px solid #68b9dc; }
-.stat:nth-child(4) { border-top: 3px solid #ef9970; }
-.stat:hover, .athlete:hover { border-color: #cbd8cf; box-shadow: 0 16px 34px #173d3111; transform: translateY(-3px); }
-.stat:hover::after { opacity: 1; transform: scale(1); }
-.stat small { color: #78847e; }
-.stat strong { position: relative; z-index: 1; display: block; margin-top: 12px; font: 600 26px Manrope; transition: color .25s ease, transform .25s ease; }
-.stat:hover strong { color: #087f78; transform: translateY(-2px); }
-
-.weekly-progress { margin: -22px 0 36px; padding: 22px 24px; border: 1px solid #dfe6df; border-radius: 13px; background: linear-gradient(145deg, #fff, #f8fbf7); box-shadow: 0 14px 34px #173d310b; }
+.weekly-progress { margin: 18px 0 36px; padding: 22px 24px; border: 1px solid #dfe6df; border-radius: 13px; background: linear-gradient(145deg, #fff, #f8fbf7); box-shadow: 0 14px 34px #173d310b; }
 .weekly-progress-head { display: flex; align-items: end; justify-content: space-between; gap: 20px; }
 .weekly-progress-head h3 { margin: 5px 0 0; font: 600 18px Manrope; }
 .chart-legend { display: flex; gap: 15px; color: #748078; font-size: 11px; }
@@ -1318,10 +1244,8 @@ h1, h2, h3, h4, h5, strong, b, .brand-mark, .logo, .activity-sport, .eyebrow {
 @keyframes navReveal { from { opacity: 0; transform: translateX(-12px); } to { opacity: 1; transform: translateX(0); } }
 @keyframes accountReveal { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes rowReveal { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: translateX(0); } }
-@keyframes contentRise { from { opacity: 0; transform: translateY(9px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes ambientFloat { to { transform: translate3d(-5vw, 4vh, 0) scale(1.16); } }
 @keyframes sidebarGlow { to { transform: translate3d(75%, 125%, 0) scale(1.2); } }
-@keyframes heroLightSweep { 0%, 58% { opacity: 0; transform: translateX(-48%) rotate(5deg); } 72% { opacity: 1; } 100% { opacity: 0; transform: translateX(48%) rotate(5deg); } }
 @keyframes sportShine { 0%, 58% { transform: translateX(-140%); } 78%, 100% { transform: translateX(140%); } }
 @keyframes emptyPulse { 0%, 100% { box-shadow: 0 0 0 0 #80b7a800; transform: scale(.94); } 50% { box-shadow: 0 0 0 10px #80b7a81a; transform: scale(1); } }
 @keyframes orbitSpin { to { transform: rotate(360deg); } }
@@ -1329,13 +1253,14 @@ h1, h2, h3, h4, h5, strong, b, .brand-mark, .logo, .activity-sport, .eyebrow {
 @keyframes imageDrift { from { transform: scale(1.01); } to { transform: scale(1.06) translate3d(-1.2%, -.8%, 0); } }
 @keyframes brandFloat { 0%, 100% { transform: translateY(0) rotate(0); } 50% { transform: translateY(-5px) rotate(2deg); } }
 @keyframes logoFloat { 0%, 100% { box-shadow: 0 10px 24px #72cdb439; transform: translateY(0) rotate(0); } 50% { box-shadow: 0 16px 32px #72cdb45c; transform: translateY(-4px) rotate(-3deg); } }
-@keyframes heroImagePan { from { object-position: 62% center; } to { object-position: 78% center; } }
 @keyframes buttonShine { to { transform: translateX(120%); } }
 @keyframes ringBreathe { 0%, 100% { box-shadow: 0 0 0 0 #b9d67d00; } 50% { box-shadow: 0 0 0 9px #b9d67d12; } }
 @keyframes spinner { to { transform: rotate(360deg); } }
 @keyframes zoneGrow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
 
 @media (max-width: 1300px) {
+  .weekly-command-center { grid-template-columns: 1fr; }
+  .weekly-command-metrics { grid-template-columns: repeat(4, 1fr); }
   .activity-import-card { grid-template-columns: 1fr; }
 }
 
@@ -1350,7 +1275,6 @@ h1, h2, h3, h4, h5, strong, b, .brand-mark, .logo, .activity-sport, .eyebrow {
   .account { grid-row: 1; grid-column: 3; padding: 0; border: 0; }
   .account > div { display: none; }
   .content { padding: 25px 20px; }
-  .stat-grid { grid-template-columns: 1fr 1fr; }
   .coach-card { grid-template-columns: 52px 1fr; }
   .coach-card > .status { grid-column: 2; justify-self: start; }
   .workout-row { grid-template-columns: 45px 8px 1fr; }
@@ -1380,14 +1304,13 @@ h1, h2, h3, h4, h5, strong, b, .brand-mark, .logo, .activity-sport, .eyebrow {
   .header-actions { align-self: flex-end; }
   .app-shell nav { gap: 3px; }
   .app-shell nav a { flex: none; padding: 10px 11px; font-size: 11px; }
-  .hero-panel { padding: 28px; }
-  .hero-panel > div:not(.ring) { max-width: 100%; }
-  .hero-panel-image { width: 100%; opacity: .3; mask-image: linear-gradient(90deg, transparent, black); }
-  .ring { display: none; }
+  .weekly-command-center { gap: 18px; padding: 20px 16px; }
+  .weekly-command-metrics { grid-template-columns: 1fr 1fr; }
+  .next-workout-insight { align-items: flex-start; flex-direction: column; }
   .athlete-plan-portfolio { padding: 18px 16px; }
   .athlete-plan-portfolio-head { align-items: flex-start; }
   .athlete-plan-card { flex-basis: 260px; }
-  .stat-grid, .athlete-grid { grid-template-columns: 1fr; }
+  .athlete-grid { grid-template-columns: 1fr; }
   .section-title { align-items: flex-start; flex-direction: column; gap: 18px; }
   .plan-toolbar .primary { width: 100%; }
   .plan-library { padding: 18px 16px; }
@@ -1437,7 +1360,7 @@ h1, h2, h3, h4, h5, strong, b, .brand-mark, .logo, .activity-sport, .eyebrow {
   .plan-builder-section { padding: 14px; }
   .compact-threshold-grid { grid-template-columns: 1fr; }
   .compact-threshold-grid label:last-child:nth-child(3) { grid-column: auto; }
-  .weekly-progress { margin-top: -24px; padding: 18px 14px; }
+  .weekly-progress { margin-top: 18px; padding: 18px 14px; }
   .weekly-progress-head { align-items: flex-start; flex-direction: column; }
   .weekly-bars { grid-template-columns: repeat(8, 54px); overflow-x: auto; }
   .activity-grid, .analysis-columns { grid-template-columns: 1fr; }
