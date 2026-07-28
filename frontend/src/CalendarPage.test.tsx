@@ -146,6 +146,20 @@ test("opens the generated plan month and athlete from the calendar deep link", a
   });
 });
 
+test("opens a linked upcoming workout directly in the calendar", async () => {
+  render(
+    <MemoryRouter
+      initialEntries={[`/calendar?date=${startsAt.slice(0, 10)}&workout_id=12`]}
+      future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+    >
+      <LanguageProvider><CalendarPage /></LanguageProvider>
+    </MemoryRouter>,
+  );
+
+  expect(await screen.findByRole("dialog")).toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "Aerobic endurance run" })).toBeInTheDocument();
+});
+
 test("lets the coach publish a reviewed generated plan from the calendar", async () => {
   authState.user.id = 1;
   authState.user.username = "coach";

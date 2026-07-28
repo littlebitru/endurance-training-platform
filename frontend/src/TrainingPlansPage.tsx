@@ -2,6 +2,13 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "./api";
 import { useAuth } from "./auth";
+import {
+  localizeGeneratedExerciseName,
+  localizeGeneratedPlanDescription,
+  localizeGeneratedWeekNote,
+  localizeGeneratedWorkoutNotes,
+  localizeGeneratedWorkoutTitle,
+} from "./generatedContent";
 import { localizeApiError, useLanguage } from "./i18n";
 import type {
   AthleteThreshold,
@@ -1376,7 +1383,7 @@ export function TrainingPlansPage() {
                   <small>{translatedGoalLabel(plan.target_event_type)}{plan.target_distance_km ? ` · ${plan.target_distance_km} km` : ""}</small>
                 </div>
               )}
-              <p>{plan.description || t("noDescription")}</p>
+              <p>{localizeGeneratedPlanDescription(plan, t)}</p>
               <small>{plan.start_date} — {plan.end_date}</small>
             </div>
             <div className="plan-actions">
@@ -1410,10 +1417,11 @@ export function TrainingPlansPage() {
             const selectedWorkout = visibleWorkouts.find((workout) => workout.id === expandedWorkout);
             const scheduledDates = new Set(week.workouts.map((workout) => dateKey(workout.scheduled_at)));
             const restDays = Math.max(0, 7 - scheduledDates.size);
+            const localizedWeekNote = localizeGeneratedWeekNote(plan, week, t);
             return (
               <div className="week-block calendar-week" key={week.id}>
                 <div className="week-head">
-                  <div><span className="eyebrow">{t("weeklyCalendar")}</span><h4>{t("week", { number: week.week_number })}{week.phase && <span className={`phase-badge ${week.phase}`}>{phaseLabels[week.phase] ?? week.phase}</span>}</h4><small>{week.start_date}{week.planned_duration_minutes ? ` · ${Math.round(week.planned_duration_minutes / 6) / 10} ${t("hoursShort")}` : ""}{week.notes ? ` · ${week.notes}` : ""}</small></div>
+                  <div><span className="eyebrow">{t("weeklyCalendar")}</span><h4>{t("week", { number: week.week_number })}{week.phase && <span className={`phase-badge ${week.phase}`}>{phaseLabels[week.phase] ?? week.phase}</span>}</h4><small>{week.start_date}{week.planned_duration_minutes ? ` · ${Math.round(week.planned_duration_minutes / 6) / 10} ${t("hoursShort")}` : ""}{localizedWeekNote ? ` · ${localizedWeekNote}` : ""}</small></div>
                   <span className="week-recovery-summary">{t("weekScheduleSummary", { workouts: week.workouts.length, restDays })}</span>
                   {user?.role === "coach" && plan.publication_status !== "archived" && <div className="week-actions"><button className="secondary compact" onClick={() => void duplicateWeek(plan, week)} type="button">{t("copyWeek")}</button><button className="secondary compact" onClick={() => setEditor({ kind: "workout", week, planSport: plan.primary_sport, athleteId: plan.athlete, scheduledDate: week.start_date })} type="button">+ {t("addWorkout")}</button></div>}
                 </div>
@@ -1446,7 +1454,7 @@ export function TrainingPlansPage() {
                             }}>
                               <button onClick={() => setExpandedWorkout(expandedWorkout === workout.id ? null : workout.id)} type="button">
                                 <span className="sport-card-label"><i>{SPORT_MARKS[workout.sport]}</i>{sportLabels[workout.sport] || workout.sport}</span>
-                                <strong>{workout.title}</strong>
+                                <strong>{localizeGeneratedWorkoutTitle(workout, t)}</strong>
                                 <small>{new Date(workout.scheduled_at).toLocaleTimeString(dateLocale, { hour: "2-digit", minute: "2-digit" })} · {workoutTypeLabels[workout.workout_type] || workout.workout_type} · {workout.intensity || t("openIntensity")}</small>
                                 <span className="sport-card-metrics"><b>{workout.planned_duration_minutes || "—"} {t("minutes")}</b><b>{workout.planned_distance_km ? `${workout.planned_distance_km} km` : "—"}</b></span>
                                 <span className={`calendar-status ${workout.status}`}>{statusLabels[workout.status] || workout.status}</span>
@@ -1467,7 +1475,7 @@ export function TrainingPlansPage() {
                 {selectedWorkout && (
                   <div className={`workout-detail calendar-quick-view ${selectedWorkout.sport}`}>
                     <div className="quick-view-head">
-                      <div><span className="sport-card-label"><i>{SPORT_MARKS[selectedWorkout.sport]}</i>{sportLabels[selectedWorkout.sport]} · {workoutTypeLabels[selectedWorkout.workout_type] || selectedWorkout.workout_type}</span><h4>{selectedWorkout.title}</h4><small>{new Date(selectedWorkout.scheduled_at).toLocaleString(dateLocale)} · {selectedWorkout.intensity || t("openIntensity")}</small></div>
+                      <div><span className="sport-card-label"><i>{SPORT_MARKS[selectedWorkout.sport]}</i>{sportLabels[selectedWorkout.sport]} · {workoutTypeLabels[selectedWorkout.workout_type] || selectedWorkout.workout_type}</span><h4>{localizeGeneratedWorkoutTitle(selectedWorkout, t)}</h4><small>{new Date(selectedWorkout.scheduled_at).toLocaleString(dateLocale)} · {selectedWorkout.intensity || t("openIntensity")}</small></div>
                       <div className="quick-view-actions">
                         {user?.role === "coach" && plan.publication_status !== "archived" && <>
                           <button className="secondary compact" onClick={() => setEditor({ kind: "workout", week, planSport: plan.primary_sport, athleteId: plan.athlete, workout: selectedWorkout })} type="button">{t("edit")}</button>
@@ -1483,11 +1491,11 @@ export function TrainingPlansPage() {
                       <span><small>{t("distanceKm")}</small><strong>{selectedWorkout.planned_distance_km ? `${selectedWorkout.planned_distance_km} km` : "—"}</strong></span>
                       <span><small>{t("status")}</small><strong>{statusLabels[selectedWorkout.status] || selectedWorkout.status}</strong></span>
                     </div>
-                    {selectedWorkout.notes && <p className="workout-notes">{selectedWorkout.notes}</p>}
+                    {selectedWorkout.notes && <p className="workout-notes">{localizeGeneratedWorkoutNotes(plan, week, selectedWorkout, t)}</p>}
                     <div className="detail-columns">
                       <section>
                         <div className="detail-title"><h5>{t("exercises")}</h5>{user?.role === "coach" && plan.publication_status !== "archived" && <button className="link-action" onClick={() => setEditor({ kind: "exercise", workout: selectedWorkout })} type="button">+ {t("addExercise")}</button>}</div>
-                        {selectedWorkout.exercises.length ? <ol className="exercise-list">{selectedWorkout.exercises.map((exercise) => <li className={exercise.step_type} key={exercise.id}><strong>{exercise.name}</strong><span>{exercise.description || t("exerciseDetails")}</span><small>{exercise.repetitions && exercise.repetitions > 1 ? `${exercise.repetitions}× · ` : ""}{exercise.duration_seconds ? `${exercise.duration_seconds} ${t("seconds")}` : ""}{exercise.distance_meters ? ` · ${exercise.distance_meters} m` : ""}{exercise.resolved_target_label ? ` · ${exercise.resolved_target_label}` : exercise.target_min ? ` · ${exercise.target_type} ${exercise.target_min}${exercise.target_max && exercise.target_max !== exercise.target_min ? `–${exercise.target_max}` : ""} ${exercise.target_unit}` : ""}{exercise.recovery_seconds ? ` · ${t("recovery")} ${exercise.recovery_seconds} ${t("seconds")}` : ""}</small></li>)}</ol> : <p className="muted">{t("noExercises")}</p>}
+                        {selectedWorkout.exercises.length ? <ol className="exercise-list">{selectedWorkout.exercises.map((exercise) => <li className={exercise.step_type} key={exercise.id}><strong>{localizeGeneratedExerciseName(plan, exercise, t)}</strong><span>{exercise.description || t("exerciseDetails")}</span><small>{exercise.repetitions && exercise.repetitions > 1 ? `${exercise.repetitions}× · ` : ""}{exercise.duration_seconds ? `${exercise.duration_seconds} ${t("seconds")}` : ""}{exercise.distance_meters ? ` · ${exercise.distance_meters} m` : ""}{exercise.resolved_target_label ? ` · ${exercise.resolved_target_label}` : exercise.target_min ? ` · ${exercise.target_type} ${exercise.target_min}${exercise.target_max && exercise.target_max !== exercise.target_min ? `–${exercise.target_max}` : ""} ${exercise.target_unit}` : ""}{exercise.recovery_seconds ? ` · ${t("recovery")} ${exercise.recovery_seconds} ${t("seconds")}` : ""}</small></li>)}</ol> : <p className="muted">{t("noExercises")}</p>}
                       </section>
                       <section>
                         <div className="detail-title"><h5>{t("coachComments")}</h5>{user?.role === "coach" && plan.publication_status !== "archived" && <button className="link-action" onClick={() => setEditor({ kind: "comment", workout: selectedWorkout })} type="button">+ {t("addComment")}</button>}</div>

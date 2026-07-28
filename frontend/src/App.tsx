@@ -6,6 +6,7 @@ import { ActivitiesPage } from "./ActivitiesPage";
 import { CalendarPage } from "./CalendarPage";
 import heroImage from "./assets/endurance-hero-v2.webp";
 import { useAuth } from "./auth";
+import { localizeGeneratedWorkoutTitle } from "./generatedContent";
 import { localizeApiError, useLanguage } from "./i18n";
 import { TrainingPlansPage } from "./TrainingPlansPage";
 import type { Analytics, Relationship, Role, TrainingCalendar, TrainingPlan, WeeklyAnalytics, Workout } from "./types";
@@ -374,7 +375,7 @@ function Overview() {
       )}
       <div className="section-title">
         <div><span className="eyebrow">{t("comingUp")}</span><h2>{isCoach ? t("coachNextSessions") : t("nextSessions")}</h2></div>
-        <NavLink to="/plans">{t("viewAll")}</NavLink>
+        <NavLink to="/calendar">{t("viewAll")}</NavLink>
       </div>
       <section className="session-list">
         {next.length ? next.map((item) => <WorkoutRow athleteName={isCoach ? athleteNames.get(item.athleteId) : undefined} key={item.workout.id} workout={item.workout} />) : <Empty text={t("noUpcoming")} />}
@@ -410,18 +411,18 @@ export function WeeklyCommandCenter({
       nextWorkout.planned_distance_km ? `${nextWorkout.planned_distance_km} km` : "",
     ].filter(Boolean).join(" · ")
     : "";
-  const metrics = isCoach
+  const metrics: Array<{ label: string; value: string | number; tone?: string; to: string }> = isCoach
     ? [
-      { label: t("athletesUnderCoaching"), value: athleteCount },
-      { label: t("plannedSessions"), value: summary?.planned_count ?? "—" },
-      { label: t("attentionNeeded"), value: summary?.attention_count ?? "—", tone: attentionCount > 0 ? "attention" : "positive" },
-      { label: t("averageCompliance"), value: summary?.average_compliance == null ? "—" : `${summary.average_compliance}%` },
+      { label: t("athletesUnderCoaching"), value: athleteCount, to: "/athletes" },
+      { label: t("plannedSessions"), value: summary?.planned_count ?? "—", to: "/calendar" },
+      { label: t("attentionNeeded"), value: summary?.attention_count ?? "—", tone: attentionCount > 0 ? "attention" : "positive", to: "/calendar" },
+      { label: t("averageCompliance"), value: summary?.average_compliance == null ? "—" : `${summary.average_compliance}%`, to: "/activities" },
     ]
     : [
-      { label: t("activePlans"), value: activePlanCount },
-      { label: t("plannedSessions"), value: summary?.planned_count ?? "—" },
-      { label: t("completionRate"), value: summary ? `${summary.completion_rate}%` : "—", tone: "positive" },
-      { label: t("actualLoad"), value: summary ? Math.round(Number(summary.training_load_score)) : "—" },
+      { label: t("activePlans"), value: activePlanCount, to: "/plans" },
+      { label: t("plannedSessions"), value: summary?.planned_count ?? "—", to: "/calendar" },
+      { label: t("completionRate"), value: summary ? `${summary.completion_rate}%` : "—", tone: "positive", to: "/calendar" },
+      { label: t("actualLoad"), value: summary ? Math.round(Number(summary.training_load_score)) : "—", to: "/activities" },
     ];
   const title = isCoach
     ? attentionCount > 0 ? t("coachAttentionTitle") : calendar ? t("coachAllClearTitle") : t("coachWeekTitle")
@@ -431,6 +432,25 @@ export function WeeklyCommandCenter({
       ? t("coachAttentionDescription", { count: attentionCount })
       : t("coachAllClearDescription")
     : t("athleteWeekDescription");
+  const rhythmDays = calendar
+    ? Array.from({ length: 7 }, (_, index) => {
+      const date = new Date(`${calendar.date_from}T12:00:00`);
+      date.setDate(date.getDate() + index);
+      const key = localDateKey(date);
+      const events = calendar.events.filter((event) => localDateKey(new Date(event.starts_at)) === key);
+      const state = events.some((event) => event.attention_required)
+        ? "attention"
+        : events.some((event) => event.status === "completed")
+          ? "completed"
+          : events.length
+            ? "planned"
+            : "rest";
+      return { date, events, key, state };
+    })
+    : [];
+  const completedCount = summary?.completed_count ?? 0;
+  const plannedCount = summary?.planned_count ?? 0;
+  const nextWorkoutDate = nextWorkout ? localDateKey(new Date(nextWorkout.scheduled_at)) : "";
 
   return (
     <section className={`weekly-command-center ${role}`} aria-labelledby="weekly-command-title">
@@ -438,10 +458,32 @@ export function WeeklyCommandCenter({
         <span className="eyebrow">{isCoach ? t("coachCommandCenter") : t("athleteCommandCenter")}</span>
         <h2 id="weekly-command-title">{title}</h2>
         <p>{description}</p>
+        <NavLink className="command-action" to="/calendar">
+          {isCoach ? t("openReviewQueue") : t("openTrainingCalendar")} →
+        </NavLink>
+      </div>
+      <div className="weekly-rhythm">
+        <header>
+          <span>{t("weekRhythm")}</span>
+          <small>{plannedCount ? t("workoutsCompletedThisWeek", { completed: completedCount, planned: plannedCount }) : t("noSessionsThisWeek")}</small>
+        </header>
+        <div className="weekly-rhythm-days">
+          {rhythmDays.map((day) => (
+            <NavLink
+              aria-label={day.date.toLocaleDateString(dateLocale, { weekday: "long", day: "numeric", month: "long" })}
+              className={day.state}
+              key={day.key}
+              to={`/calendar?date=${day.key}`}
+            >
+              <small>{day.date.toLocaleDateString(dateLocale, { weekday: "narrow" })}</small>
+              <i>{day.events.length || "·"}</i>
+            </NavLink>
+          ))}
+        </div>
         {!isCoach && (
-          <div className="next-workout-insight">
-            <span>{t("nextTraining")}</span>
-            {nextWorkout ? (
+          nextWorkout ? (
+            <NavLink className="next-workout-insight" to={`/calendar?date=${nextWorkoutDate}&workout_id=${nextWorkout.id}`}>
+              <span>{t("nextTraining")}</span>
               <div>
                 <strong>{sportKey ? t(sportKey) : nextWorkout.sport}</strong>
                 <small>
@@ -455,21 +497,23 @@ export function WeeklyCommandCenter({
                   {nextMetrics ? ` · ${nextMetrics}` : ""}
                 </small>
               </div>
-            ) : (
+              <b>→</b>
+            </NavLink>
+          ) : (
+            <div className="next-workout-insight empty-insight">
+              <span>{t("nextTraining")}</span>
               <div><strong>{t("recoveryWindow")}</strong><small>{t("noUpcomingSession")}</small></div>
-            )}
-          </div>
+            </div>
+          )
         )}
-        <NavLink className="command-action" to="/calendar">
-          {isCoach ? t("openReviewQueue") : t("openTrainingCalendar")} →
-        </NavLink>
       </div>
       <div className="weekly-command-metrics">
         {metrics.map((metric) => (
-          <article className={metric.tone ?? ""} key={metric.label}>
+          <NavLink className={metric.tone ?? ""} key={metric.label} to={metric.to}>
             <small>{metric.label}</small>
             <strong>{metric.value}</strong>
-          </article>
+            <span aria-hidden="true">↗</span>
+          </NavLink>
         ))}
       </div>
     </section>
@@ -557,14 +601,15 @@ function WorkoutRow({ athleteName, workout }: { athleteName?: string; workout: W
   const statusLabels: Record<string, string> = {
     planned: t("statusPlanned"), completed: t("statusCompleted"), skipped: t("statusSkipped"),
   };
+  const workoutDate = localDateKey(new Date(workout.scheduled_at));
   return (
-    <article className="workout-row">
+    <NavLink className="workout-row" to={`/calendar?date=${workoutDate}&workout_id=${workout.id}`}>
       <time><strong>{new Date(workout.scheduled_at).toLocaleDateString(dateLocale, { day: "2-digit" })}</strong><small>{new Date(workout.scheduled_at).toLocaleDateString(dateLocale, { month: "short" })}</small></time>
       <div className={`sport ${workout.sport}`} />
-      <div className="grow"><strong>{workout.title}</strong><small>{sportLabels[workout.sport] || workout.sport} · {workout.intensity || t("openIntensity")}</small>{athleteName && <small className="athlete-context">{athleteName}</small>}</div>
+      <div className="grow"><strong>{localizeGeneratedWorkoutTitle(workout, t)}</strong><small>{sportLabels[workout.sport] || workout.sport} · {workout.intensity || t("openIntensity")}</small>{athleteName && <small className="athlete-context">{athleteName}</small>}</div>
       <div><strong>{workout.planned_duration_minutes ?? "—"} {t("minutes")}</strong><small>{workout.planned_distance_km ? `${workout.planned_distance_km} km` : t("distanceOpen")}</small></div>
       <span className={`status ${workout.status}`}>{statusLabels[workout.status] || workout.status}</span>
-    </article>
+    </NavLink>
   );
 }
 

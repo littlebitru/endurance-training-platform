@@ -517,7 +517,14 @@ class TrainingPlanSerializer(serializers.ModelSerializer):
     class Meta:
         model = TrainingPlan
         fields = "__all__"
-        read_only_fields = ("coach", "is_active", "publication_status", "published_at")
+        read_only_fields = (
+            "coach",
+            "is_active",
+            "publication_status",
+            "published_at",
+            "generation_method",
+            "experience_level",
+        )
 
     def validate(self, attrs):
         start = attrs.get("start_date", getattr(self.instance, "start_date", None))
