@@ -300,7 +300,7 @@ function CalendarEventDetail({ event, onClose }: { event: CalendarEvent; onClose
           </section>
         )}
         <footer>
-          {event.workout_id && <button className="secondary" onClick={() => navigate("/plans")} type="button">{t("openInPlan")}</button>}
+          {event.workout_id && <button className="secondary" onClick={() => navigate(event.plan_id ? `/plans?plan_id=${event.plan_id}` : "/plans")} type="button">{t("openInPlan")}</button>}
           {event.activity_ids[0] && <button className="primary" onClick={() => navigate(`/activities?activity=${event.activity_ids[0]}`)} type="button">{t("openFullAnalysis")}</button>}
         </footer>
       </section>

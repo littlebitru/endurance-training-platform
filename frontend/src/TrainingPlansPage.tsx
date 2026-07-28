@@ -1,5 +1,5 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "./api";
 import { useAuth } from "./auth";
 import { localizeApiError, useLanguage } from "./i18n";
@@ -46,9 +46,9 @@ interface ThresholdDraft {
 }
 
 interface SavedDestination {
-  calendarDate: string;
-  athleteId: number;
   planId: number;
+  calendarDate?: string;
+  athleteId?: number;
 }
 
 const EMPTY_THRESHOLD: ThresholdDraft = {
@@ -249,6 +249,125 @@ function resolvedZoneRange(zones: TrainingZone[], metric: string, start: string,
 function displayName(relationship: Relationship): string {
   const athlete = relationship.athlete;
   return `${athlete.first_name} ${athlete.last_name}`.trim() || athlete.username;
+}
+
+function planTimestamp(plan: TrainingPlan): number {
+  const value = plan.updated_at || plan.created_at || `${plan.start_date}T00:00:00`;
+  const timestamp = Date.parse(value);
+  return Number.isNaN(timestamp) ? plan.id : timestamp;
+}
+
+export function sortPlansByRecency(plans: TrainingPlan[]): TrainingPlan[] {
+  return [...plans].sort((left, right) => {
+    const difference = planTimestamp(right) - planTimestamp(left);
+    return difference || right.id - left.id;
+  });
+}
+
+type PlanLibraryFilter = "current" | "all" | "draft" | "published" | "archived";
+
+export function PlanLibrary({
+  plans,
+  selectedPlanId,
+  athleteNames,
+  isCoach,
+  onSelect,
+}: {
+  plans: TrainingPlan[];
+  selectedPlanId: number | null;
+  athleteNames: Map<number, string>;
+  isCoach: boolean;
+  onSelect: (planId: number) => void;
+}) {
+  const { locale, t } = useLanguage();
+  const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState<PlanLibraryFilter>("current");
+  const normalizedQuery = query.trim().toLocaleLowerCase(locale);
+  const filteredPlans = plans.filter((plan) => {
+    if (filter === "current" && plan.publication_status === "archived") return false;
+    if (filter !== "all" && filter !== "current" && plan.publication_status !== filter) return false;
+    if (!normalizedQuery) return true;
+    const searchValue = [
+      plan.title,
+      plan.target_event_name,
+      plan.target_event_type,
+      athleteNames.get(plan.athlete) ?? "",
+    ].join(" ").toLocaleLowerCase(locale);
+    return searchValue.includes(normalizedQuery);
+  });
+  const filters: PlanLibraryFilter[] = isCoach
+    ? ["current", "all", "draft", "published", "archived"]
+    : ["current", "all", "published", "archived"];
+  const dateLocale = locale === "ru" ? "ru-RU" : "en-US";
+
+  return (
+    <section className="plan-library" aria-labelledby="plan-library-title">
+      <div className="plan-library-heading">
+        <div>
+          <span className="eyebrow">{t("planLibrary")}</span>
+          <h3 id="plan-library-title">{t("chooseTrainingPlan")}</h3>
+          <p>{t("planLibraryIntro")}</p>
+        </div>
+        <span className="plan-library-count">{plans.length}</span>
+      </div>
+      <div className="plan-library-tools">
+        <label>
+          <span>{t("searchPlans")}</span>
+          <input
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder={t("searchPlansPlaceholder")}
+            type="search"
+            value={query}
+          />
+        </label>
+        <div className="plan-library-filters" role="group" aria-label={t("planStatusFilter")}>
+          {filters.map((value) => (
+            <button
+              className={filter === value ? "active" : ""}
+              key={value}
+              onClick={() => setFilter(value)}
+              type="button"
+            >
+              {value === "current" ? t("currentPlans") : value === "all" ? t("allPlans") : t(value)}
+            </button>
+          ))}
+        </div>
+      </div>
+      {filteredPlans.length ? (
+        <div className="plan-library-list">
+          {filteredPlans.map((plan) => {
+            const sessions = plan.weeks.reduce((total, week) => total + week.workouts.length, 0);
+            const selected = plan.id === selectedPlanId;
+            return (
+              <button
+                aria-pressed={selected}
+                className={`plan-library-card ${plan.primary_sport} ${selected ? "selected" : ""}`}
+                key={plan.id}
+                onClick={() => onSelect(plan.id)}
+                type="button"
+              >
+                <span className="plan-library-card-top">
+                  <i>{SPORT_MARKS[plan.primary_sport] ?? "ACT"}</i>
+                  <span className={`status publication-status ${plan.publication_status}`}>{t(plan.publication_status)}</span>
+                </span>
+                {isCoach && <small>{athleteNames.get(plan.athlete) || t("athlete")}</small>}
+                <strong>{plan.title}</strong>
+                <span className="plan-library-goal">{plan.target_event_name || t("trainingPlan")}</span>
+                <span className="plan-library-meta">
+                  {new Date(`${plan.start_date}T12:00:00`).toLocaleDateString(dateLocale, { day: "numeric", month: "short" })}
+                  {" — "}
+                  {new Date(`${plan.end_date}T12:00:00`).toLocaleDateString(dateLocale, { day: "numeric", month: "short", year: "numeric" })}
+                </span>
+                <span className="plan-library-sessions">{t("sessionsCount", { count: sessions })}</span>
+              </button>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="plan-library-empty">{t("noMatchingPlans")}</div>
+      )}
+    </section>
+  );
 }
 
 export function EditorPanel({
@@ -610,7 +729,7 @@ export function EditorPanel({
             planId: generatedPlan.id,
           });
         } else {
-          await api.createPlan({
+          const createdPlan = await api.createPlan({
             athlete: Number(planAthleteId),
             title: String(payload.title),
             description: String(payload.description ?? ""),
@@ -620,7 +739,7 @@ export function EditorPanel({
             is_active: true,
             threshold_profile: thresholdProfile,
           });
-          await onSaved(t("planCreated"));
+          await onSaved(t("planCreated"), { planId: createdPlan.id });
         }
       } else if (editor.kind === "week") {
         await api.createWeek({ ...payload, training_plan: editor.plan.id });
@@ -951,6 +1070,7 @@ export function TrainingPlansPage() {
   const { user } = useAuth();
   const { locale, t } = useLanguage();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [plans, setPlans] = useState<TrainingPlan[]>([]);
   const [relationships, setRelationships] = useState<Relationship[]>([]);
   const [editor, setEditor] = useState<Editor | null>(null);
@@ -960,6 +1080,8 @@ export function TrainingPlansPage() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [dragOverDate, setDragOverDate] = useState("");
+  const requestedPlanId = Number(searchParams.get("plan_id")) || null;
+  const [selectedPlanId, setSelectedPlanId] = useState<number | null>(requestedPlanId);
 
   const reload = useCallback(async () => {
     const planResponse = await api.plans();
@@ -979,12 +1101,43 @@ export function TrainingPlansPage() {
     () => new Map(relationships.map((relationship) => [relationship.athlete.id, displayName(relationship)])),
     [relationships],
   );
+  const sortedPlans = useMemo(() => sortPlansByRecency(plans), [plans]);
+  const selectedPlan = useMemo(
+    () => sortedPlans.find((plan) => plan.id === selectedPlanId) ?? sortedPlans[0] ?? null,
+    [selectedPlanId, sortedPlans],
+  );
+
+  useEffect(() => {
+    if (!sortedPlans.length) {
+      setSelectedPlanId(null);
+      return;
+    }
+    const requestedPlan = requestedPlanId
+      ? sortedPlans.find((plan) => plan.id === requestedPlanId)
+      : undefined;
+    if (requestedPlan) {
+      setSelectedPlanId(requestedPlan.id);
+      return;
+    }
+    if (!sortedPlans.some((plan) => plan.id === selectedPlanId)) {
+      setSelectedPlanId(sortedPlans[0].id);
+    }
+  }, [requestedPlanId, selectedPlanId, sortedPlans]);
+
+  function selectPlan(planId: number) {
+    setSelectedPlanId(planId);
+    setExpandedWorkout(null);
+    setSportFilter("all");
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.set("plan_id", String(planId));
+    setSearchParams(nextParams, { replace: true });
+  }
 
   async function saved(notice: string, destination?: SavedDestination) {
     setEditor(null);
     setMessage(notice);
     setError("");
-    if (destination) {
+    if (destination?.calendarDate && destination.athleteId) {
       const params = new URLSearchParams({
         date: destination.calendarDate,
         athlete_id: String(destination.athleteId),
@@ -994,6 +1147,7 @@ export function TrainingPlansPage() {
       return;
     }
     await reload();
+    if (destination) selectPlan(destination.planId);
   }
 
   async function moveWorkout(workout: Workout, week: WeeklyPlan, targetDate: string) {
@@ -1165,7 +1319,7 @@ export function TrainingPlansPage() {
     const key = GOAL_LABEL_KEYS[code as keyof typeof GOAL_LABEL_KEYS];
     return key ? t(key) : t("customEvent");
   };
-  const allWorkouts = plans.flatMap((plan) => plan.weeks.flatMap((week) => week.workouts));
+  const allWorkouts = selectedPlan?.weeks.flatMap((week) => week.workouts) ?? [];
 
   return (
     <>
@@ -1180,6 +1334,16 @@ export function TrainingPlansPage() {
           <article><strong>2</strong><div><h3>{t("planStepTwo")}</h3><p>{t("planStepTwoText")}</p></div></article>
           <article><strong>3</strong><div><h3>{t("planStepThree")}</h3><p>{t("planStepThreeText")}</p></div></article>
         </section>
+      )}
+
+      {!loading && plans.length > 0 && (
+        <PlanLibrary
+          athleteNames={athletesById}
+          isCoach={user?.role === "coach"}
+          onSelect={selectPlan}
+          plans={sortedPlans}
+          selectedPlanId={selectedPlan?.id ?? null}
+        />
       )}
 
       <nav className="sport-filter" aria-label={t("sportFilter")}>
@@ -1198,7 +1362,7 @@ export function TrainingPlansPage() {
       {loading && <div className="training-loading">{t("loading")}</div>}
       {!loading && user?.role === "coach" && !relationships.some((item) => item.is_active) && <div className="training-empty">{t("connectAthleteFirst")}</div>}
 
-      {!loading && plans.map((plan) => (
+      {!loading && selectedPlan && [selectedPlan].map((plan) => (
         <section className={`manage-plan publication-${plan.publication_status}`} key={plan.id}>
           <div className="plan-head">
             <div>
