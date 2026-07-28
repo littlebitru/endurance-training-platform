@@ -62,6 +62,27 @@ beforeEach(() => {
       }],
     }],
   }), { status: 200, headers: { "Content-Type": "application/json" } })));
+  const thresholdFetch = vi.mocked(fetch);
+  vi.stubGlobal("fetch", vi.fn().mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+    if (!String(input).includes("/training-goals/")) return thresholdFetch(input, init);
+    return Promise.resolve(new Response(JSON.stringify([{
+      code: "run_5k",
+      sport: "running",
+      label: "5 km",
+      distance_km: "5.00",
+      minimum_weeks: 6,
+      recommended_taper_weeks: 1,
+      recommended_weekly_minutes: { beginner: 240, intermediate: 330, advanced: 420 },
+    }, {
+      code: "run_marathon",
+      sport: "running",
+      label: "Marathon",
+      distance_km: "42.20",
+      minimum_weeks: 16,
+      recommended_taper_weeks: 3,
+      recommended_weekly_minutes: { beginner: 420, intermediate: 600, advanced: 780 },
+    }]), { status: 200, headers: { "Content-Type": "application/json" } }));
+  }));
 });
 
 afterEach(() => {
@@ -99,7 +120,9 @@ test("submits event settings to the periodized plan generator", async () => {
   );
 
   await screen.findByDisplayValue("4:15");
+  await screen.findByRole("option", { name: "Marathon" });
   fireEvent.change(screen.getByLabelText("Plan title"), { target: { value: "Autumn marathon" } });
+  fireEvent.change(screen.getByLabelText("Target race distance or format"), { target: { value: "run_marathon" } });
   fireEvent.change(screen.getByLabelText("Target event"), { target: { value: "City Marathon" } });
   fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
@@ -112,10 +135,11 @@ test("submits event settings to the periodized plan generator", async () => {
       title: "Autumn marathon",
       primary_sport: "running",
       event_name: "City Marathon",
-      weekly_minutes: 360,
+      target_event_type: "run_marathon",
+      weekly_minutes: 600,
       available_days: [0, 2, 4, 6],
       recovery_every: 4,
-      taper_weeks: 2,
+      taper_weeks: 3,
     });
   });
 });

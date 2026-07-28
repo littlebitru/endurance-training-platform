@@ -2,7 +2,16 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "./api";
 import { useAuth } from "./auth";
 import { localizeApiError, useLanguage } from "./i18n";
-import type { AthleteThreshold, Relationship, TrainingPlan, TrainingZone, WeeklyPlan, Workout, WorkoutTemplate } from "./types";
+import type {
+  AthleteThreshold,
+  Relationship,
+  TrainingGoalProfile,
+  TrainingPlan,
+  TrainingZone,
+  WeeklyPlan,
+  Workout,
+  WorkoutTemplate,
+} from "./types";
 
 type Editor =
   | { kind: "plan" }
@@ -90,6 +99,33 @@ function nextMonday(): string {
   value.setDate(value.getDate() + daysUntilMonday);
   return dateKey(value);
 }
+
+function addDaysToDate(value: string, days: number): string {
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date(year, month - 1, day);
+  date.setDate(date.getDate() + days);
+  return dateKey(date);
+}
+
+const GOAL_LABEL_KEYS = {
+  run_5k: "goalRun5k",
+  run_10k: "goalRun10k",
+  run_half_marathon: "goalRunHalfMarathon",
+  run_marathon: "goalRunMarathon",
+  run_ultra_50k: "goalRunUltra50k",
+  cycling_tt_20k: "goalCyclingTt20k",
+  cycling_tt_40k: "goalCyclingTt40k",
+  cycling_gran_fondo_100k: "goalCyclingGranFondo100k",
+  cycling_gran_fondo_160k: "goalCyclingGranFondo160k",
+  swim_400m: "goalSwim400m",
+  swim_1500m: "goalSwim1500m",
+  swim_open_water_3k: "goalSwimOpenWater3k",
+  swim_open_water_5k: "goalSwimOpenWater5k",
+  triathlon_sprint: "goalTriathlonSprint",
+  triathlon_olympic: "goalTriathlonOlympic",
+  triathlon_half: "goalTriathlonHalf",
+  triathlon_full: "goalTriathlonFull",
+} as const;
 
 function dateKey(value: string | Date): string {
   const date = value instanceof Date ? value : new Date(value);
@@ -241,6 +277,14 @@ export function EditorPanel({
   const [planZones, setPlanZones] = useState<TrainingZone[]>([]);
   const [planProfileExists, setPlanProfileExists] = useState(false);
   const [planProfileLoading, setPlanProfileLoading] = useState(false);
+  const [goalProfiles, setGoalProfiles] = useState<TrainingGoalProfile[]>([]);
+  const [goalProfilesLoading, setGoalProfilesLoading] = useState(false);
+  const [targetEventType, setTargetEventType] = useState("");
+  const [experienceLevel, setExperienceLevel] = useState<"beginner" | "intermediate" | "advanced">("intermediate");
+  const [weeklyHours, setWeeklyHours] = useState("6");
+  const [taperWeeks, setTaperWeeks] = useState("2");
+  const [planStartDate, setPlanStartDate] = useState(() => nextMonday());
+  const [eventDate, setEventDate] = useState(() => dateOffset(84));
 
   useEffect(() => {
     if (editor.kind !== "workout" || !workoutSport) return;
@@ -291,6 +335,56 @@ export function EditorPanel({
       .finally(() => { if (active) setPlanProfileLoading(false); });
     return () => { active = false; };
   }, [editor, planAthleteId, planSport]);
+
+  useEffect(() => {
+    if (editor.kind !== "plan" || !planSport) {
+      setGoalProfiles([]);
+      setTargetEventType("");
+      return;
+    }
+    let active = true;
+    setGoalProfilesLoading(true);
+    api.trainingGoals(planSport)
+      .then((profiles) => {
+        if (!active) return;
+        setGoalProfiles(profiles);
+        setTargetEventType((current) => (
+          profiles.some((profile) => profile.code === current) ? current : profiles[0]?.code ?? ""
+        ));
+      })
+      .catch((caught) => {
+        if (!active) return;
+        setGoalProfiles([]);
+        setTargetEventType("");
+        setError(localizeApiError((caught as Error).message, t));
+      })
+      .finally(() => { if (active) setGoalProfilesLoading(false); });
+    return () => { active = false; };
+  }, [editor, planSport, t]);
+
+  const selectedGoal = useMemo(
+    () => goalProfiles.find((profile) => profile.code === targetEventType),
+    [goalProfiles, targetEventType],
+  );
+  const minimumPreparationWeeks = selectedGoal?.minimum_weeks ?? (targetEventType === "custom" ? 8 : 6);
+
+  useEffect(() => {
+    if (selectedGoal) {
+      setWeeklyHours(String(selectedGoal.recommended_weekly_minutes[experienceLevel] / 60));
+      setTaperWeeks(String(selectedGoal.recommended_taper_weeks));
+      return;
+    }
+    if (targetEventType === "custom") {
+      const customWeeklyMinutes = { beginner: 300, intermediate: 420, advanced: 540 };
+      setWeeklyHours(String(customWeeklyMinutes[experienceLevel] / 60));
+      setTaperWeeks("2");
+    }
+  }, [experienceLevel, selectedGoal, targetEventType]);
+
+  useEffect(() => {
+    if (!selectedGoal && targetEventType !== "custom") return;
+    setEventDate(addDaysToDate(planStartDate, minimumPreparationWeeks * 7));
+  }, [minimumPreparationWeeks, planStartDate, selectedGoal, targetEventType]);
 
   const titles = {
     plan: t("createPlan"),
@@ -412,6 +506,19 @@ export function EditorPanel({
     setPlanThreshold((current) => ({ ...current, [field]: value }));
   }
 
+  function toggleTrainingDay(day: number) {
+    setAvailableDays((current) => {
+      if (current.includes(day)) return current.filter((item) => item !== day);
+      if (current.length >= 6) return current;
+      return [...current, day].sort();
+    });
+  }
+
+  function goalLabel(profile: TrainingGoalProfile) {
+    const key = GOAL_LABEL_KEYS[profile.code as keyof typeof GOAL_LABEL_KEYS];
+    return key ? t(key) : profile.label;
+  }
+
   const planTargetMetric = planSport ? preferredTargetType(planSport, planZones) : "";
   const planPreviewZones = planZones.filter(
     (zone) => zone.metric === planTargetMetric && [2, 4].includes(zone.zone_number),
@@ -441,6 +548,11 @@ export function EditorPanel({
       if (editor.kind === "plan") {
         if (planMode === "automatic" && availableDays.length < 3) {
           setError(t("selectAtLeastThreeDays"));
+          setSubmitting(false);
+          return;
+        }
+        if (planMode === "automatic" && !targetEventType) {
+          setError(t("selectTargetEventType"));
           setSubmitting(false);
           return;
         }
@@ -476,11 +588,13 @@ export function EditorPanel({
             start_date: String(payload.start_date),
             event_date: String(payload.event_date),
             event_name: String(payload.event_name),
-            weekly_minutes: Math.round(Number(payload.weekly_hours) * 60),
+            target_event_type: targetEventType,
+            target_distance_km: targetEventType === "custom" ? Number(payload.custom_distance_km) : undefined,
+            weekly_minutes: Math.round(Number(weeklyHours) * 60),
             available_days: availableDays,
             recovery_every: Number(payload.recovery_every),
-            taper_weeks: Number(payload.taper_weeks),
-            experience_level: String(payload.experience_level),
+            taper_weeks: Number(taperWeeks),
+            experience_level: experienceLevel,
             threshold_profile: thresholdProfile,
           });
           await onSaved(t("planGenerated"));
@@ -621,23 +735,53 @@ export function EditorPanel({
                 <label>{t("planTitle")}<input name="title" required /></label>
                 {planMode === "automatic" ? (
                   <>
+                    <label>{t("targetEventType")}
+                      <select
+                        disabled={goalProfilesLoading || !planSport}
+                        onChange={(event) => setTargetEventType(event.target.value)}
+                        required
+                        value={targetEventType}
+                      >
+                        <option disabled value="">{goalProfilesLoading ? t("loading") : t("selectTargetEventType")}</option>
+                        {goalProfiles.map((profile) => (
+                          <option key={profile.code} value={profile.code}>{goalLabel(profile)}</option>
+                        ))}
+                        <option value="custom">{t("customEvent")}</option>
+                      </select>
+                    </label>
+                    {targetEventType === "custom" && (
+                      <label>{t("customDistance")}<input min="0.1" name="custom_distance_km" required step="0.1" type="number" /></label>
+                    )}
                     <label>{t("targetEvent")}<input name="event_name" placeholder={t("targetEventPlaceholder")} required /></label>
                     <div className="form-grid">
-                      <label>{t("startDate")}<input name="start_date" type="date" defaultValue={nextMonday()} min={dateOffset(0)} required /></label>
-                      <label>{t("eventDate")}<input name="event_date" type="date" defaultValue={dateOffset(84)} min={dateOffset(42)} required /></label>
+                      <label>{t("startDate")}<input name="start_date" onChange={(event) => setPlanStartDate(event.target.value)} type="date" value={planStartDate} min={dateOffset(0)} required /></label>
+                      <label>{t("eventDate")}<input name="event_date" onChange={(event) => setEventDate(event.target.value)} type="date" value={eventDate} min={addDaysToDate(planStartDate, minimumPreparationWeeks * 7)} required /></label>
                     </div>
                     <div className="auto-plan-grid">
-                      <label>{t("currentWeeklyVolume")}<input defaultValue="6" max="30" min="2" name="weekly_hours" step="0.5" type="number" required /><small>{t("hoursPerWeek")}</small></label>
-                      <label>{t("experienceLevel")}<select defaultValue="intermediate" name="experience_level"><option value="beginner">{t("experienceBeginner")}</option><option value="intermediate">{t("experienceIntermediate")}</option><option value="advanced">{t("experienceAdvanced")}</option></select></label>
+                      <label>{t("plannedPeakVolume")}<input max="30" min="2" onChange={(event) => setWeeklyHours(event.target.value)} step="0.5" type="number" value={weeklyHours} required /><small>{t("plannedPeakVolumeHelp")}</small></label>
+                      <label>{t("experienceLevel")}<select onChange={(event) => setExperienceLevel(event.target.value as "beginner" | "intermediate" | "advanced")} value={experienceLevel}><option value="beginner">{t("experienceBeginner")}</option><option value="intermediate">{t("experienceIntermediate")}</option><option value="advanced">{t("experienceAdvanced")}</option></select></label>
                       <label>{t("recoveryCycle")}<select defaultValue="4" name="recovery_every"><option value="3">{t("everyThirdWeek")}</option><option value="4">{t("everyFourthWeek")}</option></select></label>
-                      <label>{t("taperDuration")}<select defaultValue="2" name="taper_weeks"><option value="1">1 {t("weekUnit")}</option><option value="2">2 {t("weeksUnit")}</option><option value="3">3 {t("weeksUnit")}</option></select></label>
+                      <label>{t("taperDuration")}<select onChange={(event) => setTaperWeeks(event.target.value)} value={taperWeeks}><option value="1">1 {t("weekUnit")}</option><option value="2">2 {t("weeksUnit")}</option><option value="3">3 {t("weeksUnit")}</option></select></label>
                     </div>
+                    {selectedGoal && (
+                      <div className="goal-recommendation">
+                        <span>{t("goalRecommendation")}</span>
+                        <strong>{goalLabel(selectedGoal)}</strong>
+                        <div>
+                          <small>{t("targetDistance")} <b>{selectedGoal.distance_km} km</b></small>
+                          <small>{t("preparationWindow")} <b>{selectedGoal.minimum_weeks} {t("weeksUnit")}</b></small>
+                          <small>{t("recommendedWeeklyVolume")} <b>{selectedGoal.recommended_weekly_minutes[experienceLevel] / 60} {t("hoursShort")}</b></small>
+                        </div>
+                        <p>{t("calculatedFromGoal")}</p>
+                      </div>
+                    )}
                     <fieldset className="training-days">
                       <legend>{t("availableTrainingDays")}</legend>
                       {[t("mondayShort"), t("tuesdayShort"), t("wednesdayShort"), t("thursdayShort"), t("fridayShort"), t("saturdayShort"), t("sundayShort")].map((label, day) => (
-                        <label className={availableDays.includes(day) ? "selected" : ""} key={day}><input checked={availableDays.includes(day)} onChange={() => setAvailableDays((current) => current.includes(day) ? current.filter((item) => item !== day) : [...current, day].sort())} type="checkbox" />{label}</label>
+                        <label className={availableDays.includes(day) ? "selected" : ""} key={day}><input checked={availableDays.includes(day)} disabled={!availableDays.includes(day) && availableDays.length >= 6} onChange={() => toggleTrainingDay(day)} type="checkbox" />{label}</label>
                       ))}
                     </fieldset>
+                    <div className="rest-day-guarantee"><span>REST</span><div><strong>{t("mandatoryRestDay")}</strong><small>{t("maxSixTrainingDays")}</small></div></div>
                     <div className="auto-plan-review"><strong>{t("automaticPeriodization")}</strong><p>{t("automaticPeriodizationText")}</p></div>
                   </>
                 ) : (
@@ -961,6 +1105,10 @@ export function TrainingPlansPage() {
     recovery: t("phaseRecovery"),
     race: t("phaseRace"),
   };
+  const translatedGoalLabel = (code: string) => {
+    const key = GOAL_LABEL_KEYS[code as keyof typeof GOAL_LABEL_KEYS];
+    return key ? t(key) : t("customEvent");
+  };
   const allWorkouts = plans.flatMap((plan) => plan.weeks.flatMap((week) => week.workouts));
 
   return (
@@ -1001,6 +1149,13 @@ export function TrainingPlansPage() {
               <span className="eyebrow">{user?.role === "coach" ? athletesById.get(plan.athlete) || t("athlete") : t("trainingPlan")}</span>
               <span className={`plan-sport-badge ${plan.primary_sport}`}><i>{SPORT_MARKS[plan.primary_sport]}</i>{sportLabels[plan.primary_sport]}</span>
               <h3>{plan.title}</h3>
+              {plan.target_event_type && (
+                <div className="plan-target-summary">
+                  <span>{t("targetEvent")}</span>
+                  <strong>{plan.target_event_name || translatedGoalLabel(plan.target_event_type)}</strong>
+                  <small>{translatedGoalLabel(plan.target_event_type)}{plan.target_distance_km ? ` · ${plan.target_distance_km} km` : ""}</small>
+                </div>
+              )}
               <p>{plan.description || t("noDescription")}</p>
               <small>{plan.start_date} — {plan.end_date}</small>
             </div>

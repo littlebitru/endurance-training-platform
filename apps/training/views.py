@@ -54,6 +54,8 @@ from .serializers import (
     ExerciseSerializer,
     PeriodizedPlanSerializer,
     TrainingCalendarSerializer,
+    TrainingGoalProfileSerializer,
+    TrainingGoalQuerySerializer,
     TrainingPlanSerializer,
     TrainingZoneSerializer,
     WeekDuplicateSerializer,
@@ -62,6 +64,7 @@ from .serializers import (
     WorkoutLogSerializer,
     WorkoutSerializer,
     WorkoutTemplateSerializer,
+    training_goal_catalog,
 )
 from .zones import current_threshold, recalculate_training_zones
 
@@ -226,6 +229,21 @@ class TrainingCalendarView(APIView):
             sport=query.validated_data.get("sport"),
         )
         return Response(TrainingCalendarSerializer(payload).data)
+
+
+class TrainingGoalCatalogView(APIView):
+    permission_classes = (IsAuthenticated,)
+
+    @extend_schema(
+        parameters=[TrainingGoalQuerySerializer],
+        responses={status.HTTP_200_OK: TrainingGoalProfileSerializer(many=True)},
+        summary="Return supported target events and planning recommendations",
+    )
+    def get(self, request):
+        query = TrainingGoalQuerySerializer(data=request.query_params)
+        query.is_valid(raise_exception=True)
+        payload = training_goal_catalog(query.validated_data.get("sport"))
+        return Response(TrainingGoalProfileSerializer(payload, many=True).data)
 
 
 class CoachAnalyticsSummaryView(APIView):

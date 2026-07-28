@@ -1,4 +1,5 @@
 from datetime import timedelta
+from decimal import Decimal
 
 from django.db import transaction
 from django.utils import timezone
@@ -7,6 +8,7 @@ from rest_framework import serializers
 
 from apps.users.models import User
 
+from .goals import GoalConfigurationError, list_goal_profiles, resolve_goal_profile
 from .models import (
     Activity,
     ActivityStream,
@@ -586,6 +588,14 @@ class PeriodizedPlanSerializer(serializers.Serializer):
     start_date = serializers.DateField()
     event_date = serializers.DateField()
     event_name = serializers.CharField(max_length=200)
+    target_event_type = serializers.ChoiceField(choices=TrainingPlan.TargetEvent.choices)
+    target_distance_km = serializers.DecimalField(
+        max_digits=7,
+        decimal_places=2,
+        min_value=Decimal("0.01"),
+        required=False,
+        allow_null=True,
+    )
     weekly_minutes = serializers.IntegerField(min_value=120, max_value=1800)
     available_days = serializers.ListField(
         child=serializers.IntegerField(min_value=0, max_value=6),
@@ -594,7 +604,7 @@ class PeriodizedPlanSerializer(serializers.Serializer):
         max_length=7,
     )
     recovery_every = serializers.ChoiceField(choices=(3, 4), default=4)
-    taper_weeks = serializers.IntegerField(min_value=1, max_value=3, default=2)
+    taper_weeks = serializers.IntegerField(min_value=1, max_value=3, required=False)
     experience_level = serializers.ChoiceField(
         choices=("beginner", "intermediate", "advanced"),
         default="intermediate",
@@ -607,18 +617,49 @@ class PeriodizedPlanSerializer(serializers.Serializer):
         return sorted(value)
 
     def validate(self, attrs):
+        try:
+            goal = resolve_goal_profile(
+                code=attrs["target_event_type"],
+                sport=attrs["primary_sport"],
+                custom_distance_km=attrs.get("target_distance_km"),
+            )
+        except GoalConfigurationError as error:
+            raise serializers.ValidationError({"target_event_type": str(error)}) from error
         if attrs["start_date"] < timezone.localdate():
             raise serializers.ValidationError({"start_date": "Start date cannot be in the past."})
-        if attrs["event_date"] < attrs["start_date"] + timedelta(weeks=6):
-            raise serializers.ValidationError({"event_date": "Allow at least six weeks before the target event."})
+        if attrs["event_date"] < attrs["start_date"] + timedelta(weeks=goal.minimum_weeks):
+            raise serializers.ValidationError(
+                {"event_date": (f"Allow at least {goal.minimum_weeks} weeks to prepare for {goal.label}.")}
+            )
         if attrs["event_date"] > attrs["start_date"] + timedelta(weeks=52):
             raise serializers.ValidationError({"event_date": "Plans cannot exceed 52 weeks."})
+        attrs.setdefault("taper_weeks", goal.recommended_taper_weeks)
         if attrs["taper_weeks"] + 3 >= (attrs["event_date"] - attrs["start_date"]).days // 7:
             raise serializers.ValidationError({"taper_weeks": "The taper is too long for the selected plan dates."})
+        if attrs["target_event_type"] != TrainingPlan.TargetEvent.CUSTOM:
+            attrs["target_distance_km"] = goal.distance_km
         threshold_profile = attrs.get("threshold_profile")
         if threshold_profile is not None:
             validate_threshold_values(threshold_profile, attrs["primary_sport"])
         return attrs
+
+
+class TrainingGoalQuerySerializer(serializers.Serializer):
+    sport = serializers.ChoiceField(choices=Workout.Sport.choices, required=False)
+
+
+class TrainingGoalProfileSerializer(serializers.Serializer):
+    code = serializers.CharField()
+    sport = serializers.CharField()
+    label = serializers.CharField()
+    distance_km = serializers.DecimalField(max_digits=7, decimal_places=2, allow_null=True)
+    minimum_weeks = serializers.IntegerField()
+    recommended_taper_weeks = serializers.IntegerField()
+    recommended_weekly_minutes = serializers.DictField(child=serializers.IntegerField())
+
+
+def training_goal_catalog(sport=None):
+    return [profile.as_catalog_item() for profile in list_goal_profiles(sport)]
 
 
 class WorkoutDuplicateSerializer(serializers.Serializer):

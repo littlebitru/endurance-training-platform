@@ -77,6 +77,9 @@ export const api = {
     if (sport) params.set("sport", sport);
     return request<import("./types").TrainingCalendar>(`/calendar/?${params.toString()}`);
   },
+  trainingGoals: (sport?: string) => request<import("./types").TrainingGoalProfile[]>(
+    `/training-goals/${sport ? `?sport=${encodeURIComponent(sport)}` : ""}`,
+  ),
   invite: (email: string) => request("/athlete-invitations/", { method: "POST", body: JSON.stringify({ email }) }),
   createPlan: (data: object) => request<import("./types").TrainingPlan>("/training-plans/", { method: "POST", body: JSON.stringify(data) }),
   generatePlan: (data: object) => request<import("./types").TrainingPlan>("/training-plans/generate/", { method: "POST", body: JSON.stringify(data) }),

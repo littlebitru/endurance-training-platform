@@ -1,10 +1,13 @@
 from datetime import datetime, time, timedelta
+from decimal import Decimal
 from math import ceil
 
 from django.db import transaction
 from django.utils import timezone
 
+from .goals import GoalProfile, resolve_goal_profile
 from .models import Exercise, TrainingPlan, WeeklyPlan, Workout
+from .zones import current_threshold
 
 SPORT_LABELS = {
     Workout.Sport.RUNNING: "run",
@@ -66,7 +69,7 @@ def _volume_multiplier(phase: str, phase_index: int) -> float:
     if phase == WeeklyPlan.Phase.BASE:
         return min(0.95, 0.78 + phase_index * 0.04)
     if phase == WeeklyPlan.Phase.BUILD:
-        return min(1.08, 0.94 + phase_index * 0.035)
+        return min(1.0, 0.92 + phase_index * 0.03)
     if phase == WeeklyPlan.Phase.PEAK:
         return 0.92
     if phase == WeeklyPlan.Phase.TAPER:
@@ -76,7 +79,13 @@ def _volume_multiplier(phase: str, phase_index: int) -> float:
     return 0.68
 
 
-def _session_type(phase: str, session_index: int, session_count: int, sport: str) -> str:
+def _session_type(
+    phase: str,
+    session_index: int,
+    session_count: int,
+    sport: str,
+    goal: GoalProfile,
+) -> str:
     if phase == WeeklyPlan.Phase.RACE:
         return Workout.Type.RACE if session_index == session_count - 1 else Workout.Type.RECOVERY
     if phase == WeeklyPlan.Phase.RECOVERY:
@@ -84,14 +93,7 @@ def _session_type(phase: str, session_index: int, session_count: int, sport: str
     if session_index == session_count - 1:
         return Workout.Type.ENDURANCE if sport == Workout.Sport.SWIMMING else Workout.Type.LONG
     if session_index == max(1, session_count // 2):
-        if phase == WeeklyPlan.Phase.BASE:
-            return Workout.Type.TEMPO
-        if phase == WeeklyPlan.Phase.BUILD:
-            return Workout.Type.THRESHOLD
-        if phase == WeeklyPlan.Phase.PEAK:
-            return Workout.Type.INTERVALS
-        if phase == WeeklyPlan.Phase.TAPER:
-            return Workout.Type.TEMPO
+        return goal.quality_type_for(phase)
     if sport == Workout.Sport.SWIMMING and session_index == 0:
         return Workout.Type.TECHNIQUE
     return Workout.Type.ENDURANCE
@@ -138,7 +140,45 @@ def _create_steps(workout: Workout) -> None:
             target_unit="zone",
         )
     ]
-    if workout.workout_type in {Workout.Type.INTERVALS, Workout.Type.VO2_MAX, Workout.Type.THRESHOLD}:
+    if workout.workout_type == Workout.Type.BRICK:
+        transition_seconds = min(300, round(main_seconds * 0.08))
+        first_block_seconds = round((main_seconds - transition_seconds) * 0.65)
+        second_block_seconds = main_seconds - transition_seconds - first_block_seconds
+        steps.extend(
+            [
+                Exercise(
+                    workout=workout,
+                    name="Bike race-specific block",
+                    step_type=Exercise.StepType.STEADY,
+                    order=2,
+                    duration_seconds=first_block_seconds,
+                    target_type=target_type,
+                    target_min=2,
+                    target_max=3,
+                    target_unit="zone",
+                ),
+                Exercise(
+                    workout=workout,
+                    name="Transition",
+                    step_type=Exercise.StepType.RECOVERY,
+                    order=3,
+                    duration_seconds=transition_seconds,
+                    target_type=Exercise.TargetType.FREE,
+                ),
+                Exercise(
+                    workout=workout,
+                    name="Run off the bike",
+                    step_type=Exercise.StepType.WORK,
+                    order=4,
+                    duration_seconds=second_block_seconds,
+                    target_type=target_type,
+                    target_min=3,
+                    target_max=3,
+                    target_unit="zone",
+                ),
+            ]
+        )
+    elif workout.workout_type in {Workout.Type.INTERVALS, Workout.Type.VO2_MAX, Workout.Type.THRESHOLD}:
         repetitions = 4 if workout.workout_type == Workout.Type.THRESHOLD else 5
         recovery_seconds = 180 if workout.workout_type == Workout.Type.THRESHOLD else 120
         work_seconds = max(120, round((main_seconds - recovery_seconds * (repetitions - 1)) / repetitions))
@@ -180,7 +220,7 @@ def _create_steps(workout: Workout) -> None:
             workout=workout,
             name="Cool-down",
             step_type=Exercise.StepType.COOLDOWN,
-            order=3,
+            order=len(steps) + 1,
             duration_seconds=cooldown_seconds,
             target_type=target_type,
             target_min=1,
@@ -205,10 +245,82 @@ def _session_weights(session_types: list[str]) -> list[float]:
         Workout.Type.TEMPO: 1.05,
         Workout.Type.THRESHOLD: 1.1,
         Workout.Type.INTERVALS: 1.0,
+        Workout.Type.VO2_MAX: 1.0,
+        Workout.Type.BRICK: 1.25,
         Workout.Type.LONG: 1.45,
         Workout.Type.RACE: 1.35,
     }
     return [weights.get(workout_type, 1.0) for workout_type in session_types]
+
+
+SESSION_LIMITS = {
+    "beginner": 5,
+    "intermediate": 6,
+    "advanced": 6,
+}
+
+
+def _select_training_days(available_days: list[int], limit: int) -> list[int]:
+    days = sorted(set(available_days))
+    if len(days) <= limit:
+        return days
+    if limit == 1:
+        return [days[len(days) // 2]]
+    indexes = [round(index * (len(days) - 1) / (limit - 1)) for index in range(limit)]
+    return [days[index] for index in indexes]
+
+
+def _session_limit(experience_level: str, phase: str) -> int:
+    limit = SESSION_LIMITS[experience_level]
+    if phase == WeeklyPlan.Phase.RECOVERY:
+        return max(3, limit - 1)
+    if phase == WeeklyPlan.Phase.RACE:
+        return min(4, limit)
+    return limit
+
+
+def _planned_distance(
+    *,
+    duration_minutes: int,
+    workout_type: str,
+    sport: str,
+    goal: GoalProfile,
+    threshold,
+) -> Decimal | None:
+    if workout_type == Workout.Type.RACE:
+        return goal.distance_km
+
+    distance = None
+    if sport == Workout.Sport.RUNNING and threshold and threshold.threshold_pace_seconds_per_km:
+        pace_multiplier = {
+            Workout.Type.RECOVERY: Decimal("1.35"),
+            Workout.Type.ENDURANCE: Decimal("1.22"),
+            Workout.Type.LONG: Decimal("1.20"),
+            Workout.Type.TEMPO: Decimal("1.08"),
+            Workout.Type.THRESHOLD: Decimal("1.00"),
+            Workout.Type.INTERVALS: Decimal("0.94"),
+            Workout.Type.VO2_MAX: Decimal("0.90"),
+        }.get(workout_type, Decimal("1.18"))
+        seconds_per_km = Decimal(threshold.threshold_pace_seconds_per_km) * pace_multiplier
+        distance = Decimal(duration_minutes * 60) / seconds_per_km
+    elif sport == Workout.Sport.SWIMMING and threshold and threshold.critical_swim_speed_seconds_per_100m:
+        pace_multiplier = {
+            Workout.Type.RECOVERY: Decimal("1.25"),
+            Workout.Type.TECHNIQUE: Decimal("1.20"),
+            Workout.Type.ENDURANCE: Decimal("1.14"),
+            Workout.Type.LONG: Decimal("1.12"),
+            Workout.Type.TEMPO: Decimal("1.06"),
+            Workout.Type.THRESHOLD: Decimal("1.00"),
+            Workout.Type.INTERVALS: Decimal("0.96"),
+        }.get(workout_type, Decimal("1.12"))
+        seconds_per_100m = Decimal(threshold.critical_swim_speed_seconds_per_100m) * pace_multiplier
+        distance = Decimal(duration_minutes * 60) / seconds_per_100m / Decimal("10")
+
+    if distance is None:
+        return None
+    if workout_type == Workout.Type.LONG and goal.long_session_cap_km is not None:
+        distance = min(distance, goal.long_session_cap_km)
+    return distance.quantize(Decimal("0.01"))
 
 
 @transaction.atomic
@@ -221,17 +333,24 @@ def generate_periodized_plan(
     start_date,
     event_date,
     event_name: str,
+    target_event_type: str,
+    target_distance_km: Decimal | None,
     weekly_minutes: int,
     available_days: list[int],
     recovery_every: int,
     taper_weeks: int,
     experience_level: str,
 ) -> TrainingPlan:
+    goal = resolve_goal_profile(
+        code=target_event_type,
+        sport=primary_sport,
+        custom_distance_km=target_distance_km,
+    )
     plan_start = _next_monday(start_date)
     total_weeks = max(1, ceil(((event_date - plan_start).days + 1) / 7))
     phases = _apply_recovery_weeks(_phase_sequence(total_weeks, taper_weeks), recovery_every)
     description = (
-        f"Automatically periodized {experience_level} plan for {event_name}. "
+        f"Automatically periodized {experience_level} plan for {event_name}: {goal.label}. "
         "The coach must review the generated workload against athlete readiness and availability."
     )
     plan = TrainingPlan.objects.create(
@@ -240,11 +359,14 @@ def generate_periodized_plan(
         title=title,
         description=description,
         primary_sport=primary_sport,
+        target_event_name=event_name,
+        target_event_type=goal.code,
+        target_distance_km=goal.distance_km,
         start_date=plan_start,
         end_date=event_date,
     )
     phase_counts: dict[str, int] = {}
-    training_days = sorted(set(available_days))
+    threshold = current_threshold(athlete.id, primary_sport)
 
     for week_index, phase in enumerate(phases):
         phase_index = phase_counts.get(phase, 0)
@@ -263,18 +385,34 @@ def generate_periodized_plan(
             notes=PHASE_NOTES[phase],
         )
 
+        training_days = _select_training_days(
+            available_days,
+            _session_limit(experience_level, phase),
+        )
         session_dates = [
             week_start + timedelta(days=day) for day in training_days if week_start + timedelta(days=day) <= week_end
         ]
         if phase == WeeklyPlan.Phase.RACE and event_date not in session_dates:
+            if len(session_dates) >= _session_limit(experience_level, phase):
+                session_dates.remove(min(session_dates, key=lambda value: abs((event_date - value).days)))
             session_dates.append(event_date)
             session_dates.sort()
+        if (
+            phase == WeeklyPlan.Phase.RACE
+            and event_date - timedelta(days=1) in session_dates
+            and len(session_dates) > 3
+        ):
+            session_dates.remove(event_date - timedelta(days=1))
         if not session_dates:
             session_dates = [week_start]
 
         sports = [_session_sport(primary_sport, index) for index in range(len(session_dates))]
         session_types = [
-            _session_type(phase, index, len(session_dates), sports[index]) for index in range(len(session_dates))
+            _session_type(phase, index, len(session_dates), sports[index], goal) for index in range(len(session_dates))
+        ]
+        sports = [
+            Workout.Sport.TRIATHLON if workout_type == Workout.Type.BRICK else sport
+            for sport, workout_type in zip(sports, session_types, strict=True)
         ]
         if phase == WeeklyPlan.Phase.RACE:
             race_index = session_dates.index(event_date)
@@ -294,6 +432,13 @@ def generate_periodized_plan(
                 workout_type=workout_type,
                 scheduled_at=timezone.make_aware(datetime.combine(scheduled_date, time(hour=7))),
                 planned_duration_minutes=duration,
+                planned_distance_km=_planned_distance(
+                    duration_minutes=duration,
+                    workout_type=workout_type,
+                    sport=sport,
+                    goal=goal,
+                    threshold=threshold,
+                ),
                 intensity={
                     Workout.Type.RECOVERY: "Z1",
                     Workout.Type.ENDURANCE: "Z2",
@@ -301,10 +446,15 @@ def generate_periodized_plan(
                     Workout.Type.TEMPO: "Z3",
                     Workout.Type.THRESHOLD: "Z4",
                     Workout.Type.INTERVALS: "Z4-Z5",
+                    Workout.Type.VO2_MAX: "Z5",
+                    Workout.Type.BRICK: "Z2-Z3",
                     Workout.Type.RACE: "Z3-Z4",
                     Workout.Type.TECHNIQUE: "Z1-Z2",
                 }.get(workout_type, "Z2"),
-                notes=f"Generated {phase} phase session. Adjust after reviewing recovery and recent training response.",
+                notes=(
+                    f"Generated {phase} phase session for {goal.label}. "
+                    "Adjust after reviewing recovery and recent training response."
+                ),
             )
             _create_steps(workout)
 

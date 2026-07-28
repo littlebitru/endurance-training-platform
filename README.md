@@ -88,6 +88,7 @@ On Windows, activate the environment with `.venv\\Scripts\\activate`.
 | Assigned athletes | `/api/v1/athletes/` |
 | Training plans | `/api/v1/training-plans/` |
 | Generate periodized plan | `POST /api/v1/training-plans/generate/` |
+| Training goal catalog | `GET /api/v1/training-goals/` |
 | Athlete thresholds | `/api/v1/athlete-thresholds/` |
 | Training zones | `/api/v1/training-zones/` |
 | Weekly plans | `/api/v1/weekly-plans/` |
@@ -123,7 +124,11 @@ The coach analytics endpoint accepts optional `athlete_id`, `date_from`, and `da
 
 ### Periodized plan generation
 
-`POST /api/v1/training-plans/generate/` creates a complete, editable calendar from a target event. The coach supplies the athlete, discipline, start and event dates, sustainable weekly volume, available weekdays, experience level, recovery rhythm, and taper duration. The service builds the plan backward from the event, applies progressive volume, inserts recovery weeks, and creates sport-specific structured sessions with relative zone targets.
+`GET /api/v1/training-goals/` exposes the supported race formats and their minimum preparation window, recommended taper, target distance, and experience-specific peak weekly volume. The catalog includes running races from 5 km through 50 km, cycling time trials and gran fondos, pool and open-water swimming events, and sprint through long-distance triathlon.
+
+`POST /api/v1/training-plans/generate/` creates a complete, editable calendar for one exact target. The coach supplies the athlete, discipline, target event type, start and event dates, peak weekly volume, available weekdays, experience level, recovery rhythm, and optional custom distance. The service builds the plan backward from the event, validates a goal-specific preparation window, selects goal-specific quality sessions, progresses long-session distance from the athlete's pace or CSS threshold, inserts recovery weeks, and creates the exact race-distance workout.
+
+The generator schedules no more than six training days per week, preserving at least one complete rest day even when all seven weekdays are marked as available. Beginner plans use at most five days, recovery weeks remove another session, and race weeks reduce frequency and avoid scheduling on the day immediately before the event.
 
 Generated plans are decision support, not a substitute for coaching judgment. The coach remains responsible for reviewing athlete readiness, recent training response, injury context, and schedule constraints before publishing or adapting the calendar.
 
