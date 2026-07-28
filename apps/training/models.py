@@ -14,6 +14,26 @@ class SportType(models.TextChoices):
 
 
 class TrainingPlan(TimeStampedModel):
+    class TargetEvent(models.TextChoices):
+        RUN_5K = "run_5k", "5 km"
+        RUN_10K = "run_10k", "10 km"
+        RUN_HALF_MARATHON = "run_half_marathon", "Half marathon"
+        RUN_MARATHON = "run_marathon", "Marathon"
+        RUN_ULTRA_50K = "run_ultra_50k", "50 km ultramarathon"
+        CYCLING_TT_20K = "cycling_tt_20k", "20 km time trial"
+        CYCLING_TT_40K = "cycling_tt_40k", "40 km time trial"
+        CYCLING_GRAN_FONDO_100K = "cycling_gran_fondo_100k", "100 km gran fondo"
+        CYCLING_GRAN_FONDO_160K = "cycling_gran_fondo_160k", "160 km gran fondo"
+        SWIM_400M = "swim_400m", "400 m pool race"
+        SWIM_1500M = "swim_1500m", "1500 m pool race"
+        SWIM_OPEN_WATER_3K = "swim_open_water_3k", "3 km open-water swim"
+        SWIM_OPEN_WATER_5K = "swim_open_water_5k", "5 km open-water swim"
+        TRIATHLON_SPRINT = "triathlon_sprint", "Sprint triathlon"
+        TRIATHLON_OLYMPIC = "triathlon_olympic", "Olympic triathlon"
+        TRIATHLON_HALF = "triathlon_half", "Middle-distance triathlon"
+        TRIATHLON_FULL = "triathlon_full", "Long-distance triathlon"
+        CUSTOM = "custom", "Custom event"
+
     coach = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="created_plans")
     athlete = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -23,6 +43,9 @@ class TrainingPlan(TimeStampedModel):
     title = models.CharField(max_length=200)
     description = models.TextField(blank=True)
     primary_sport = models.CharField(max_length=16, choices=SportType.choices, default=SportType.RUNNING)
+    target_event_name = models.CharField(max_length=200, blank=True)
+    target_event_type = models.CharField(max_length=32, choices=TargetEvent.choices, blank=True)
+    target_distance_km = models.DecimalField(max_digits=7, decimal_places=2, null=True, blank=True)
     start_date = models.DateField()
     end_date = models.DateField()
     is_active = models.BooleanField(default=True)

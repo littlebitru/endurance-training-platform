@@ -201,8 +201,14 @@ def _calendar_summary(events):
     workout_events = [event for event in events if event["kind"] == "workout"]
     compliance_scores = [event["compliance_score"] for event in workout_events if event["compliance_score"] is not None]
     planned_minutes = sum((event["planned_duration_minutes"] or 0) for event in workout_events)
-    actual_minutes = sum((event["actual_duration_minutes"] or Decimal("0")) for event in events)
-    actual_load = sum((event["training_load_score"] or Decimal("0")) for event in events)
+    actual_minutes = sum(
+        ((event["actual_duration_minutes"] or Decimal("0")) for event in events),
+        Decimal("0"),
+    )
+    actual_load = sum(
+        ((event["training_load_score"] or Decimal("0")) for event in events),
+        Decimal("0"),
+    )
     completed_count = sum(event["status"] == Workout.Status.COMPLETED for event in workout_events)
     return {
         "athletes_count": len({event["athlete"]["id"] for event in events}),

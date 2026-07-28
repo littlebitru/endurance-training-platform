@@ -1,4 +1,5 @@
 from datetime import date, timedelta
+from decimal import Decimal
 
 import pytest
 from django.urls import reverse
@@ -421,8 +422,9 @@ def test_coach_can_generate_periodized_plan_with_recovery_and_taper(api_client, 
             "start_date": start_date,
             "event_date": event_date,
             "event_name": "City Half Marathon",
+            "target_event_type": TrainingPlan.TargetEvent.RUN_HALF_MARATHON,
             "weekly_minutes": 360,
-            "available_days": [0, 2, 4, 6],
+            "available_days": [0, 1, 2, 3, 4, 5, 6],
             "recovery_every": 4,
             "taper_weeks": 2,
             "experience_level": "intermediate",
@@ -442,7 +444,48 @@ def test_coach_can_generate_periodized_plan_with_recovery_and_taper(api_client, 
     assert plan.weeks.filter(phase=WeeklyPlan.Phase.RACE).count() == 1
     assert plan.weeks.exclude(planned_duration_minutes__isnull=True).count() == plan.weeks.count()
     assert Workout.objects.filter(weekly_plan__training_plan=plan, exercises__target_unit="zone").exists()
+    assert plan.target_event_name == "City Half Marathon"
+    assert plan.target_event_type == TrainingPlan.TargetEvent.RUN_HALF_MARATHON
+    assert plan.target_distance_km == Decimal("21.10")
+    assert all(week.workouts.count() <= 6 for week in plan.weeks.all())
+    race = Workout.objects.get(weekly_plan__training_plan=plan, workout_type=Workout.Type.RACE)
+    assert race.planned_distance_km == Decimal("21.10")
     assert response.data["weeks"][-1]["phase"] == WeeklyPlan.Phase.RACE
+
+
+@pytest.mark.django_db
+def test_five_k_goal_uses_short_race_quality_and_exact_distance(api_client, coach, athlete, relationship):
+    start_date = timezone.localdate() + timedelta(days=1)
+    api_client.force_authenticate(coach)
+
+    response = api_client.post(
+        reverse("training-plan-generate"),
+        {
+            "athlete": athlete.id,
+            "title": "Fast 5 km",
+            "primary_sport": Workout.Sport.RUNNING,
+            "start_date": start_date,
+            "event_date": start_date + timedelta(weeks=8),
+            "event_name": "Track 5 km",
+            "target_event_type": TrainingPlan.TargetEvent.RUN_5K,
+            "weekly_minutes": 330,
+            "available_days": [0, 2, 4, 6],
+            "recovery_every": 4,
+            "taper_weeks": 1,
+            "experience_level": "intermediate",
+        },
+        format="json",
+    )
+
+    assert response.status_code == 201
+    plan = TrainingPlan.objects.get(pk=response.data["id"])
+    assert Workout.objects.filter(
+        weekly_plan__training_plan=plan,
+        weekly_plan__phase=WeeklyPlan.Phase.PEAK,
+        workout_type=Workout.Type.VO2_MAX,
+    ).exists()
+    race = Workout.objects.get(weekly_plan__training_plan=plan, workout_type=Workout.Type.RACE)
+    assert race.planned_distance_km == Decimal("5.00")
 
 
 @pytest.mark.django_db
@@ -461,6 +504,7 @@ def test_unassigned_athlete_cannot_receive_generated_plan(api_client, coach):
             "start_date": start_date,
             "event_date": start_date + timedelta(weeks=8),
             "event_name": "Unauthorized event",
+            "target_event_type": TrainingPlan.TargetEvent.CYCLING_TT_20K,
             "weekly_minutes": 300,
             "available_days": [1, 3, 5],
             "recovery_every": 4,
@@ -472,6 +516,52 @@ def test_unassigned_athlete_cannot_receive_generated_plan(api_client, coach):
 
     assert response.status_code == 400
     assert not TrainingPlan.objects.filter(athlete=outsider).exists()
+
+
+@pytest.mark.django_db
+def test_marathon_goal_requires_a_safe_preparation_window(api_client, coach, athlete, relationship):
+    start_date = timezone.localdate() + timedelta(days=1)
+    api_client.force_authenticate(coach)
+
+    response = api_client.post(
+        reverse("training-plan-generate"),
+        {
+            "athlete": athlete.id,
+            "title": "Unsafe marathon build",
+            "primary_sport": Workout.Sport.RUNNING,
+            "start_date": start_date,
+            "event_date": start_date + timedelta(weeks=12),
+            "event_name": "City Marathon",
+            "target_event_type": TrainingPlan.TargetEvent.RUN_MARATHON,
+            "weekly_minutes": 420,
+            "available_days": [0, 2, 4, 6],
+            "recovery_every": 4,
+            "experience_level": "intermediate",
+        },
+        format="json",
+    )
+
+    assert response.status_code == 400
+    assert "16 weeks" in str(response.data["event_date"])
+
+
+@pytest.mark.django_db
+def test_training_goal_catalog_can_be_filtered_by_sport(api_client, coach):
+    api_client.force_authenticate(coach)
+
+    response = api_client.get(reverse("training-goal-catalog"), {"sport": Workout.Sport.RUNNING})
+
+    assert response.status_code == 200
+    assert {item["code"] for item in response.data} == {
+        TrainingPlan.TargetEvent.RUN_5K,
+        TrainingPlan.TargetEvent.RUN_10K,
+        TrainingPlan.TargetEvent.RUN_HALF_MARATHON,
+        TrainingPlan.TargetEvent.RUN_MARATHON,
+        TrainingPlan.TargetEvent.RUN_ULTRA_50K,
+    }
+    marathon = next(item for item in response.data if item["code"] == TrainingPlan.TargetEvent.RUN_MARATHON)
+    assert marathon["distance_km"] == "42.20"
+    assert marathon["minimum_weeks"] == 16
 
 
 @pytest.mark.django_db

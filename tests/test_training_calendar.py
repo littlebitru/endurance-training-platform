@@ -150,3 +150,23 @@ def test_calendar_range_is_limited(api_client, athlete):
 
     assert response.status_code == 400
     assert "cannot exceed" in str(response.data["date_to"])
+
+
+@pytest.mark.django_db
+def test_empty_calendar_returns_zeroed_summary(api_client, coach, relationship):
+    api_client.force_authenticate(coach)
+    today = timezone.localdate()
+
+    response = api_client.get(
+        reverse("training-calendar"),
+        {
+            "date_from": today.isoformat(),
+            "date_to": (today + timedelta(days=6)).isoformat(),
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.data["events"] == []
+    assert response.data["summary"]["planned_count"] == 0
+    assert response.data["summary"]["actual_duration_minutes"] == "0.0"
+    assert response.data["summary"]["training_load_score"] == "0.00"

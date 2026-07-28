@@ -677,6 +677,10 @@ h1, h2, h3, h4, h5, strong, b, .brand-mark, .logo, .activity-sport, .eyebrow {
 .manage-plan .plan-head h3 { margin: 7px 0 6px; font: 600 23px Manrope; }
 .manage-plan .plan-head p { max-width: 680px; margin: 0 0 8px; color: #78857e; font-size: 13px; }
 .manage-plan .plan-head small { color: #87938d; }
+.plan-target-summary { display: inline-grid; grid-template-columns: auto auto; align-items: center; gap: 2px 10px; margin: 4px 0 10px; padding: 9px 12px; border: 1px solid #d4e6dc; border-radius: 10px; background: #f2f8f3; }
+.plan-target-summary > span { grid-row: 1/3; color: #53806c; font-size: 9px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+.plan-target-summary strong { color: #254b3a; font: 600 12px Manrope; }
+.plan-target-summary small { color: #6f8278 !important; font-size: 10px; }
 .plan-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 10px; }
 
 .secondary, .icon-button, .link-action {
@@ -825,7 +829,21 @@ h1, h2, h3, h4, h5, strong, b, .brand-mark, .logo, .activity-sport, .eyebrow {
 .training-days legend { grid-column: 1/-1; margin-bottom: 2px; color: #4d5a54; font-size: 12px; font-weight: 600; }
 .training-days label { display: grid; place-items: center; min-height: 42px; border: 1px solid #dce3dd; border-radius: 8px; color: #7a8780; background: #fff; cursor: pointer; }
 .training-days label.selected { border-color: #4f9477; color: #286348; background: #eaf5ed; box-shadow: inset 0 0 0 1px #4f94772b; }
+.training-days label:has(input:disabled) { cursor: not-allowed; opacity: .42; }
 .training-days input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.goal-recommendation { position: relative; overflow: hidden; padding: 16px 18px; border: 1px solid #bcdccf; border-radius: 12px; background: linear-gradient(125deg, #eaf6ef, #f8f7eb); }
+.goal-recommendation::after { position: absolute; right: -30px; bottom: -45px; width: 130px; height: 130px; border: 20px solid #81b89720; border-radius: 50%; content: ""; }
+.goal-recommendation > span { display: block; color: #60806f; font-size: 9px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+.goal-recommendation > strong { display: block; margin-top: 4px; color: #244b3a; font: 650 18px Manrope; }
+.goal-recommendation > div { display: flex; flex-wrap: wrap; gap: 8px 18px; margin: 12px 0 8px; }
+.goal-recommendation small { color: #6b7d73; font-size: 10px; }
+.goal-recommendation small b { margin-left: 4px; color: #2d5d47; font: 600 11px Manrope; }
+.goal-recommendation p { max-width: 660px; margin: 0; color: #687b70; font-size: 10px; line-height: 1.5; }
+.rest-day-guarantee { display: flex; align-items: center; gap: 11px; padding: 11px 13px; border: 1px solid #d9e3dc; border-radius: 10px; background: #fafbf8; }
+.rest-day-guarantee > span { display: grid; place-items: center; width: 43px; height: 30px; border-radius: 7px; color: #547261; background: #e7eee9; font: 700 9px Manrope; letter-spacing: .08em; }
+.rest-day-guarantee div { display: grid; gap: 2px; }
+.rest-day-guarantee strong { color: #40584d; font: 600 11px Manrope; }
+.rest-day-guarantee small { color: #7c8982; font-size: 9px; line-height: 1.4; }
 .auto-plan-review { padding: 14px 16px; border: 1px solid #c9dfcf; border-radius: 10px; background: linear-gradient(135deg, #edf7ef, #f8fbf5); }
 .auto-plan-review strong { color: #2d6248; font: 600 12px Manrope; }
 .auto-plan-review p { margin: 5px 0 0; color: #687d71; font-size: 10px; line-height: 1.5; }
