@@ -399,7 +399,9 @@ class CalendarEventSerializer(serializers.Serializer):
     athlete = CalendarAthleteSerializer()
     workout_id = serializers.IntegerField(allow_null=True)
     activity_ids = serializers.ListField(child=serializers.IntegerField())
+    plan_id = serializers.IntegerField(allow_null=True)
     plan_title = serializers.CharField(allow_blank=True)
+    plan_publication_status = serializers.CharField(allow_blank=True)
     title = serializers.CharField(allow_blank=True)
     sport = serializers.ChoiceField(choices=Workout.Sport.choices)
     workout_type = serializers.CharField(allow_blank=True)
@@ -515,7 +517,7 @@ class TrainingPlanSerializer(serializers.ModelSerializer):
     class Meta:
         model = TrainingPlan
         fields = "__all__"
-        read_only_fields = ("coach",)
+        read_only_fields = ("coach", "is_active", "publication_status", "published_at")
 
     def validate(self, attrs):
         start = attrs.get("start_date", getattr(self.instance, "start_date", None))

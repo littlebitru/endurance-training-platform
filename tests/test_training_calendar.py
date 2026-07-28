@@ -73,6 +73,8 @@ def test_athlete_calendar_combines_plan_and_completed_activity(api_client, coach
     assert response.data["summary"]["average_compliance"] == 92
     assert response.data["summary"]["attention_count"] == 0
     assert response.data["events"][0]["workout_id"] == workout.id
+    assert response.data["events"][0]["plan_id"] == workout.weekly_plan.training_plan_id
+    assert response.data["events"][0]["plan_publication_status"] == "published"
     assert response.data["events"][0]["activity_ids"] == [activity.id]
     assert response.data["events"][0]["status"] == Workout.Status.COMPLETED
     assert response.data["events"][0]["actual_distance_km"] == "10.10"

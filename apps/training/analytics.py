@@ -5,7 +5,7 @@ from decimal import Decimal
 from django.db.models import Avg, Count, Q, Sum
 from django.utils import timezone
 
-from .models import Workout
+from .models import TrainingPlan, Workout
 
 
 def _filter_workouts(workouts, *, date_from=None, date_to=None):
@@ -86,12 +86,24 @@ def _build_summary(workouts):
 
 
 def build_coach_summary(*, coach, athlete=None, date_from=None, date_to=None):
-    workouts = Workout.objects.filter(weekly_plan__training_plan__coach=coach)
+    workouts = Workout.objects.filter(
+        weekly_plan__training_plan__coach=coach,
+        weekly_plan__training_plan__publication_status__in=(
+            TrainingPlan.PublicationStatus.PUBLISHED,
+            TrainingPlan.PublicationStatus.ARCHIVED,
+        ),
+    )
     if athlete is not None:
         workouts = workouts.filter(weekly_plan__training_plan__athlete=athlete)
     return _build_summary(_filter_workouts(workouts, date_from=date_from, date_to=date_to))
 
 
 def build_athlete_summary(*, athlete, date_from=None, date_to=None):
-    workouts = Workout.objects.filter(weekly_plan__training_plan__athlete=athlete)
+    workouts = Workout.objects.filter(
+        weekly_plan__training_plan__athlete=athlete,
+        weekly_plan__training_plan__publication_status__in=(
+            TrainingPlan.PublicationStatus.PUBLISHED,
+            TrainingPlan.PublicationStatus.ARCHIVED,
+        ),
+    )
     return _build_summary(_filter_workouts(workouts, date_from=date_from, date_to=date_to))

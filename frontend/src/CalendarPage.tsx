@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "./api";
 import { useAuth } from "./auth";
 import { localizeApiError, useLanguage } from "./i18n";
-import type { CalendarEvent, Relationship, TrainingCalendar } from "./types";
+import type { CalendarEvent, PlanPublicationStatus, Relationship, TrainingCalendar } from "./types";
 
 type CalendarView = "week" | "month";
 
@@ -25,6 +25,7 @@ export function CalendarPage() {
   const { user } = useAuth();
   const { locale, t } = useLanguage();
   const [searchParams] = useSearchParams();
+  const reviewPlanId = positiveInteger(searchParams.get("plan_id"));
   const [view, setView] = useState<CalendarView>("month");
   const [anchor, setAnchor] = useState(() => parseCalendarDate(searchParams.get("date")) ?? new Date());
   const [calendar, setCalendar] = useState<TrainingCalendar | null>(null);
@@ -33,6 +34,11 @@ export function CalendarPage() {
   const [sport, setSport] = useState("");
   const [selected, setSelected] = useState<CalendarEvent | null>(null);
   const [loading, setLoading] = useState(true);
+  const [publishing, setPublishing] = useState(false);
+  const [reviewPlanStatus, setReviewPlanStatus] = useState<PlanPublicationStatus | "">(
+    reviewPlanId ? "draft" : "",
+  );
+  const [publicationMessage, setPublicationMessage] = useState("");
   const [error, setError] = useState("");
   const isCoach = user?.role === "coach";
   const range = useMemo(() => calendarRange(anchor, view), [anchor, view]);
@@ -48,6 +54,12 @@ export function CalendarPage() {
         sport || undefined,
       );
       setCalendar(result);
+      if (reviewPlanId) {
+        const reviewEvent = result.events.find((event) => event.plan_id === reviewPlanId);
+        if (reviewEvent?.plan_publication_status) {
+          setReviewPlanStatus(reviewEvent.plan_publication_status);
+        }
+      }
       setSelected((current) => current
         ? result.events.find((event) => event.event_id === current.event_id) ?? null
         : null);
@@ -56,7 +68,7 @@ export function CalendarPage() {
     } finally {
       setLoading(false);
     }
-  }, [athleteId, range.end, range.start, sport, t]);
+  }, [athleteId, range.end, range.start, reviewPlanId, sport, t]);
 
   useEffect(() => {
     if (!user) return;
@@ -94,6 +106,22 @@ export function CalendarPage() {
     });
   }
 
+  async function publishReviewedPlan() {
+    if (!reviewPlanId) return;
+    setPublishing(true);
+    setError("");
+    try {
+      await api.publishPlan(reviewPlanId);
+      setReviewPlanStatus("published");
+      setPublicationMessage(t("planPublished"));
+      await loadCalendar();
+    } catch (caught) {
+      setError(localizeApiError((caught as Error).message, t));
+    } finally {
+      setPublishing(false);
+    }
+  }
+
   return (
     <>
       <section className="calendar-heading">
@@ -107,6 +135,20 @@ export function CalendarPage() {
           <small>{t("completionRate")}</small>
         </div>
       </section>
+
+      {isCoach && reviewPlanId && reviewPlanStatus === "draft" && (
+        <section className="plan-review-banner" role="status">
+          <span className="plan-review-mark">DRAFT</span>
+          <div>
+            <strong>{t("reviewGeneratedPlan")}</strong>
+            <p>{t("reviewGeneratedPlanText")}</p>
+          </div>
+          <button className="primary" disabled={publishing} onClick={() => void publishReviewedPlan()} type="button">
+            {publishing ? t("publishingPlan") : t("publishToAthlete")}
+          </button>
+        </section>
+      )}
+      {publicationMessage && <div className="notice" role="status">{publicationMessage}</div>}
 
       <section className="calendar-kpis">
         <CalendarKpi label={t("plannedSessions")} value={calendar?.summary.planned_count ?? 0} tone="planned" />
@@ -162,8 +204,9 @@ export function CalendarPage() {
                   </header>
                   <div className="calendar-events">
                     {events.map((event) => (
-                      <button className={`unified-calendar-event ${event.sport} ${event.status} ${event.attention_required ? "needs-attention" : ""}`} key={event.event_id} onClick={() => setSelected(event)} type="button">
+                      <button className={`unified-calendar-event ${event.sport} ${event.status} ${event.plan_publication_status === "draft" ? "draft-plan" : ""} ${event.attention_required ? "needs-attention" : ""}`} key={event.event_id} onClick={() => setSelected(event)} type="button">
                         <span className="event-sport">{sportMarks[event.sport] ?? "ACT"}</span>
+                        {isCoach && event.plan_publication_status === "draft" && <span className="event-draft">{t("draft")}</span>}
                         <strong>{event.title || t("unplannedActivity")}</strong>
                         {isCoach && <small className="event-athlete">{event.athlete.name}</small>}
                         <small>{new Date(event.starts_at).toLocaleTimeString(dateLocale, { hour: "2-digit", minute: "2-digit" })} · {eventMetrics(event, t("minutes"))}</small>
@@ -228,6 +271,7 @@ function CalendarEventDetail({ event, onClose }: { event: CalendarEvent; onClose
           <span className={`calendar-detail-sport ${event.sport}`}>{sportMarks[event.sport] ?? "ACT"}</span>
           <div>
             <span className="eyebrow">{event.plan_title || t("unplannedActivity")}</span>
+            {event.plan_publication_status === "draft" && <span className="calendar-detail-draft">{t("draftPlanPrivate")}</span>}
             <h2>{event.title || t("unplannedActivity")}</h2>
             <p>{event.athlete.name} · {new Date(event.starts_at).toLocaleString(dateLocale, { dateStyle: "long", timeStyle: "short" })}</p>
           </div>
@@ -314,6 +358,12 @@ function parseCalendarDate(value: string | null) {
   const [year, month, day] = value.split("-").map(Number);
   const parsed = new Date(year, month - 1, day);
   return dateKey(parsed) === value ? parsed : null;
+}
+
+function positiveInteger(value: string | null) {
+  if (!value || !/^\d+$/.test(value)) return null;
+  const parsed = Number(value);
+  return parsed > 0 ? parsed : null;
 }
 
 function athleteName(relationship: Relationship) {

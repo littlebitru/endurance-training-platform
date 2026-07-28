@@ -5,7 +5,7 @@ from statistics import mean
 from django.db.models import Min, Sum
 
 from .activity_import import ParsedActivity
-from .models import Activity, AthleteThreshold, TrainingZone, Workout, WorkoutLog
+from .models import Activity, AthleteThreshold, TrainingPlan, TrainingZone, Workout, WorkoutLog
 
 
 def calculate_activity_metrics(parsed: ParsedActivity, athlete_id: int) -> dict:
@@ -56,6 +56,10 @@ def find_matching_workout(athlete_id: int, sport: str, started_at):
     candidates = (
         Workout.objects.filter(
             weekly_plan__training_plan__athlete_id=athlete_id,
+            weekly_plan__training_plan__publication_status__in=(
+                TrainingPlan.PublicationStatus.PUBLISHED,
+                TrainingPlan.PublicationStatus.ARCHIVED,
+            ),
             scheduled_at__range=(window_start, window_end),
             status=Workout.Status.PLANNED,
         )

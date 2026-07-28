@@ -152,6 +152,10 @@ class ActivityViewSet(
         if workout:
             if workout.weekly_plan.training_plan.athlete_id != athlete.id:
                 raise serializers.ValidationError({"workout": "The workout does not belong to the selected athlete."})
+            if workout.weekly_plan.training_plan.publication_status == TrainingPlan.PublicationStatus.DRAFT:
+                raise serializers.ValidationError(
+                    {"workout": "Publish the training plan before matching completed activities."}
+                )
             if workout.sport not in (parsed.sport, Workout.Sport.TRIATHLON):
                 raise serializers.ValidationError({"workout": "The workout sport does not match the activity."})
         else:
@@ -227,6 +231,7 @@ class TrainingCalendarView(APIView):
             date_from=query.validated_data["date_from"],
             date_to=query.validated_data["date_to"],
             sport=query.validated_data.get("sport"),
+            include_drafts=request.user.role == User.Role.COACH,
         )
         return Response(TrainingCalendarSerializer(payload).data)
 
@@ -286,14 +291,26 @@ class AthleteAnalyticsSummaryView(APIView):
 def accessible_plans(user):
     if user.role == User.Role.COACH:
         return TrainingPlan.objects.filter(coach=user)
-    return TrainingPlan.objects.filter(athlete=user)
+    return TrainingPlan.objects.filter(
+        athlete=user,
+        publication_status__in=(
+            TrainingPlan.PublicationStatus.PUBLISHED,
+            TrainingPlan.PublicationStatus.ARCHIVED,
+        ),
+    )
 
 
 class TrainingPlanViewSet(viewsets.ModelViewSet):
     queryset = TrainingPlan.objects.none()
     serializer_class = TrainingPlanSerializer
     permission_classes = (CoachWriteAthleteReadOnly,)
-    filterset_fields = ("athlete", "is_active", "start_date", "end_date")
+    filterset_fields = (
+        "athlete",
+        "is_active",
+        "publication_status",
+        "start_date",
+        "end_date",
+    )
     search_fields = ("title", "description", "athlete__username", "athlete__email")
     ordering_fields = ("start_date", "end_date", "created_at", "title")
 
@@ -314,12 +331,19 @@ class TrainingPlanViewSet(viewsets.ModelViewSet):
         athlete = serializer.validated_data["athlete"]
         if not CoachingRelationship.objects.filter(coach=self.request.user, athlete=athlete, is_active=True).exists():
             raise serializers.ValidationError({"athlete": "The athlete is not assigned to this coach."})
-        serializer.save(coach=self.request.user)
+        serializer.save(
+            coach=self.request.user,
+            is_active=True,
+            publication_status=TrainingPlan.PublicationStatus.DRAFT,
+            published_at=None,
+        )
 
     def perform_update(self, serializer):
         athlete = serializer.validated_data.get("athlete", serializer.instance.athlete)
         if not CoachingRelationship.objects.filter(coach=self.request.user, athlete=athlete, is_active=True).exists():
             raise serializers.ValidationError({"athlete": "The athlete is not assigned to this coach."})
+        if serializer.instance.publication_status == TrainingPlan.PublicationStatus.ARCHIVED:
+            raise serializers.ValidationError({"detail": "Reactivate the archived plan before editing it."})
         serializer.save(coach=self.request.user)
 
     @extend_schema(
@@ -350,6 +374,83 @@ class TrainingPlanViewSet(viewsets.ModelViewSet):
         queryset = self.get_queryset()
         plan = queryset.get(pk=plan.pk)
         return Response(self.get_serializer(plan).data, status=status.HTTP_201_CREATED)
+
+    @extend_schema(
+        request=None,
+        responses={status.HTTP_200_OK: TrainingPlanSerializer},
+        summary="Publish a reviewed training plan to the athlete",
+    )
+    @action(detail=True, methods=("post",), url_path="publish")
+    @transaction.atomic
+    def publish(self, request, pk=None):
+        plan = self.get_object()
+        plan.publication_status = TrainingPlan.PublicationStatus.PUBLISHED
+        plan.published_at = timezone.now()
+        plan.is_active = True
+        plan.save(
+            update_fields=(
+                "publication_status",
+                "published_at",
+                "is_active",
+                "updated_at",
+            )
+        )
+        return Response(self.get_serializer(plan).data)
+
+    @extend_schema(
+        request=None,
+        responses={status.HTTP_200_OK: TrainingPlanSerializer},
+        summary="Return an unpublished training plan to draft",
+    )
+    @action(detail=True, methods=("post",), url_path="return-to-draft")
+    @transaction.atomic
+    def return_to_draft(self, request, pk=None):
+        plan = self.get_object()
+        has_recorded_work = (
+            Workout.objects.filter(
+                weekly_plan__training_plan=plan,
+            )
+            .filter(Q(status=Workout.Status.COMPLETED) | Q(log__isnull=False) | Q(activities__isnull=False))
+            .exists()
+        )
+        if has_recorded_work:
+            raise serializers.ValidationError(
+                {"detail": "A plan with recorded athlete work cannot be returned to draft."}
+            )
+        plan.publication_status = TrainingPlan.PublicationStatus.DRAFT
+        plan.published_at = None
+        plan.is_active = True
+        plan.save(
+            update_fields=(
+                "publication_status",
+                "published_at",
+                "is_active",
+                "updated_at",
+            )
+        )
+        return Response(self.get_serializer(plan).data)
+
+    @extend_schema(
+        request=None,
+        responses={status.HTTP_200_OK: TrainingPlanSerializer},
+        summary="Archive a training plan while preserving athlete history",
+    )
+    @action(detail=True, methods=("post",), url_path="archive")
+    @transaction.atomic
+    def archive(self, request, pk=None):
+        plan = self.get_object()
+        plan.publication_status = TrainingPlan.PublicationStatus.ARCHIVED
+        plan.published_at = plan.published_at or timezone.now()
+        plan.is_active = False
+        plan.save(
+            update_fields=(
+                "publication_status",
+                "published_at",
+                "is_active",
+                "updated_at",
+            )
+        )
+        return Response(self.get_serializer(plan).data)
 
 
 class TrainingZoneViewSet(viewsets.ModelViewSet):
@@ -445,6 +546,8 @@ class RelatedPlanViewSet(viewsets.ModelViewSet):
     def validate_coach_ownership(self, plan, field_name):
         if plan.coach_id != self.request.user.id:
             raise serializers.ValidationError({field_name: "The related plan does not belong to the current coach."})
+        if plan.publication_status == TrainingPlan.PublicationStatus.ARCHIVED:
+            raise serializers.ValidationError({field_name: "Reactivate the archived plan before editing its schedule."})
 
 
 class WeeklyPlanViewSet(RelatedPlanViewSet):
@@ -642,13 +745,23 @@ class WorkoutLogViewSet(viewsets.ModelViewSet):
             return WorkoutLog.objects.filter(
                 workout__weekly_plan__training_plan__coach=self.request.user
             ).select_related("workout", "athlete")
-        return WorkoutLog.objects.filter(athlete=self.request.user).select_related("workout")
+        return WorkoutLog.objects.filter(
+            athlete=self.request.user,
+            workout__weekly_plan__training_plan__publication_status__in=(
+                TrainingPlan.PublicationStatus.PUBLISHED,
+                TrainingPlan.PublicationStatus.ARCHIVED,
+            ),
+        ).select_related("workout")
 
     @transaction.atomic
     def perform_create(self, serializer):
         workout = serializer.validated_data["workout"]
         if workout.weekly_plan.training_plan.athlete_id != self.request.user.id:
             raise serializers.ValidationError({"workout": "This workout does not belong to the current athlete."})
+        if workout.weekly_plan.training_plan.publication_status == TrainingPlan.PublicationStatus.DRAFT:
+            raise serializers.ValidationError(
+                {"workout": "This workout is not available until the coach publishes the plan."}
+            )
         serializer.save(athlete=self.request.user)
         workout.status = Workout.Status.COMPLETED
         workout.save(update_fields=("status", "updated_at"))

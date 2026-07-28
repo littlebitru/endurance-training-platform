@@ -364,6 +364,8 @@ def generate_periodized_plan(
         target_distance_km=goal.distance_km,
         start_date=plan_start,
         end_date=event_date,
+        publication_status=TrainingPlan.PublicationStatus.DRAFT,
+        published_at=None,
     )
     phase_counts: dict[str, int] = {}
     threshold = current_threshold(athlete.id, primary_sport)

@@ -14,6 +14,11 @@ class SportType(models.TextChoices):
 
 
 class TrainingPlan(TimeStampedModel):
+    class PublicationStatus(models.TextChoices):
+        DRAFT = "draft", "Draft"
+        PUBLISHED = "published", "Published"
+        ARCHIVED = "archived", "Archived"
+
     class TargetEvent(models.TextChoices):
         RUN_5K = "run_5k", "5 km"
         RUN_10K = "run_10k", "10 km"
@@ -49,9 +54,38 @@ class TrainingPlan(TimeStampedModel):
     start_date = models.DateField()
     end_date = models.DateField()
     is_active = models.BooleanField(default=True)
+    publication_status = models.CharField(
+        max_length=16,
+        choices=PublicationStatus.choices,
+        default=PublicationStatus.PUBLISHED,
+        db_index=True,
+    )
+    published_at = models.DateTimeField(default=timezone.now, null=True, blank=True)
 
     class Meta:
         ordering = ("-start_date",)
+        constraints = [
+            models.CheckConstraint(
+                condition=(
+                    models.Q(publication_status="archived", is_active=False)
+                    | models.Q(
+                        publication_status__in=("draft", "published"),
+                        is_active=True,
+                    )
+                ),
+                name="plan_publication_matches_active",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(publication_status="draft", published_at__isnull=True)
+                    | models.Q(
+                        publication_status__in=("published", "archived"),
+                        published_at__isnull=False,
+                    )
+                ),
+                name="plan_publication_has_timestamp",
+            ),
+        ]
         indexes = [
             models.Index(fields=("coach", "is_active", "start_date"), name="plan_coach_active_start_idx"),
             models.Index(fields=("athlete", "is_active", "start_date"), name="plan_athlete_active_start_idx"),
