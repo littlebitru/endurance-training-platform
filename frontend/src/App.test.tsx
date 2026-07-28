@@ -3,8 +3,8 @@ import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { AuthProvider } from "./auth";
 import { LanguageProvider } from "./i18n";
-import App, { AthleteOverviewHero, AthletePlanPortfolio } from "./App";
-import type { TrainingPlan } from "./types";
+import App, { AthletePlanPortfolio, WeeklyCommandCenter } from "./App";
+import type { TrainingCalendar, TrainingPlan, Workout } from "./types";
 
 beforeEach(() => {
   localStorage.setItem("endurance_locale", "en");
@@ -108,17 +108,81 @@ test("shows every active athlete plan as a direct workspace link", () => {
   expect(screen.getByRole("link", { name: /5 km speed/ })).toHaveAttribute("href", "/plans?plan_id=21");
 });
 
-test("keeps the athlete overview neutral and fully localized", () => {
+const weekCalendar = {
+  date_from: "2026-07-27",
+  date_to: "2026-08-02",
+  summary: {
+    athletes_count: 1,
+    planned_count: 5,
+    completed_count: 3,
+    unplanned_count: 0,
+    attention_count: 2,
+    completion_rate: 60,
+    average_compliance: 87,
+    planned_duration_minutes: 300,
+    actual_duration_minutes: "175.00",
+    training_load_score: "241.40",
+  },
+  events: [],
+} satisfies TrainingCalendar;
+
+const nextWorkout = {
+  id: 30,
+  weekly_plan: 3,
+  title: "Easy aerobic run",
+  sport: "running",
+  workout_type: "endurance",
+  status: "planned",
+  scheduled_at: "2026-07-29T06:30:00Z",
+  planned_duration_minutes: 45,
+  planned_distance_km: "8.00",
+  intensity: "Z2",
+  notes: "",
+  exercises: [],
+  coach_comments: [],
+} satisfies Workout;
+
+test("shows a compact localized weekly command center for an athlete", () => {
   localStorage.setItem("endurance_locale", "ru");
 
   render(
     <MemoryRouter>
-      <LanguageProvider><AthleteOverviewHero completionRate={68.4} /></LanguageProvider>
+      <LanguageProvider>
+        <WeeklyCommandCenter
+          activePlanCount={2}
+          athleteCount={0}
+          calendar={weekCalendar}
+          nextWorkout={nextWorkout}
+          role="athlete"
+        />
+      </LanguageProvider>
     </MemoryRouter>,
   );
 
-  expect(screen.getByRole("heading", { name: "Тренируйтесь осознанно. Прогрессируйте уверенно." })).toBeInTheDocument();
-  expect(screen.getByText("68%")).toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "Ваша тренировочная неделя" })).toBeInTheDocument();
+  expect(screen.getByText("бег")).toBeInTheDocument();
+  expect(screen.getByText("60%")).toBeInTheDocument();
+  expect(screen.getByText("241")).toBeInTheDocument();
   expect(screen.getByText("Процент выполнения")).toBeInTheDocument();
   expect(screen.getByRole("link", { name: /Открыть календарь тренировок/ })).toHaveAttribute("href", "/calendar");
+});
+
+test("prioritizes the coach review queue when sessions need attention", () => {
+  render(
+    <MemoryRouter>
+      <LanguageProvider>
+        <WeeklyCommandCenter
+          activePlanCount={0}
+          athleteCount={4}
+          calendar={weekCalendar}
+          role="coach"
+        />
+      </LanguageProvider>
+    </MemoryRouter>,
+  );
+
+  expect(screen.getByRole("heading", { name: "Some sessions need your review" })).toBeInTheDocument();
+  expect(screen.getByText("The review queue contains 2 missed or materially deviating sessions.")).toBeInTheDocument();
+  expect(screen.getByText("4")).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: /Open review queue/ })).toHaveAttribute("href", "/calendar");
 });

@@ -8,7 +8,7 @@ import heroImage from "./assets/endurance-hero-v2.webp";
 import { useAuth } from "./auth";
 import { localizeApiError, useLanguage } from "./i18n";
 import { TrainingPlansPage } from "./TrainingPlansPage";
-import type { Analytics, Relationship, TrainingPlan, WeeklyAnalytics, Workout } from "./types";
+import type { Analytics, Relationship, Role, TrainingCalendar, TrainingPlan, WeeklyAnalytics, Workout } from "./types";
 
 function LanguageSwitcher() {
   const { locale, setLocale, t } = useLanguage();
@@ -285,16 +285,37 @@ function Protected({ children }: { children: React.ReactNode }) {
   return <Layout>{children}</Layout>;
 }
 
+function localDateKey(value: Date): string {
+  return [
+    value.getFullYear(),
+    String(value.getMonth() + 1).padStart(2, "0"),
+    String(value.getDate()).padStart(2, "0"),
+  ].join("-");
+}
+
+function currentWeekRange(value = new Date()): { start: string; end: string } {
+  const start = new Date(value.getFullYear(), value.getMonth(), value.getDate());
+  start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
+  const end = new Date(start);
+  end.setDate(end.getDate() + 6);
+  return { start: localDateKey(start), end: localDateKey(end) };
+}
+
 function Overview() {
   const { user } = useAuth();
   const { locale, t } = useLanguage();
   const [plans, setPlans] = useState<TrainingPlan[]>([]);
   const [relationships, setRelationships] = useState<Relationship[]>([]);
   const [stats, setStats] = useState<Analytics | null>(null);
+  const [weekCalendar, setWeekCalendar] = useState<TrainingCalendar | null>(null);
   const [dashboardError, setDashboardError] = useState("");
   useEffect(() => {
     if (!user) return;
-    const requests: Promise<unknown>[] = [api.plans().then((response) => setPlans(response.results))];
+    const week = currentWeekRange();
+    const requests: Promise<unknown>[] = [
+      api.plans().then((response) => setPlans(response.results)),
+      api.calendar(week.start, week.end).then(setWeekCalendar),
+    ];
     if (user.role === "coach") {
       requests.push(api.analytics().then(setStats));
       requests.push(api.athletes().then((response) => setRelationships(response.results)));
@@ -306,7 +327,6 @@ function Overview() {
   const scheduledWorkouts = plans.flatMap((plan) =>
     plan.weeks.flatMap((week) => week.workouts.map((workout) => ({ athleteId: plan.athlete, workout }))),
   );
-  const workouts = scheduledWorkouts.map((item) => item.workout);
   const next = scheduledWorkouts
     .filter((item) => new Date(item.workout.scheduled_at) >= new Date())
     .sort((left, right) => left.workout.scheduled_at.localeCompare(right.workout.scheduled_at))
@@ -331,24 +351,14 @@ function Overview() {
     : "";
   return (
     <>
-      {isCoach ? (
-        <section className="hero-panel coach-hero">
-          <img className="hero-panel-image" src={heroImage} alt="" />
-          <div>
-            <span className="eyebrow">{t("coachOverview")}</span>
-            <h2>{t("coachOverviewTitle")}</h2>
-            <p>{t("coachOverviewDescription")}</p>
-            <NavLink className="hero-action" to="/plans">{t("openPlanningCalendar")} →</NavLink>
-          </div>
-        </section>
-      ) : <AthleteOverviewHero completionRate={stats?.completion_rate ?? 0} />}
+      <WeeklyCommandCenter
+        activePlanCount={athletePlans.length}
+        athleteCount={activeAthleteCount}
+        calendar={weekCalendar}
+        nextWorkout={next[0]?.workout}
+        role={isCoach ? "coach" : "athlete"}
+      />
       {!isCoach && athletePlans.length > 0 && <AthletePlanPortfolio plans={athletePlans} />}
-      <section className="stat-grid">
-        <Stat label={isCoach ? t("athletesUnderCoaching") : t("activePlans")} value={isCoach ? activeAthleteCount : athletePlans.length} />
-        <Stat label={t("plannedSessions")} value={stats?.total_workouts ?? workouts.length} />
-        <Stat label={isCoach ? t("completedSessions") : t("distanceCompleted")} value={isCoach ? stats?.completed_workouts ?? 0 : `${stats?.actual_distance_km ?? "0.00"} km`} />
-        <Stat label={t("averageEffort")} value={stats?.average_perceived_exertion ?? "—"} />
-      </section>
       {dashboardError && <div className="error" role="alert">{dashboardError}</div>}
       {stats?.weekly?.length ? <WeeklyProgress locale={locale} weeks={stats.weekly.slice(-8)} /> : null}
       {user?.role === "athlete" && (
@@ -373,20 +383,94 @@ function Overview() {
   );
 }
 
-export function AthleteOverviewHero({ completionRate }: { completionRate: number }) {
-  const { t } = useLanguage();
+export function WeeklyCommandCenter({
+  role,
+  calendar,
+  athleteCount,
+  activePlanCount,
+  nextWorkout,
+}: {
+  role: Role;
+  calendar: TrainingCalendar | null;
+  athleteCount: number;
+  activePlanCount: number;
+  nextWorkout?: Workout;
+}) {
+  const { locale, t } = useLanguage();
+  const summary = calendar?.summary;
+  const attentionCount = summary?.attention_count ?? 0;
+  const isCoach = role === "coach";
+  const dateLocale = locale === "ru" ? "ru-RU" : "en-US";
+  const sportKey = nextWorkout
+    ? overviewSportKeys[nextWorkout.sport as keyof typeof overviewSportKeys]
+    : undefined;
+  const nextMetrics = nextWorkout
+    ? [
+      nextWorkout.planned_duration_minutes ? `${nextWorkout.planned_duration_minutes} ${t("minutes")}` : "",
+      nextWorkout.planned_distance_km ? `${nextWorkout.planned_distance_km} km` : "",
+    ].filter(Boolean).join(" · ")
+    : "";
+  const metrics = isCoach
+    ? [
+      { label: t("athletesUnderCoaching"), value: athleteCount },
+      { label: t("plannedSessions"), value: summary?.planned_count ?? "—" },
+      { label: t("attentionNeeded"), value: summary?.attention_count ?? "—", tone: attentionCount > 0 ? "attention" : "positive" },
+      { label: t("averageCompliance"), value: summary?.average_compliance == null ? "—" : `${summary.average_compliance}%` },
+    ]
+    : [
+      { label: t("activePlans"), value: activePlanCount },
+      { label: t("plannedSessions"), value: summary?.planned_count ?? "—" },
+      { label: t("completionRate"), value: summary ? `${summary.completion_rate}%` : "—", tone: "positive" },
+      { label: t("actualLoad"), value: summary ? Math.round(Number(summary.training_load_score)) : "—" },
+    ];
+  const title = isCoach
+    ? attentionCount > 0 ? t("coachAttentionTitle") : calendar ? t("coachAllClearTitle") : t("coachWeekTitle")
+    : t("athleteWeekTitle");
+  const description = isCoach
+    ? attentionCount > 0
+      ? t("coachAttentionDescription", { count: attentionCount })
+      : t("coachAllClearDescription")
+    : t("athleteWeekDescription");
+
   return (
-    <section className="hero-panel athlete-hero">
-      <img className="hero-panel-image" src={heroImage} alt="" />
-      <div>
-        <span className="eyebrow">{t("athleteOverview")}</span>
-        <h2>{t("athleteOverviewTitle")}</h2>
-        <p>{t("athleteOverviewDescription")}</p>
-        <NavLink className="hero-action" to="/calendar">{t("openTrainingCalendar")} →</NavLink>
+    <section className={`weekly-command-center ${role}`} aria-labelledby="weekly-command-title">
+      <div className="weekly-command-copy">
+        <span className="eyebrow">{isCoach ? t("coachCommandCenter") : t("athleteCommandCenter")}</span>
+        <h2 id="weekly-command-title">{title}</h2>
+        <p>{description}</p>
+        {!isCoach && (
+          <div className="next-workout-insight">
+            <span>{t("nextTraining")}</span>
+            {nextWorkout ? (
+              <div>
+                <strong>{sportKey ? t(sportKey) : nextWorkout.sport}</strong>
+                <small>
+                  {new Date(nextWorkout.scheduled_at).toLocaleString(dateLocale, {
+                    weekday: "short",
+                    day: "numeric",
+                    month: "short",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                  {nextMetrics ? ` · ${nextMetrics}` : ""}
+                </small>
+              </div>
+            ) : (
+              <div><strong>{t("recoveryWindow")}</strong><small>{t("noUpcomingSession")}</small></div>
+            )}
+          </div>
+        )}
+        <NavLink className="command-action" to="/calendar">
+          {isCoach ? t("openReviewQueue") : t("openTrainingCalendar")} →
+        </NavLink>
       </div>
-      <div className="ring">
-        <strong>{Math.round(Number(completionRate) || 0)}%</strong>
-        <small>{t("completionRate")}</small>
+      <div className="weekly-command-metrics">
+        {metrics.map((metric) => (
+          <article className={metric.tone ?? ""} key={metric.label}>
+            <small>{metric.label}</small>
+            <strong>{metric.value}</strong>
+          </article>
+        ))}
       </div>
     </section>
   );
@@ -436,10 +520,6 @@ export function AthletePlanPortfolio({ plans }: { plans: TrainingPlan[] }) {
       </div>
     </section>
   );
-}
-
-function Stat({ label, value }: { label: string; value: string | number }) {
-  return <article className="stat"><small>{label}</small><strong>{value}</strong></article>;
 }
 
 function WeeklyProgress({ locale, weeks }: { locale: string; weeks: WeeklyAnalytics[] }) {
