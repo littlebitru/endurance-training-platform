@@ -71,6 +71,12 @@ export const api = {
   updateThreshold: (id: number, data: object) => request<import("./types").AthleteThreshold>(`/athlete-thresholds/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
   analytics: (athleteId?: number) => request<import("./types").Analytics>(`/coach/analytics/summary/${athleteId ? `?athlete_id=${athleteId}` : ""}`),
   athleteAnalytics: () => request<import("./types").Analytics>("/athlete/analytics/summary/"),
+  calendar: (dateFrom: string, dateTo: string, athleteId?: number, sport?: string) => {
+    const params = new URLSearchParams({ date_from: dateFrom, date_to: dateTo });
+    if (athleteId) params.set("athlete_id", String(athleteId));
+    if (sport) params.set("sport", sport);
+    return request<import("./types").TrainingCalendar>(`/calendar/?${params.toString()}`);
+  },
   invite: (email: string) => request("/athlete-invitations/", { method: "POST", body: JSON.stringify({ email }) }),
   createPlan: (data: object) => request<import("./types").TrainingPlan>("/training-plans/", { method: "POST", body: JSON.stringify(data) }),
   generatePlan: (data: object) => request<import("./types").TrainingPlan>("/training-plans/generate/", { method: "POST", body: JSON.stringify(data) }),

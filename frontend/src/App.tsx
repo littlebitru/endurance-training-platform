@@ -3,6 +3,7 @@ import { Link, Navigate, NavLink, Route, Routes, useNavigate, useParams, useSear
 import { api } from "./api";
 import { AthleteThresholdPanel } from "./AthleteThresholdPanel";
 import { ActivitiesPage } from "./ActivitiesPage";
+import { CalendarPage } from "./CalendarPage";
 import heroImage from "./assets/endurance-hero-v2.webp";
 import { useAuth } from "./auth";
 import { localizeApiError, useLanguage } from "./i18n";
@@ -254,6 +255,7 @@ function Layout({ children }: { children: React.ReactNode }) {
         <div><strong>Endurance</strong><small>{t("trainingPlatform")}</small></div>
         <nav>
           <NavLink to="/">{t("overview")}</NavLink>
+          <NavLink to="/calendar">{t("calendar")}</NavLink>
           <NavLink to="/plans">{t("trainingPlans")}</NavLink>
           <NavLink to="/activities">{t("activities")}</NavLink>
           {user?.role === "coach" && <NavLink to="/athletes">{t("athletes")}</NavLink>}
@@ -478,6 +480,7 @@ export default function App() {
       <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/invitations/:token" element={<InvitationPage />} />
       <Route path="/" element={<Protected><Overview /></Protected>} />
+      <Route path="/calendar" element={<Protected><CalendarPage /></Protected>} />
       <Route path="/plans" element={<Protected><TrainingPlansPage /></Protected>} />
       <Route path="/activities" element={<Protected><ActivitiesPage /></Protected>} />
       <Route path="/athletes" element={<Protected><AthletesPage /></Protected>} />

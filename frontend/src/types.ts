@@ -52,3 +52,60 @@ export interface Activity {
   created_at: string;
   stream?: { points: ActivityStreamPoint[]; point_count: number; sample_interval_seconds: number | null };
 }
+
+export interface CalendarActivity {
+  id: number;
+  started_at: string;
+  duration_seconds: number;
+  distance_meters: string | null;
+  training_load_score: string | null;
+  compliance_score: number | null;
+  compliance_status: string;
+  match_confidence: string;
+  average_heart_rate: number | null;
+  average_power: number | null;
+  average_pace_seconds_per_km: number | null;
+}
+
+export interface CalendarEvent {
+  event_id: string;
+  kind: "workout" | "activity";
+  athlete: { id: number; name: string };
+  workout_id: number | null;
+  activity_ids: number[];
+  plan_title: string;
+  title: string;
+  sport: string;
+  workout_type: string;
+  starts_at: string;
+  status: string;
+  planned_duration_minutes: number | null;
+  planned_distance_km: string | null;
+  actual_duration_minutes: string | null;
+  actual_distance_km: string | null;
+  training_load_score: string | null;
+  compliance_score: number | null;
+  compliance_status: string;
+  match_confidence: string;
+  attention_required: boolean;
+  attention_reason: string;
+  activities: CalendarActivity[];
+}
+
+export interface TrainingCalendar {
+  date_from: string;
+  date_to: string;
+  summary: {
+    athletes_count: number;
+    planned_count: number;
+    completed_count: number;
+    unplanned_count: number;
+    attention_count: number;
+    completion_rate: number;
+    average_compliance: number | null;
+    planned_duration_minutes: number;
+    actual_duration_minutes: string;
+    training_load_score: string;
+  };
+  events: CalendarEvent[];
+}

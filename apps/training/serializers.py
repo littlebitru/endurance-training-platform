@@ -352,6 +352,90 @@ class ActivityImportSerializer(serializers.Serializer):
     workout = serializers.PrimaryKeyRelatedField(queryset=Workout.objects.all(), required=False)
 
 
+class CalendarQuerySerializer(serializers.Serializer):
+    date_from = serializers.DateField(required=False)
+    date_to = serializers.DateField(required=False)
+    athlete_id = serializers.IntegerField(min_value=1, required=False)
+    sport = serializers.ChoiceField(choices=Workout.Sport.choices, required=False)
+
+    def validate(self, attrs):
+        today = timezone.localdate()
+        default_start = today - timedelta(days=today.weekday())
+        date_from = attrs.get("date_from", default_start)
+        date_to = attrs.get("date_to", date_from + timedelta(days=41))
+        if date_to < date_from:
+            raise serializers.ValidationError({"date_to": "Date to must not precede date from."})
+        if (date_to - date_from).days > 62:
+            raise serializers.ValidationError({"date_to": "Calendar ranges cannot exceed 63 days."})
+        attrs["date_from"] = date_from
+        attrs["date_to"] = date_to
+        return attrs
+
+
+class CalendarAthleteSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    name = serializers.CharField()
+
+
+class CalendarActivitySerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    started_at = serializers.DateTimeField()
+    duration_seconds = serializers.IntegerField()
+    distance_meters = serializers.DecimalField(max_digits=12, decimal_places=2, allow_null=True)
+    training_load_score = serializers.DecimalField(max_digits=8, decimal_places=2, allow_null=True)
+    compliance_score = serializers.IntegerField(allow_null=True)
+    compliance_status = serializers.CharField()
+    match_confidence = serializers.CharField()
+    average_heart_rate = serializers.IntegerField(allow_null=True)
+    average_power = serializers.IntegerField(allow_null=True)
+    average_pace_seconds_per_km = serializers.IntegerField(allow_null=True)
+
+
+class CalendarEventSerializer(serializers.Serializer):
+    event_id = serializers.CharField()
+    kind = serializers.ChoiceField(choices=("workout", "activity"))
+    athlete = CalendarAthleteSerializer()
+    workout_id = serializers.IntegerField(allow_null=True)
+    activity_ids = serializers.ListField(child=serializers.IntegerField())
+    plan_title = serializers.CharField(allow_blank=True)
+    title = serializers.CharField(allow_blank=True)
+    sport = serializers.ChoiceField(choices=Workout.Sport.choices)
+    workout_type = serializers.CharField(allow_blank=True)
+    starts_at = serializers.DateTimeField()
+    status = serializers.CharField()
+    planned_duration_minutes = serializers.IntegerField(allow_null=True)
+    planned_distance_km = serializers.DecimalField(max_digits=7, decimal_places=2, allow_null=True)
+    actual_duration_minutes = serializers.DecimalField(max_digits=8, decimal_places=1, allow_null=True)
+    actual_distance_km = serializers.DecimalField(max_digits=9, decimal_places=2, allow_null=True)
+    training_load_score = serializers.DecimalField(max_digits=8, decimal_places=2, allow_null=True)
+    compliance_score = serializers.IntegerField(allow_null=True)
+    compliance_status = serializers.CharField(allow_blank=True)
+    match_confidence = serializers.CharField(allow_blank=True)
+    attention_required = serializers.BooleanField()
+    attention_reason = serializers.CharField(allow_blank=True)
+    activities = CalendarActivitySerializer(many=True)
+
+
+class CalendarSummarySerializer(serializers.Serializer):
+    athletes_count = serializers.IntegerField()
+    planned_count = serializers.IntegerField()
+    completed_count = serializers.IntegerField()
+    unplanned_count = serializers.IntegerField()
+    attention_count = serializers.IntegerField()
+    completion_rate = serializers.IntegerField()
+    average_compliance = serializers.IntegerField(allow_null=True)
+    planned_duration_minutes = serializers.IntegerField()
+    actual_duration_minutes = serializers.DecimalField(max_digits=10, decimal_places=1)
+    training_load_score = serializers.DecimalField(max_digits=10, decimal_places=2)
+
+
+class TrainingCalendarSerializer(serializers.Serializer):
+    date_from = serializers.DateField()
+    date_to = serializers.DateField()
+    summary = CalendarSummarySerializer()
+    events = CalendarEventSerializer(many=True)
+
+
 class WorkoutSerializer(serializers.ModelSerializer):
     exercises = ExerciseSerializer(many=True, read_only=True)
     structured_steps = StructuredStepSerializer(many=True, write_only=True, required=False)
