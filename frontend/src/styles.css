@@ -1979,9 +1979,15 @@ h1, h2, h3, h4, h5, strong, b, .brand-mark, .logo, .activity-sport, .eyebrow {
 .device-summary-grid strong { display: block; margin: 9px 0 5px; color: #1d302a; font: 650 27px Manrope; }
 .device-summary-grid span { font-size: 9px; line-height: 1.5; }
 .provider-card, .device-roster-card { padding: 26px; border: 1px solid #d9e4dd; border-radius: 18px; background: rgba(255,255,255,.92); box-shadow: 0 14px 34px rgba(24, 67, 55, .06); }
-.provider-card { display: grid; grid-template-columns: minmax(260px, 1.15fr) minmax(230px, .8fr); gap: 20px 28px; }
+.provider-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.provider-card { display: grid; grid-template-columns: 1fr; align-content: start; gap: 17px; min-width: 0; padding: 22px; transition: border-color .22s ease, box-shadow .22s ease, transform .22s ease; }
+.provider-card:hover { border-color: #bdd7ca; box-shadow: 0 18px 38px rgba(24, 67, 55, .09); transform: translateY(-2px); }
 .provider-identity { display: flex; align-items: center; gap: 17px; }
 .garmin-wordmark { display: grid; flex: none; place-items: center; width: 76px; height: 76px; border-radius: 19px; color: #fff; background: linear-gradient(145deg, #142d29, #0c5f52); box-shadow: 0 12px 25px rgba(11, 69, 58, .2); font: 900 11px Manrope; letter-spacing: .08em; }
+.provider-wordmark { display: grid; flex: none; place-items: center; width: 72px; height: 72px; border-radius: 18px; color: #fff; background: linear-gradient(145deg, #142d29, #0c5f52); box-shadow: 0 12px 25px rgba(11, 69, 58, .18); font: 900 10px Manrope; letter-spacing: .07em; }
+.provider-wordmark.strava { background: linear-gradient(145deg, #fc6d2e, #df3818); box-shadow: 0 12px 25px rgba(226, 72, 25, .2); }
+.provider-wordmark.suunto { background: linear-gradient(145deg, #202326, #555b60); }
+.provider-wordmark.coros { color: #18231f; background: linear-gradient(145deg, #d8f070, #8fc640); }
 .provider-identity h3 { margin: 0 0 6px; font-size: 20px; }
 .provider-identity p { max-width: 580px; margin: 0; color: #65766e; font-size: 11px; line-height: 1.6; }
 .provider-state { display: flex; align-items: center; gap: 11px; padding: 13px 15px; border: 1px solid #e6d8b9; border-radius: 13px; background: #fff9eb; }
@@ -1991,13 +1997,18 @@ h1, h2, h3, h4, h5, strong, b, .brand-mark, .logo, .activity-sport, .eyebrow {
 .provider-state strong, .provider-state small { display: block; }
 .provider-state strong { font-size: 12px; }
 .provider-state small { margin-top: 4px; color: #776c55; font-size: 9px; line-height: 1.45; }
-.provider-capabilities { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; padding: 14px; border-radius: 13px; background: #f5f8f5; }
+.provider-capabilities { display: flex; flex-wrap: wrap; gap: 8px; min-height: 55px; padding: 14px; border-radius: 13px; background: #f5f8f5; }
 .provider-capabilities span { padding: 7px 10px; border-radius: 8px; font-size: 9px; font-weight: 750; }
 .provider-capabilities .available { color: #356c4c; background: #e3f2e6; }
 .provider-capabilities .pending { color: #7b6943; background: #fff1ce; }
 .provider-actions { display: flex; flex-wrap: wrap; gap: 9px; }
 .provider-actions a { display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
 .device-privacy-note { align-self: center; margin: 0; color: #73837b; font-size: 9px; line-height: 1.55; }
+.provider-badges { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 7px; }
+.provider-badges b { padding: 3px 6px; border-radius: 5px; color: #fff; background: #276e5e; font-size: 7px; letter-spacing: .04em; }
+.provider-badges b.strava { background: #e64f22; }
+.provider-badges b.suunto { background: #3f4447; }
+.provider-badges b.coros { color: #28402e; background: #b9db55; }
 .device-roster-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; margin-bottom: 19px; }
 .device-roster-heading h3 { margin: 5px 0; font-size: 20px; }
 .device-roster-heading p { margin: 0; color: #687970; font-size: 11px; line-height: 1.55; }
@@ -2040,6 +2051,7 @@ h1, h2, h3, h4, h5, strong, b, .brand-mark, .logo, .activity-sport, .eyebrow {
 @media (max-width: 980px) {
   .device-center-hero { grid-template-columns: 1fr; }
   .device-readiness { max-width: 480px; }
+  .provider-grid { grid-template-columns: 1fr; }
   .device-roster-table > article { grid-template-columns: 42px minmax(140px, .7fr) minmax(210px, 1fr); }
   .device-roster-table > article > a { grid-column: 2 / -1; justify-self: start; }
 }
@@ -2049,7 +2061,7 @@ h1, h2, h3, h4, h5, strong, b, .brand-mark, .logo, .activity-sport, .eyebrow {
   .device-center-hero { gap: 20px; padding: 23px 20px; border-radius: 16px; }
   .device-center-hero h2 { font-size: 27px; }
   .device-summary-grid, .device-workflow-steps { grid-template-columns: 1fr; }
-  .provider-card { grid-template-columns: 1fr; padding: 19px; }
+  .provider-card { padding: 19px; }
   .provider-capabilities { grid-column: auto; }
   .provider-actions { flex-direction: column; }
   .provider-actions > * { width: 100%; }

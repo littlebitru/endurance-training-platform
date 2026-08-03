@@ -245,17 +245,20 @@ export interface GarminFitPreview {
   step_count: number;
   steps: GarminFitPreviewStep[];
 }
+export type DeviceProvider = "garmin" | "strava" | "suunto" | "coros";
 export interface DeviceProviderCapability {
-  provider: "garmin";
+  provider: DeviceProvider;
   partner_status: "application_required" | "under_review" | "approved" | "available" | string;
   authorization_available: boolean;
   direct_delivery_available: boolean;
   manual_fit_available: boolean;
+  activity_import_available: boolean;
+  automatic_activity_sync_available: boolean;
 }
 export interface DeviceConnection {
   id: number;
   athlete: { id: number; username: string; name: string };
-  provider: "garmin";
+  provider: DeviceProvider;
   status: "pending" | "connected" | "expired" | "revoked" | "error";
   scopes: string[];
   token_expires_at: string | null;
@@ -263,16 +266,23 @@ export interface DeviceConnection {
   disconnected_at: string | null;
   last_synced_at: string | null;
   sync_workouts: boolean;
+  sync_activities: boolean;
   last_error_code: string;
   last_error_message: string;
   is_usable: boolean;
   created_at: string;
   updated_at: string;
 }
+export interface ActivitySyncResult {
+  imported: number;
+  updated: number;
+  skipped: number;
+  unsupported: number;
+}
 export interface WorkoutDelivery {
   id: number;
   athlete: { id: number; username: string; name: string };
-  provider: "garmin";
+  provider: DeviceProvider;
   workout: number;
   workout_title: string;
   scheduled_at: string;
@@ -301,8 +311,10 @@ export interface Activity {
   workout_title: string | null;
   planned_duration_minutes: number | null;
   planned_distance_km: string | null;
+  source: "file_upload" | "strava";
+  external_id: string;
   source_file_name: string;
-  file_type: "fit" | "tcx" | "gpx";
+  file_type: "fit" | "tcx" | "gpx" | "json";
   sport: string;
   started_at: string;
   duration_seconds: number;

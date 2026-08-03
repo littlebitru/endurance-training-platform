@@ -7,6 +7,9 @@ from apps.core.models import TimeStampedModel
 
 class DeviceProvider(models.TextChoices):
     GARMIN = "garmin", "Garmin"
+    STRAVA = "strava", "Strava"
+    SUUNTO = "suunto", "Suunto"
+    COROS = "coros", "COROS"
 
 
 class DeviceConnection(TimeStampedModel):
@@ -33,6 +36,7 @@ class DeviceConnection(TimeStampedModel):
     disconnected_at = models.DateTimeField(null=True, blank=True)
     last_synced_at = models.DateTimeField(null=True, blank=True)
     sync_workouts = models.BooleanField(default=True)
+    sync_activities = models.BooleanField(default=False)
     last_error_code = models.CharField(max_length=80, blank=True)
     last_error_message = models.CharField(max_length=500, blank=True)
 
@@ -54,7 +58,9 @@ class DeviceConnection(TimeStampedModel):
     @property
     def is_usable(self):
         return self.status == self.Status.CONNECTED and (
-            self.token_expires_at is None or self.token_expires_at > timezone.now()
+            self.token_expires_at is None
+            or self.token_expires_at > timezone.now()
+            or bool(self.refresh_token_encrypted)
         )
 
 
@@ -66,7 +72,7 @@ class OAuthAuthorizationState(TimeStampedModel):
     )
     provider = models.CharField(max_length=20, choices=DeviceProvider.choices)
     state_digest = models.CharField(max_length=64, unique=True)
-    code_verifier_encrypted = models.TextField()
+    authorization_context_encrypted = models.TextField()
     expires_at = models.DateTimeField()
     consumed_at = models.DateTimeField(null=True, blank=True)
 

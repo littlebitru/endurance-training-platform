@@ -33,12 +33,14 @@ class DeviceIntegrationError(Exception):
 
 
 @dataclass(frozen=True)
-class GarminCapabilities:
+class ProviderCapabilities:
     provider: str
     partner_status: str
     authorization_available: bool
     direct_delivery_available: bool
     manual_fit_available: bool
+    activity_import_available: bool = False
+    automatic_activity_sync_available: bool = False
 
     def as_dict(self):
         return {
@@ -47,10 +49,12 @@ class GarminCapabilities:
             "authorization_available": self.authorization_available,
             "direct_delivery_available": self.direct_delivery_available,
             "manual_fit_available": self.manual_fit_available,
+            "activity_import_available": self.activity_import_available,
+            "automatic_activity_sync_available": self.automatic_activity_sync_available,
         }
 
 
-def garmin_capabilities() -> GarminCapabilities:
+def garmin_capabilities() -> ProviderCapabilities:
     authorization_available = bool(
         settings.GARMIN_TRAINING_API_ENABLED
         and settings.GARMIN_CLIENT_ID
@@ -63,12 +67,22 @@ def garmin_capabilities() -> GarminCapabilities:
         authorization_available and settings.GARMIN_TRAINING_PUBLISH_URL and settings.GARMIN_DELIVERY_WORKER_ENABLED
     )
     partner_status = "available" if authorization_available else settings.GARMIN_PARTNER_STATUS
-    return GarminCapabilities(
+    return ProviderCapabilities(
         provider=DeviceProvider.GARMIN,
         partner_status=partner_status,
         authorization_available=authorization_available,
         direct_delivery_available=direct_delivery_available,
         manual_fit_available=True,
+    )
+
+
+def partner_provider_capabilities(provider: str, partner_status: str) -> ProviderCapabilities:
+    return ProviderCapabilities(
+        provider=provider,
+        partner_status=partner_status,
+        authorization_available=False,
+        direct_delivery_available=False,
+        manual_fit_available=False,
     )
 
 
@@ -97,7 +111,7 @@ def begin_garmin_authorization(athlete) -> dict:
         athlete=athlete,
         provider=DeviceProvider.GARMIN,
         state_digest=_digest(raw_state),
-        code_verifier_encrypted=encrypt_secret(code_verifier),
+        authorization_context_encrypted=encrypt_secret(json.dumps({"code_verifier": code_verifier})),
         expires_at=expires_at,
     )
     DeviceConnection.objects.update_or_create(
@@ -156,6 +170,14 @@ def complete_garmin_authorization(raw_state: str, code: str) -> DeviceConnection
 
     authorization.consumed_at = timezone.now()
     authorization.save(update_fields=("consumed_at", "updated_at"))
+    try:
+        authorization_context = json.loads(decrypt_secret(authorization.authorization_context_encrypted))
+        code_verifier = authorization_context["code_verifier"]
+    except (json.JSONDecodeError, KeyError) as exc:
+        raise DeviceIntegrationError(
+            "invalid_oauth_context",
+            "The Garmin authorization request cannot be completed. Please start the connection again.",
+        ) from exc
     token = _post_form(
         settings.GARMIN_OAUTH_TOKEN_URL,
         {
@@ -164,7 +186,7 @@ def complete_garmin_authorization(raw_state: str, code: str) -> DeviceConnection
             "redirect_uri": settings.GARMIN_OAUTH_REDIRECT_URI,
             "client_id": settings.GARMIN_CLIENT_ID,
             "client_secret": settings.GARMIN_CLIENT_SECRET,
-            "code_verifier": decrypt_secret(authorization.code_verifier_encrypted),
+            "code_verifier": code_verifier,
         },
     )
     access_token = str(token.get("access_token", ""))
@@ -219,7 +241,11 @@ def disconnect_device(connection: DeviceConnection) -> DeviceConnection:
 
 
 def refresh_garmin_connection(connection: DeviceConnection) -> DeviceConnection:
-    if connection.is_usable:
+    if (
+        connection.status == DeviceConnection.Status.CONNECTED
+        and connection.access_token_encrypted
+        and (connection.token_expires_at is None or connection.token_expires_at > timezone.now())
+    ):
         return connection
     if not connection.refresh_token_encrypted:
         connection.status = DeviceConnection.Status.EXPIRED

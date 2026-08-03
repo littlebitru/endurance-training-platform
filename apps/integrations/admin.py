@@ -6,7 +6,7 @@ from .models import DeviceConnection, OAuthAuthorizationState, WorkoutDelivery, 
 @admin.register(DeviceConnection)
 class DeviceConnectionAdmin(admin.ModelAdmin):
     list_display = ("athlete", "provider", "status", "consented_at", "last_synced_at")
-    list_filter = ("provider", "status", "sync_workouts")
+    list_filter = ("provider", "status", "sync_workouts", "sync_activities")
     search_fields = ("athlete__username", "athlete__email", "external_user_id")
     exclude = ("access_token_encrypted", "refresh_token_encrypted")
     readonly_fields = ("created_at", "updated_at")
@@ -16,7 +16,7 @@ class DeviceConnectionAdmin(admin.ModelAdmin):
 class OAuthAuthorizationStateAdmin(admin.ModelAdmin):
     list_display = ("athlete", "provider", "expires_at", "consumed_at")
     list_filter = ("provider",)
-    exclude = ("state_digest", "code_verifier_encrypted")
+    exclude = ("state_digest", "authorization_context_encrypted")
     readonly_fields = ("created_at", "updated_at")
 
 

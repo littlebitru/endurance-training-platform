@@ -1,7 +1,7 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, expect, test, vi } from "vitest";
-import { AthleteGarminConnection, CoachDeviceRoster } from "./DeviceCenterPage";
+import { AthleteProviderConnection, CoachDeviceRoster } from "./DeviceCenterPage";
 import { LanguageProvider } from "./i18n";
 import type { DeviceProviderCapability, Relationship } from "./types";
 
@@ -13,17 +13,20 @@ const pendingCapability: DeviceProviderCapability = {
   authorization_available: false,
   direct_delivery_available: false,
   manual_fit_available: true,
+  activity_import_available: false,
+  automatic_activity_sync_available: false,
 };
 
 test("keeps Garmin connection honest while personalized FIT remains available", () => {
   render(
     <MemoryRouter>
       <LanguageProvider>
-        <AthleteGarminConnection
+        <AthleteProviderConnection
           capability={pendingCapability}
           dateLocale="en-US"
           onConnect={vi.fn()}
           onDisconnect={vi.fn()}
+          onSync={vi.fn()}
           working={false}
         />
       </LanguageProvider>
@@ -55,7 +58,7 @@ test("shows athlete readiness without exposing device credentials to a coach", (
     <MemoryRouter>
       <LanguageProvider>
         <CoachDeviceRoster
-          connectionByAthlete={new Map()}
+          connectionByAthleteProvider={new Map()}
           dateLocale="en-US"
           relationships={relationships}
         />
@@ -64,6 +67,35 @@ test("shows athlete readiness without exposing device credentials to a coach", (
   );
 
   expect(screen.getByText("Alex Runner")).toBeInTheDocument();
-  expect(screen.getByText("The athlete has not granted Garmin consent")).toBeInTheDocument();
+  expect(screen.getByText("The athlete has not connected a training provider")).toBeInTheDocument();
   expect(screen.getByText("Athlete-owned consent")).toBeInTheDocument();
+});
+
+test("shows honest Strava activity-sync capabilities", () => {
+  render(
+    <MemoryRouter>
+      <LanguageProvider>
+        <AthleteProviderConnection
+          capability={{
+            ...pendingCapability,
+            provider: "strava",
+            partner_status: "available",
+            authorization_available: true,
+            activity_import_available: true,
+            automatic_activity_sync_available: true,
+            manual_fit_available: false,
+          }}
+          dateLocale="en-US"
+          onConnect={vi.fn()}
+          onDisconnect={vi.fn()}
+          onSync={vi.fn()}
+          working={false}
+        />
+      </LanguageProvider>
+    </MemoryRouter>,
+  );
+
+  expect(screen.getByRole("button", { name: "Connect Strava" })).toBeEnabled();
+  expect(screen.getByText(/Completed activity import/)).toBeInTheDocument();
+  expect(screen.getByText(/Automatic calendar matching/)).toBeInTheDocument();
 });

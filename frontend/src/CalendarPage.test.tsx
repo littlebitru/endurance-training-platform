@@ -110,6 +110,8 @@ beforeEach(() => {
     authorization_available: false,
     direct_delivery_available: false,
     manual_fit_available: true,
+    activity_import_available: false,
+    automatic_activity_sync_available: false,
   }]);
   vi.mocked(api.deviceConnections).mockResolvedValue({ count: 0, next: null, previous: null, results: [] });
 });

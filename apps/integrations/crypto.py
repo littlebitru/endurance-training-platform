@@ -20,8 +20,8 @@ def _fernet_key() -> bytes:
         except (ValueError, UnicodeEncodeError) as exc:
             raise ImproperlyConfigured("DEVICE_TOKEN_ENCRYPTION_KEY must be a valid Fernet key.") from exc
 
-    if settings.GARMIN_TRAINING_API_ENABLED:
-        raise ImproperlyConfigured("DEVICE_TOKEN_ENCRYPTION_KEY is required when Garmin integration is enabled.")
+    if settings.GARMIN_TRAINING_API_ENABLED or settings.STRAVA_INTEGRATION_ENABLED:
+        raise ImproperlyConfigured("DEVICE_TOKEN_ENCRYPTION_KEY is required when a device integration is enabled.")
 
     digest = hashlib.sha256(f"{settings.SECRET_KEY}:device-credentials".encode()).digest()
     return base64.urlsafe_b64encode(digest)

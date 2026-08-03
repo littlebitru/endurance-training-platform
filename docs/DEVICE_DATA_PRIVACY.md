@@ -2,7 +2,7 @@
 
 ## Principles
 
-Device connections are athlete-owned, optional, revocable, and limited to the data required for the selected product feature. A coaching relationship does not grant a coach access to the athlete's Garmin credentials.
+Device connections are athlete-owned, optional, revocable, and limited to the data required for the selected product feature. A coaching relationship does not grant a coach access to the athlete's provider credentials.
 
 ## Stored connection data
 
@@ -13,6 +13,7 @@ The platform may store:
 - consent, token-expiration, synchronization, and disconnection timestamps;
 - encrypted OAuth access and refresh tokens;
 - delivery status, provider workout reference, attempt count, and sanitized error information; and
+- provider activity identifiers and imported endurance summaries when activity synchronization is enabled; and
 - audit events required to investigate a delivery failure.
 
 The frontend and public API never receive encrypted token fields.
@@ -26,6 +27,7 @@ The frontend and public API never receive encrypted token fields.
 ## Retention
 
 - A disconnect operation immediately clears locally stored access and refresh credentials.
+- Disconnecting Strava removes locally imported Strava activities and recalculates affected workout logs.
 - Expired one-time OAuth authorization states should be deleted by scheduled maintenance.
 - Delivery audit records should be retained only for the documented support and compliance period.
 - Deleting an athlete account cascades device connections, authorization states, and delivery records, subject to any separately documented legal retention obligation.

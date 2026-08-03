@@ -15,20 +15,24 @@
 - Professional workout studio with curated multisport templates, repeat blocks, live dose previews, and athlete-zone resolution
 - Immutable system templates, private coach copies, structure versioning, compatibility reporting, and atomic calendar assignment
 - Personalized Garmin FIT workout preview and download using the official SDK, athlete zones, and post-encoding integrity validation
+- Provider-neutral Device Center with Garmin, Strava, Suunto, and COROS capability reporting
+- Secure Strava OAuth, token rotation, idempotent activity synchronization, calendar matching, and webhook ingestion
 - Responsive bilingual React application for coach and athlete workflows
 - PostgreSQL, Docker Compose, OpenAPI, automated tests, quality checks, CI, and Render staging
 
-## Current milestone: connected Garmin delivery
+## Current milestone: connected endurance ecosystem
 
 - Completed: official FIT workout encoding, semantic decoding, and CRC integrity validation
 - Completed: secure personalized preview and download endpoints with deterministic file naming
 - Completed: responsive bilingual Garmin export workflow in the workout library
 - Completed: Garmin Connect Developer Program application package, device privacy policy, and account-disconnection flow
 - Completed: provider-neutral integration connections, encrypted credentials, idempotent delivery jobs, and sync history
+- Completed: Strava OAuth and completed-activity synchronization adapter, ready for application credentials
+- Completed: explicit Suunto and COROS partner-access states without unsupported connection claims
 - Garmin OAuth 2.0 PKCE and Training API publishing after partner credentials are approved
 - Activity API webhook ingestion and automatic matching of completed Garmin activities
 
-Exit criteria: a coach can validate and export any compatible structured workout as FIT; after Garmin approval, an athlete can explicitly connect Garmin, receive scheduled workouts on a compatible device, and sync completed activities back without duplicate records.
+Exit criteria: a coach can validate and export any compatible structured workout as FIT; athletes can synchronize Strava activities without duplicates; after Garmin approval, an athlete can explicitly connect Garmin, receive scheduled workouts on a compatible device, and sync completed activities back.
 
 ## Production readiness
 

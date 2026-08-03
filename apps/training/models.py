@@ -452,11 +452,13 @@ class WellnessCheckIn(TimeStampedModel):
 class Activity(TimeStampedModel):
     class Source(models.TextChoices):
         FILE_UPLOAD = "file_upload", "File upload"
+        STRAVA = "strava", "Strava"
 
     class FileType(models.TextChoices):
         FIT = "fit", "FIT"
         TCX = "tcx", "TCX"
         GPX = "gpx", "GPX"
+        JSON = "json", "JSON"
 
     class ComplianceStatus(models.TextChoices):
         ON_TARGET = "on_target", "On target"
@@ -527,7 +529,12 @@ class Activity(TimeStampedModel):
             models.UniqueConstraint(
                 fields=("athlete", "file_sha256"),
                 name="unique_athlete_activity_file",
-            )
+            ),
+            models.UniqueConstraint(
+                fields=("athlete", "source", "external_id"),
+                condition=~models.Q(external_id=""),
+                name="unique_athlete_activity_source_id",
+            ),
         ]
         indexes = [
             models.Index(fields=("athlete", "started_at"), name="activity_athlete_start_idx"),
