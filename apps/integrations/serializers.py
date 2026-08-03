@@ -33,6 +33,7 @@ class DeviceConnectionSerializer(serializers.ModelSerializer):
             "disconnected_at",
             "last_synced_at",
             "sync_workouts",
+            "sync_activities",
             "last_error_code",
             "last_error_message",
             "is_usable",
@@ -48,11 +49,20 @@ class ProviderCapabilitiesSerializer(serializers.Serializer):
     authorization_available = serializers.BooleanField()
     direct_delivery_available = serializers.BooleanField()
     manual_fit_available = serializers.BooleanField()
+    activity_import_available = serializers.BooleanField()
+    automatic_activity_sync_available = serializers.BooleanField()
 
 
 class AuthorizationStartSerializer(serializers.Serializer):
     authorization_url = serializers.URLField()
     expires_at = serializers.DateTimeField()
+
+
+class ActivitySyncResultSerializer(serializers.Serializer):
+    imported = serializers.IntegerField(min_value=0)
+    updated = serializers.IntegerField(min_value=0)
+    skipped = serializers.IntegerField(min_value=0)
+    unsupported = serializers.IntegerField(min_value=0)
 
 
 class WorkoutDeliveryEventSerializer(serializers.ModelSerializer):

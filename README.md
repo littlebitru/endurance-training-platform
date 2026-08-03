@@ -17,7 +17,9 @@ The repository also includes a responsive React and TypeScript web application w
 - Professional bilingual workout studio with curated running, cycling, swimming, and triathlon templates
 - Step-by-step workout authoring with repeat blocks, time, distance, open duration, and zone-aware targets
 - Personalized Garmin FIT workout generation with official SDK encoding and integrity validation
-- Provider-neutral Device Center with athlete-owned Garmin consent, encrypted OAuth credentials, idempotent delivery records, and coach-visible readiness
+- Provider-neutral Device Center with athlete-owned Garmin and Strava consent, encrypted OAuth credentials, idempotent delivery records, and coach-visible readiness
+- Strava completed-activity synchronization with refresh-token rotation, calendar matching, compliance analysis, and deletion on disconnect
+- Honest Suunto and COROS partner-readiness states without simulated device connections
 - Atomic template assignment that preserves the reusable prescription while resolving each athlete's current zones
 - Training plans, weekly plans, structured workouts, and exercises
 - Historical sport-specific thresholds with automatically calculated heart-rate, pace, and power zones
@@ -116,6 +118,8 @@ On Windows, activate the environment with `.venv\\Scripts\\activate`.
 | Device provider capabilities | `GET /api/v1/device-providers/` |
 | Device connections | `GET /api/v1/device-connections/` |
 | Start athlete Garmin consent | `POST /api/v1/device-connections/garmin/authorize/` |
+| Start athlete Strava consent | `POST /api/v1/device-connections/strava/authorize/` |
+| Synchronize connected activities | `POST /api/v1/device-connections/{id}/sync/` |
 | Disconnect athlete device | `POST /api/v1/device-connections/{id}/disconnect/` |
 | Workout delivery history | `GET /api/v1/workout-deliveries/` |
 | Queue scheduled workout delivery | `POST /api/v1/workout-deliveries/queue/` |
@@ -154,15 +158,17 @@ Once a template has been scheduled, both the plan owner and the assigned athlete
 
 Heart-rate zones are encoded as personalized BPM ranges, running and swimming pace zones as speed ranges, cycling power zones as watt ranges, and cadence as an explicit RPM range. Open-duration steps remain Lap-button steps. RPE-only targets are reported as incompatible instead of being silently weakened. Triathlon templates are blocked until their bike, transition, and run steps are modeled as explicit multisport sessions. This milestone provides standards-compliant manual FIT delivery; direct Garmin Connect and watch synchronization still requires Garmin partner approval, athlete consent, OAuth, and the Training API delivery adapter.
 
-### Device connections and Garmin delivery foundation
+### Device connections, Garmin delivery, and Strava synchronization
 
 The bilingual **Devices** workspace is available to both roles. Athletes own connection consent and disconnection. Coaches see readiness and delivery status only for actively assigned athletes; OAuth credentials never appear in API serializers or frontend state.
 
 The Garmin authorization foundation uses OAuth 2.0 Authorization Code with PKCE, a hashed one-time state that expires after ten minutes, and encrypted access tokens, refresh tokens, and PKCE verifiers. Production refuses to enable Garmin without a dedicated valid Fernet key. Disconnecting clears stored credentials immediately.
 
+Strava uses athlete-owned OAuth 2.0 with encrypted access and refresh tokens, six-hour token rotation, minimal activity-read scopes, and idempotent provider identifiers. Manual synchronization imports completed running, cycling, swimming, and triathlon activities into the same matching, training-load, zone, and compliance pipeline used by uploaded files. Disconnecting revokes provider access and removes imported Strava data. Suunto and COROS remain capability-discovered partner integrations until their commercial API applications are approved; the interface never presents them as live prematurely.
+
 Workout deliveries are idempotent by device connection, scheduled workout, and a fingerprint of the final athlete-specific prescription. The fingerprint includes the structured version and resolved athlete targets, so a threshold change produces a new delivery while repeated clicks do not create duplicates. An append-only event history supports queued, processing, delivered, failed, and canceled states. Capability discovery keeps direct delivery disabled until partner credentials, the approved publishing contract, and the delivery worker are configured. Calendar users continue to receive a personalized FIT download instead of a simulated success.
 
-See [Garmin Connect application package](docs/GARMIN_CONNECT_APPLICATION.md) and [device data privacy and retention](docs/DEVICE_DATA_PRIVACY.md) before enabling a provider integration.
+See [Garmin Connect application package](docs/GARMIN_CONNECT_APPLICATION.md), [Strava integration runbook](docs/STRAVA_INTEGRATION.md), and [device data privacy and retention](docs/DEVICE_DATA_PRIVACY.md) before enabling a provider integration.
 
 ### Completed activity imports
 

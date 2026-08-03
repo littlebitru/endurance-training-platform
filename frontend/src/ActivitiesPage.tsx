@@ -157,7 +157,7 @@ export function ActivitiesPage() {
             <button className="activity-card" key={activity.id} onClick={() => void openActivity(activity)} type="button">
               <div className="activity-card-head"><span className={`activity-sport ${activity.sport}`}>{sportGlyph(activity.sport)}</span><div><strong>{activity.workout_title || t("unplannedActivity")}</strong><small>{new Date(activity.started_at).toLocaleString(dateLocale, { dateStyle: "medium", timeStyle: "short" })}{isCoach ? ` · ${activity.athlete_name || t("athlete")}` : ""}</small></div><ComplianceBadge activity={activity} /></div>
               <div className="activity-card-metrics"><Metric label={t("duration")} value={formatDuration(activity.duration_seconds)} /><Metric label={t("distance")} value={formatDistance(activity.distance_meters)} /><Metric label={t("trainingLoad")} value={activity.training_load_score ? Math.round(Number(activity.training_load_score)) : "—"} /><Metric label={t("averageHeartRateShort")} value={activity.average_heart_rate ? `${activity.average_heart_rate} bpm` : "—"} /></div>
-              <div className="activity-source"><span>{activity.file_type.toUpperCase()}</span>{activity.source_file_name}<i>→</i></div>
+              <div className="activity-source"><span>{activity.source === "strava" ? "STRAVA" : activity.file_type.toUpperCase()}</span>{activity.source_file_name}<i>→</i></div>
             </button>
           ))}
         </section>
@@ -192,7 +192,7 @@ function ActivityDetail({ activity, isAthlete, onClose, onDelete }: { activity: 
           <section className="planned-actual"><span className="eyebrow">{t("planVsExecution")}</span><h3>{t("compliance")}</h3>{activity.workout ? <><Comparison label={t("duration")} planned={activity.planned_duration_minutes ? `${activity.planned_duration_minutes} min` : "—"} actual={formatDuration(activity.duration_seconds)} /><Comparison label={t("distance")} planned={activity.planned_distance_km ? `${activity.planned_distance_km} km` : "—"} actual={formatDistance(activity.distance_meters)} /><div className="match-note"><strong>{activity.compliance_score ?? "—"}%</strong><span>{t("matchConfidence")}: {t(matchKey(activity.match_confidence))}</span></div></> : <p className="analysis-empty">{t("activityNotMatched")}</p>}</section>
           <section className="zone-analysis"><span className="eyebrow">{t("intensityDistribution")}</span><h3>{zones.length ? `${t("timeInZones")} · ${activity.zone_distribution.metric}` : t("zonesUnavailable")}</h3>{zones.length ? zones.map((zone) => <div className="activity-zone" key={zone.zone}><span>Z{zone.zone}</span><div><i style={{ width: `${zone.percentage}%` }} /></div><strong>{zone.percentage}%</strong><small>{formatDuration(zone.seconds)}</small></div>) : <p className="analysis-empty">{t("zonesUnavailableHelp")}</p>}</section>
         </div>
-        <div className="activity-detail-actions"><small>{t("privacyNote")}</small>{isAthlete && <button className="danger" onClick={onDelete} type="button">{t("deleteActivity")}</button>}</div>
+        <div className="activity-detail-actions"><small>{activity.source === "strava" ? t("stravaActivityManaged") : t("privacyNote")}</small>{isAthlete && activity.source === "file_upload" && <button className="danger" onClick={onDelete} type="button">{t("deleteActivity")}</button>}</div>
       </section>
     </div>
   );

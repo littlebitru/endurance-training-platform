@@ -12,6 +12,8 @@ Set `DJANGO_SETTINGS_MODULE=config.settings_production`. Provide all values docu
 
 Keep `GARMIN_TRAINING_API_ENABLED=False` and `GARMIN_DELIVERY_WORKER_ENABLED=False` until Garmin approves the application and staging passes the partner contract. When enabling the integration, generate a dedicated Fernet key for `DEVICE_TOKEN_ENCRYPTION_KEY`; do not reuse `DJANGO_SECRET_KEY`. Store Garmin client credentials and the encryption key in a managed secret store. Never expose them as Render Blueprint literal values.
 
+Keep `STRAVA_INTEGRATION_ENABLED=False` until a Strava API application has been registered and its callback domain has been verified. Configure the client ID, client secret, redirect URI, and the same dedicated `DEVICE_TOKEN_ENCRYPTION_KEY` in the secret store. Manual synchronization is available after OAuth is enabled. Automatic event synchronization additionally requires a webhook verify token and the confirmed Strava subscription ID. See `docs/STRAVA_INTEGRATION.md`.
+
 Run `python manage.py cleanup_device_authorizations` on a recurring schedule to remove expired one-time OAuth state records.
 
 ## Release procedure

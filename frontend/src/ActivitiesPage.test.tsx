@@ -35,6 +35,8 @@ const activity: Activity = {
   workout_title: "Aerobic endurance run",
   planned_duration_minutes: 45,
   planned_distance_km: "8.00",
+  source: "file_upload",
+  external_id: "",
   source_file_name: "morning-run.gpx",
   file_type: "gpx",
   sport: "running",

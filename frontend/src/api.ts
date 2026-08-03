@@ -151,6 +151,14 @@ export const api = {
     "/device-connections/garmin/authorize/",
     { method: "POST", body: "{}" },
   ),
+  startStravaAuthorization: () => request<{ authorization_url: string; expires_at: string }>(
+    "/device-connections/strava/authorize/",
+    { method: "POST", body: "{}" },
+  ),
+  syncDevice: (id: number) => request<import("./types").ActivitySyncResult>(
+    `/device-connections/${id}/sync/`,
+    { method: "POST", body: "{}" },
+  ),
   disconnectDevice: (id: number) => request<import("./types").DeviceConnection>(
     `/device-connections/${id}/disconnect/`,
     { method: "POST", body: "{}" },

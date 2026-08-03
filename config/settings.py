@@ -157,3 +157,28 @@ GARMIN_OAUTH_REDIRECT_URI = os.getenv("GARMIN_OAUTH_REDIRECT_URI", "")
 GARMIN_OAUTH_SCOPES = tuple(scope for scope in os.getenv("GARMIN_OAUTH_SCOPES", "").split() if scope)
 GARMIN_TRAINING_PUBLISH_URL = os.getenv("GARMIN_TRAINING_PUBLISH_URL", "")
 GARMIN_DELIVERY_WORKER_ENABLED = os.getenv("GARMIN_DELIVERY_WORKER_ENABLED", "False").lower() == "true"
+
+STRAVA_INTEGRATION_ENABLED = os.getenv("STRAVA_INTEGRATION_ENABLED", "False").lower() == "true"
+STRAVA_PARTNER_STATUS = os.getenv("STRAVA_PARTNER_STATUS", "configuration_required")
+STRAVA_CLIENT_ID = os.getenv("STRAVA_CLIENT_ID", "")
+STRAVA_CLIENT_SECRET = os.getenv("STRAVA_CLIENT_SECRET", "")
+STRAVA_OAUTH_REDIRECT_URI = os.getenv("STRAVA_OAUTH_REDIRECT_URI", "")
+STRAVA_OAUTH_SCOPES = tuple(
+    scope.strip()
+    for scope in os.getenv("STRAVA_OAUTH_SCOPES", "read,activity:read_all").replace(" ", ",").split(",")
+    if scope.strip()
+)
+STRAVA_API_BASE_URL = os.getenv("STRAVA_API_BASE_URL", "https://www.strava.com/api/v3").rstrip("/")
+STRAVA_OAUTH_AUTHORIZATION_URL = os.getenv(
+    "STRAVA_OAUTH_AUTHORIZATION_URL",
+    "https://www.strava.com/oauth/authorize",
+)
+STRAVA_OAUTH_TOKEN_URL = os.getenv("STRAVA_OAUTH_TOKEN_URL", "https://www.strava.com/oauth/token")
+STRAVA_OAUTH_REVOCATION_URL = os.getenv("STRAVA_OAUTH_REVOCATION_URL", "https://www.strava.com/oauth/revoke")
+STRAVA_INITIAL_SYNC_DAYS = max(1, min(int(os.getenv("STRAVA_INITIAL_SYNC_DAYS", "30")), 90))
+STRAVA_MAX_SYNC_PAGES = max(1, min(int(os.getenv("STRAVA_MAX_SYNC_PAGES", "3")), 10))
+STRAVA_WEBHOOK_VERIFY_TOKEN = os.getenv("STRAVA_WEBHOOK_VERIFY_TOKEN", "")
+STRAVA_WEBHOOK_SUBSCRIPTION_ID = os.getenv("STRAVA_WEBHOOK_SUBSCRIPTION_ID", "")
+
+SUUNTO_PARTNER_STATUS = os.getenv("SUUNTO_PARTNER_STATUS", "application_required")
+COROS_PARTNER_STATUS = os.getenv("COROS_PARTNER_STATUS", "application_required")

@@ -43,6 +43,14 @@ services:
         value: "false"
       - key: GARMIN_PARTNER_STATUS
         value: application_required
+      - key: STRAVA_INTEGRATION_ENABLED
+        value: "false"
+      - key: STRAVA_PARTNER_STATUS
+        value: configuration_required
+      - key: SUUNTO_PARTNER_STATUS
+        value: application_required
+      - key: COROS_PARTNER_STATUS
+        value: application_required
 
   - type: web
     name: endurance-staging-web

@@ -45,6 +45,19 @@ if base_settings.GARMIN_TRAINING_API_ENABLED:
             "Garmin integration is enabled but required settings are missing: " + ", ".join(missing_garmin_settings)
         )
 
+if base_settings.STRAVA_INTEGRATION_ENABLED:
+    strava_required_settings = {
+        "DEVICE_TOKEN_ENCRYPTION_KEY": base_settings.DEVICE_TOKEN_ENCRYPTION_KEY,
+        "STRAVA_CLIENT_ID": base_settings.STRAVA_CLIENT_ID,
+        "STRAVA_CLIENT_SECRET": base_settings.STRAVA_CLIENT_SECRET,
+        "STRAVA_OAUTH_REDIRECT_URI": base_settings.STRAVA_OAUTH_REDIRECT_URI,
+    }
+    missing_strava_settings = [name for name, value in strava_required_settings.items() if not value]
+    if missing_strava_settings:
+        raise ImproperlyConfigured(
+            "Strava integration is enabled but required settings are missing: " + ", ".join(missing_strava_settings)
+        )
+
 EMAIL_BACKEND = os.getenv("EMAIL_BACKEND", "django.core.mail.backends.smtp.EmailBackend")
 EMAIL_HOST = os.getenv("EMAIL_HOST", "")
 EMAIL_PORT = int(os.getenv("EMAIL_PORT", "587"))

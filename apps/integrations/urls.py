@@ -5,6 +5,8 @@ from .views import (
     DeviceConnectionViewSet,
     GarminOAuthCallbackView,
     ProviderCapabilitiesView,
+    StravaOAuthCallbackView,
+    StravaWebhookView,
     WorkoutDeliveryViewSet,
 )
 
@@ -18,6 +20,16 @@ urlpatterns = [
         "device-oauth/garmin/callback/",
         GarminOAuthCallbackView.as_view(),
         name="garmin-oauth-callback",
+    ),
+    path(
+        "device-oauth/strava/callback/",
+        StravaOAuthCallbackView.as_view(),
+        name="strava-oauth-callback",
+    ),
+    path(
+        "device-webhooks/strava/",
+        StravaWebhookView.as_view(),
+        name="strava-webhook",
     ),
     *router.urls,
 ]
