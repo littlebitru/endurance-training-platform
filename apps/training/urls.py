@@ -14,6 +14,9 @@ from .views import (
     TrainingPlanViewSet,
     TrainingZoneViewSet,
     WeeklyPlanViewSet,
+    WellnessCheckInViewSet,
+    WellnessInsightsView,
+    WellnessRosterView,
     WorkoutLogViewSet,
     WorkoutTemplateViewSet,
     WorkoutViewSet,
@@ -21,6 +24,7 @@ from .views import (
 
 router = DefaultRouter()
 router.register("activities", ActivityViewSet, basename="activity")
+router.register("wellness-check-ins", WellnessCheckInViewSet, basename="wellness-check-in")
 router.register("training-plans", TrainingPlanViewSet, basename="training-plan")
 router.register("athlete-thresholds", AthleteThresholdViewSet, basename="athlete-threshold")
 router.register("training-zones", TrainingZoneViewSet, basename="training-zone")
@@ -33,6 +37,8 @@ router.register("workout-templates", WorkoutTemplateViewSet, basename="workout-t
 urlpatterns = [
     path("calendar/", TrainingCalendarView.as_view(), name="training-calendar"),
     path("performance/insights/", PerformanceInsightsView.as_view(), name="performance-insights"),
+    path("wellness/insights/", WellnessInsightsView.as_view(), name="wellness-insights"),
+    path("wellness/roster/", WellnessRosterView.as_view(), name="wellness-roster"),
     path("training-goals/", TrainingGoalCatalogView.as_view(), name="training-goal-catalog"),
     path("coach/analytics/summary/", CoachAnalyticsSummaryView.as_view(), name="coach-analytics-summary"),
     path("athlete/analytics/summary/", AthleteAnalyticsSummaryView.as_view(), name="athlete-analytics-summary"),

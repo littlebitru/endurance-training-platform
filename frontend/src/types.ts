@@ -51,6 +51,101 @@ export interface PerformanceInsights {
   };
   points: PerformancePoint[];
 }
+
+export type RecoveryStatus = "ready" | "monitor" | "recovery_focus" | "missing";
+
+export interface WellnessCheckIn {
+  id: number;
+  athlete: number;
+  check_in_date: string;
+  sleep_duration_minutes: number | null;
+  sleep_quality: number;
+  fatigue: number;
+  stress: number;
+  muscle_soreness: number;
+  overall_feeling: number;
+  resting_heart_rate: number | null;
+  hrv_rmssd: string | null;
+  illness_severity: number;
+  injury_severity: number;
+  notes: string;
+  share_with_coach: boolean;
+  source: "manual" | "device";
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RecoveryPoint {
+  id: number;
+  date: string;
+  sleep_duration_minutes: number | null;
+  sleep_quality: number;
+  fatigue: number;
+  stress: number;
+  muscle_soreness: number;
+  overall_feeling: number;
+  resting_heart_rate: number | null;
+  hrv_rmssd: string | null;
+  illness_severity: number;
+  injury_severity: number;
+  notes: string;
+  share_with_coach: boolean;
+  readiness_score: number;
+  subjective_score: number;
+  status: Exclude<RecoveryStatus, "missing">;
+  signals: string[];
+  resting_heart_rate_baseline: number | null;
+  resting_heart_rate_deviation_pct: number | null;
+  resting_heart_rate_baseline_samples: number;
+  hrv_baseline: number | null;
+  hrv_deviation_pct: number | null;
+  hrv_baseline_samples: number;
+}
+
+export interface RecoveryInsights {
+  athlete: { id: number; name: string };
+  date_from: string;
+  date_to: string;
+  summary: {
+    latest: RecoveryPoint | null;
+    average_readiness: number | null;
+    readiness_change: number;
+    check_in_days: number;
+    completion_rate: number;
+    attention_days: number;
+  };
+  load_context: {
+    completed_load_7d: string;
+    planned_load_next_7d: string;
+    fitness: string;
+    fatigue: string;
+    form: string;
+  };
+  points: RecoveryPoint[];
+}
+
+export interface RecoveryRosterEntry {
+  athlete: { id: number; name: string };
+  latest_date: string | null;
+  days_since_check_in: number | null;
+  readiness_score: number | null;
+  status: RecoveryStatus;
+  signals: string[];
+  attention_required: boolean;
+  completed_load_7d: string;
+  planned_load_next_7d: string;
+}
+
+export interface RecoveryRoster {
+  as_of: string;
+  summary: {
+    athletes_count: number;
+    checked_in_today: number;
+    attention_count: number;
+  };
+  athletes: RecoveryRosterEntry[];
+}
+
 export interface TrainingZone { id: number; athlete: number; sport: string; metric: string; zone_number: number; name: string; lower_bound: string; upper_bound: string; unit: string; display_range: string }
 export interface AthleteThreshold { id: number; athlete: number; sport: string; effective_from: string; source: string; notes: string; is_current: boolean; threshold_heart_rate: number | null; maximum_heart_rate: number | null; functional_threshold_power: number | null; threshold_pace_seconds_per_km: number | null; critical_swim_speed_seconds_per_100m: number | null; heart_rate_basis: string; zones: TrainingZone[]; updated_at: string }
 export interface WorkoutTemplate { id: number; coach: number; title: string; sport: string; workout_type: string; description: string; planned_duration_minutes: number | null; planned_distance_km: string | null; intensity: string; structured_steps: Array<Record<string, string | number | null>> }

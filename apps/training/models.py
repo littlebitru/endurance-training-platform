@@ -338,6 +338,77 @@ class WorkoutLog(TimeStampedModel):
         indexes = [models.Index(fields=("athlete", "completed_at"), name="log_athlete_completed_idx")]
 
 
+class WellnessCheckIn(TimeStampedModel):
+    class Source(models.TextChoices):
+        MANUAL = "manual", "Manual"
+        DEVICE = "device", "Device"
+
+    class Severity(models.IntegerChoices):
+        NONE = 0, "None"
+        MILD = 1, "Mild"
+        MODERATE = 2, "Moderate"
+        SEVERE = 3, "Severe"
+
+    athlete = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="wellness_check_ins",
+    )
+    check_in_date = models.DateField(default=timezone.localdate)
+    sleep_duration_minutes = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(0), MaxValueValidator(1440)],
+    )
+    sleep_quality = models.PositiveSmallIntegerField(validators=[MinValueValidator(1), MaxValueValidator(5)])
+    fatigue = models.PositiveSmallIntegerField(validators=[MinValueValidator(1), MaxValueValidator(5)])
+    stress = models.PositiveSmallIntegerField(validators=[MinValueValidator(1), MaxValueValidator(5)])
+    muscle_soreness = models.PositiveSmallIntegerField(validators=[MinValueValidator(1), MaxValueValidator(5)])
+    overall_feeling = models.PositiveSmallIntegerField(validators=[MinValueValidator(1), MaxValueValidator(5)])
+    resting_heart_rate = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(30), MaxValueValidator(220)],
+    )
+    hrv_rmssd = models.DecimalField(
+        max_digits=6,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(1), MaxValueValidator(500)],
+    )
+    illness_severity = models.PositiveSmallIntegerField(
+        choices=Severity.choices,
+        default=Severity.NONE,
+    )
+    injury_severity = models.PositiveSmallIntegerField(
+        choices=Severity.choices,
+        default=Severity.NONE,
+    )
+    notes = models.TextField(blank=True)
+    share_with_coach = models.BooleanField(default=True)
+    source = models.CharField(
+        max_length=16,
+        choices=Source.choices,
+        default=Source.MANUAL,
+    )
+
+    class Meta:
+        ordering = ("-check_in_date", "-created_at")
+        constraints = [
+            models.UniqueConstraint(
+                fields=("athlete", "check_in_date"),
+                name="unique_athlete_wellness_date",
+            )
+        ]
+        indexes = [
+            models.Index(
+                fields=("athlete", "check_in_date"),
+                name="wellness_athlete_date_idx",
+            )
+        ]
+
+
 class Activity(TimeStampedModel):
     class Source(models.TextChoices):
         FILE_UPLOAD = "file_upload", "File upload"

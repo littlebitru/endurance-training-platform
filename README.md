@@ -23,6 +23,7 @@ The repository also includes a responsive React and TypeScript web application w
 - Actual heart-rate, pace, power, elevation, training-load, compliance, and time-in-zone analysis
 - Unified plan-versus-execution calendar with coach attention queues, sport filters, and athlete scoping
 - Interactive fitness, fatigue, and form analysis with published-plan load forecasting
+- Daily athlete wellness check-ins with subjective readiness, personal HRV/RHR baselines, privacy controls, and coach recovery queues
 - Filtering, full-text-style search, ordering, and pagination
 - OpenAPI schema and interactive Swagger UI
 - PostgreSQL, Docker, automated tests, code quality checks, and GitHub Actions
@@ -36,7 +37,7 @@ The codebase uses domain-oriented Django applications:
 - `apps.core`: shared, domain-neutral building blocks
 - `config`: environment-specific Django configuration and URL routing
 
-Every training queryset is scoped to the authenticated principal. Coaches can manage only plans for athletes actively assigned to them; athletes receive read-only access to their plans and can manage only their own workout logs.
+Every training queryset is scoped to the authenticated principal. Coaches can manage only plans for athletes actively assigned to them; athletes receive read-only access to their plans and can manage only their own workout logs. Wellness entries are athlete-owned: coaches have read-only access to entries explicitly shared by an actively assigned athlete.
 
 ## Quick start with Docker
 
@@ -107,6 +108,9 @@ On Windows, activate the environment with `.venv\\Scripts\\activate`.
 | Import activity file | `POST /api/v1/activities/import/` |
 | Unified training calendar | `GET /api/v1/calendar/` |
 | Performance insights | `GET /api/v1/performance/insights/` |
+| Wellness check-ins | `/api/v1/wellness-check-ins/` |
+| Recovery insights | `GET /api/v1/wellness/insights/` |
+| Coach recovery roster | `GET /api/v1/wellness/roster/` |
 | Coach analytics | `GET /api/v1/coach/analytics/summary/` |
 | Athlete analytics | `GET /api/v1/athlete/analytics/summary/` |
 
@@ -135,6 +139,16 @@ The coach analytics endpoint accepts optional `athlete_id`, `date_from`, and `da
 Fitness is calculated as a 42-day exponentially weighted load, fatigue as a 7-day exponentially weighted load, and each day's form as the previous day's fitness minus fatigue. Planned load is a transparent estimate based on workout duration and a workout-type intensity factor. The response also includes 7-day and 28-day load, recent fitness change, forecast-end values, data-coverage metadata, and a descriptive training-balance status. These values are coaching decision support, not a medical assessment or an automatic instruction to train.
 
 The endpoint accepts optional `date_from`, `date_to`, and `sport` parameters. Ranges are capped at 183 days. Athletes can retrieve only their own insights. Coaches must provide `athlete_id`, which is accepted only for an active assigned athlete. The bilingual web workspace offers 12-week and 6-month views, sport filtering, an accessible day scrubber, animated load curves, and responsive layouts.
+
+### Wellness and recovery context
+
+Athletes create or update one `/api/v1/wellness-check-ins/` entry per day. A check-in records sleep duration and quality, fatigue, stress, muscle soreness, overall feeling, optional resting heart rate and HRV (rMSSD), optional illness or injury severity, and a free-text note. Future dates and duplicate athlete/date pairs are rejected. Athletes can keep an individual entry private by disabling `share_with_coach`; coaches have read-only access to shared entries from actively assigned athletes.
+
+`GET /api/v1/wellness/insights/` returns a 14, 28, or 90-day recovery series. The subjective readiness score combines sleep quality, fatigue, stress, soreness, overall feeling, and optional sleep duration. Resting heart rate and HRV do not silently change that score. Instead, they are compared with the athlete's own 30-day median only after at least seven prior observations, preserving an explicit distinction between subjective feedback and physiological context.
+
+The response includes active context signals, check-in consistency, recent and upcoming training load, current fitness/fatigue/form values, and transparent baseline metadata. Internal signal thresholds prioritize review; they are not diagnoses or automatic training prescriptions.
+
+`GET /api/v1/wellness/roster/` gives coaches an attention-first view of all active assigned athletes. It combines each athlete's latest shared recovery context with completed seven-day load and estimated published-plan load for the next seven days. The responsive bilingual web workspace adds a fast athlete check-in form, an interactive readiness and sleep chart, personal-baseline readouts, direct links to load analysis, and a dashboard recovery indicator.
 
 ### Periodized plan generation
 

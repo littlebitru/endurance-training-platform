@@ -35,6 +35,7 @@ from .models import (
     TrainingPlan,
     TrainingZone,
     WeeklyPlan,
+    WellnessCheckIn,
     Workout,
     WorkoutLog,
     WorkoutTemplate,
@@ -63,13 +64,66 @@ from .serializers import (
     TrainingZoneSerializer,
     WeekDuplicateSerializer,
     WeeklyPlanSerializer,
+    WellnessCheckInFilterSerializer,
+    WellnessCheckInSerializer,
+    WellnessInsightsQuerySerializer,
+    WellnessInsightsSerializer,
+    WellnessRosterQuerySerializer,
+    WellnessRosterSerializer,
     WorkoutDuplicateSerializer,
     WorkoutLogSerializer,
     WorkoutSerializer,
     WorkoutTemplateSerializer,
     training_goal_catalog,
 )
+from .wellness import build_recovery_insights, build_recovery_roster
 from .zones import current_threshold, recalculate_training_zones
+
+
+class WellnessCheckInViewSet(viewsets.ModelViewSet):
+    serializer_class = WellnessCheckInSerializer
+    permission_classes = (AthleteWriteCoachRead,)
+    http_method_names = ("get", "post", "patch", "delete", "head", "options")
+
+    def get_queryset(self):
+        user = self.request.user
+        filters = WellnessCheckInFilterSerializer(data=self.request.query_params)
+        filters.is_valid(raise_exception=True)
+        queryset = WellnessCheckIn.objects.select_related("athlete")
+        if user.role == User.Role.COACH:
+            athlete_ids = CoachingRelationship.objects.filter(
+                coach=user,
+                is_active=True,
+            ).values_list("athlete_id", flat=True)
+            queryset = queryset.filter(
+                athlete_id__in=athlete_ids,
+                share_with_coach=True,
+            )
+            athlete_id = filters.validated_data.get("athlete")
+            if athlete_id:
+                queryset = queryset.filter(athlete_id=athlete_id)
+        else:
+            queryset = queryset.filter(athlete=user)
+
+        date_from = filters.validated_data.get("date_from")
+        date_to = filters.validated_data.get("date_to")
+        if date_from:
+            queryset = queryset.filter(check_in_date__gte=date_from)
+        if date_to:
+            queryset = queryset.filter(check_in_date__lte=date_to)
+        return queryset
+
+    def perform_create(self, serializer):
+        serializer.save(
+            athlete=self.request.user,
+            source=WellnessCheckIn.Source.MANUAL,
+        )
+
+    def perform_update(self, serializer):
+        serializer.save(
+            athlete=self.request.user,
+            source=WellnessCheckIn.Source.MANUAL,
+        )
 
 
 class ActivityViewSet(
@@ -326,6 +380,67 @@ class PerformanceInsightsView(APIView):
 
         payload = build_performance_insights(athlete=athlete, **query.validated_data)
         return Response(PerformanceInsightsSerializer(payload).data)
+
+
+class WellnessInsightsView(APIView):
+    permission_classes = (IsAuthenticated,)
+
+    @extend_schema(
+        parameters=[WellnessInsightsQuerySerializer],
+        responses={status.HTTP_200_OK: WellnessInsightsSerializer},
+        summary="Get athlete wellness, recovery, and training-load context",
+    )
+    def get(self, request):
+        query = WellnessInsightsQuerySerializer(data=request.query_params)
+        query.is_valid(raise_exception=True)
+        athlete_id = query.validated_data.pop("athlete_id", None)
+        query.validated_data.pop("days", None)
+        coach_view = request.user.role == User.Role.COACH
+
+        if coach_view:
+            if not athlete_id:
+                raise serializers.ValidationError({"athlete_id": "Select an assigned athlete."})
+            relationship = (
+                CoachingRelationship.objects.filter(
+                    coach=request.user,
+                    athlete_id=athlete_id,
+                    is_active=True,
+                )
+                .select_related("athlete")
+                .first()
+            )
+            if not relationship:
+                raise serializers.ValidationError({"athlete_id": "The athlete is not assigned to this coach."})
+            athlete = relationship.athlete
+        else:
+            if athlete_id and athlete_id != request.user.id:
+                raise serializers.ValidationError({"athlete_id": "Athletes can only view their own recovery data."})
+            athlete = request.user
+
+        payload = build_recovery_insights(
+            athlete=athlete,
+            coach_view=coach_view,
+            **query.validated_data,
+        )
+        return Response(WellnessInsightsSerializer(payload).data)
+
+
+class WellnessRosterView(APIView):
+    permission_classes = (IsCoach,)
+
+    @extend_schema(
+        parameters=[WellnessRosterQuerySerializer],
+        responses={status.HTTP_200_OK: WellnessRosterSerializer},
+        summary="Get coach recovery attention roster",
+    )
+    def get(self, request):
+        query = WellnessRosterQuerySerializer(data=request.query_params)
+        query.is_valid(raise_exception=True)
+        payload = build_recovery_roster(
+            coach=request.user,
+            as_of=query.validated_data.get("as_of"),
+        )
+        return Response(WellnessRosterSerializer(payload).data)
 
 
 def accessible_plans(user):

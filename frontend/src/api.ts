@@ -80,6 +80,32 @@ export const api = {
     const query = params.toString();
     return request<import("./types").PerformanceInsights>(`/performance/insights/${query ? `?${query}` : ""}`);
   },
+  wellnessCheckIns: (dateFrom?: string, dateTo?: string) => {
+    const params = new URLSearchParams({ page_size: "100" });
+    if (dateFrom) params.set("date_from", dateFrom);
+    if (dateTo) params.set("date_to", dateTo);
+    return request<import("./types").Page<import("./types").WellnessCheckIn>>(
+      `/wellness-check-ins/?${params.toString()}`,
+    );
+  },
+  createWellnessCheckIn: (data: object) => request<import("./types").WellnessCheckIn>(
+    "/wellness-check-ins/",
+    { method: "POST", body: JSON.stringify(data) },
+  ),
+  updateWellnessCheckIn: (id: number, data: object) => request<import("./types").WellnessCheckIn>(
+    `/wellness-check-ins/${id}/`,
+    { method: "PATCH", body: JSON.stringify(data) },
+  ),
+  deleteWellnessCheckIn: (id: number) => request<void>(
+    `/wellness-check-ins/${id}/`,
+    { method: "DELETE" },
+  ),
+  recoveryInsights: (athleteId?: number, days: 14 | 28 | 90 = 28) => {
+    const params = new URLSearchParams({ days: String(days) });
+    if (athleteId) params.set("athlete_id", String(athleteId));
+    return request<import("./types").RecoveryInsights>(`/wellness/insights/?${params.toString()}`);
+  },
+  recoveryRoster: () => request<import("./types").RecoveryRoster>("/wellness/roster/"),
   calendar: (dateFrom: string, dateTo: string, athleteId?: number, sport?: string) => {
     const params = new URLSearchParams({ date_from: dateFrom, date_to: dateTo });
     if (athleteId) params.set("athlete_id", String(athleteId));
