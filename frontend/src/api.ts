@@ -145,6 +145,23 @@ export const api = {
   updateWorkout: (id: number, data: object) => request<import("./types").Workout>(`/workouts/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
   duplicateWorkout: (id: number, data: object) => request<import("./types").Workout>(`/workouts/${id}/duplicate/`, { method: "POST", body: JSON.stringify(data) }),
   downloadScheduledGarminFit: (id: number, locale: string) => requestBlob(`/workouts/${id}/garmin-fit/?locale=${locale}`),
+  deviceProviders: () => request<import("./types").DeviceProviderCapability[]>("/device-providers/"),
+  deviceConnections: () => request<import("./types").Page<import("./types").DeviceConnection>>("/device-connections/?page_size=100"),
+  startGarminAuthorization: () => request<{ authorization_url: string; expires_at: string }>(
+    "/device-connections/garmin/authorize/",
+    { method: "POST", body: "{}" },
+  ),
+  disconnectDevice: (id: number) => request<import("./types").DeviceConnection>(
+    `/device-connections/${id}/disconnect/`,
+    { method: "POST", body: "{}" },
+  ),
+  workoutDeliveries: () => request<import("./types").Page<import("./types").WorkoutDelivery>>(
+    "/workout-deliveries/?page_size=100",
+  ),
+  queueWorkoutDelivery: (workoutId: number) => request<import("./types").WorkoutDelivery>(
+    "/workout-deliveries/queue/",
+    { method: "POST", body: JSON.stringify({ workout_id: workoutId }) },
+  ),
   deleteWorkout: (id: number) => request<void>(`/workouts/${id}/`, { method: "DELETE" }),
   workoutTemplates: () => request<import("./types").Page<import("./types").WorkoutTemplate>>("/workout-templates/?page_size=100"),
   createWorkoutTemplate: (data: object) => request<import("./types").WorkoutTemplate>("/workout-templates/", { method: "POST", body: JSON.stringify(data) }),

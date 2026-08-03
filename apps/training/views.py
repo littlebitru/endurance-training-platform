@@ -103,6 +103,8 @@ class WellnessCheckInViewSet(viewsets.ModelViewSet):
     http_method_names = ("get", "post", "patch", "delete", "head", "options")
 
     def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return WellnessCheckIn.objects.none()
         user = self.request.user
         filters = WellnessCheckInFilterSerializer(data=self.request.query_params)
         filters.is_valid(raise_exception=True)

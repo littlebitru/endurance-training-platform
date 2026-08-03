@@ -541,3 +541,7 @@ class ActivityStream(TimeStampedModel):
     points = models.JSONField(default=list)
     point_count = models.PositiveIntegerField(default=0)
     sample_interval_seconds = models.PositiveSmallIntegerField(null=True, blank=True)
+
+
+WORKOUT_STATUS_CHOICES = Workout.Status.choices
+WELLNESS_SEVERITY_CHOICES = WellnessCheckIn.Severity.choices

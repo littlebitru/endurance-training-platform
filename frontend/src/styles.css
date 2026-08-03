@@ -1255,6 +1255,10 @@ h1, h2, h3, h4, h5, strong, b, .brand-mark, .logo, .activity-sport, .eyebrow {
 .calendar-garmin-export p { margin: 4px 0 0; color: #62746d; font-size: 10px; line-height: 1.45; }
 .calendar-garmin-export small[role="alert"] { display: block; margin-top: 7px; color: #9b3d34; font-size: 10px; font-weight: 700; line-height: 1.4; }
 .calendar-garmin-export button { min-width: 170px; }
+.calendar-garmin-actions { display: grid; gap: 7px; min-width: 180px; }
+.calendar-garmin-actions button { width: 100%; min-width: 0; }
+.calendar-garmin-actions .device-center-link { padding: 2px; border: 0; color: #3b7564; background: transparent; font-size: 9px; font-weight: 750; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.calendar-garmin-export .success-message { color: #357044; }
 .calendar-event-detail footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 17px; }
 
 .performance-page { min-width: 0; }
@@ -1951,6 +1955,112 @@ h1, h2, h3, h4, h5, strong, b, .brand-mark, .logo, .activity-sport, .eyebrow {
 .garmin-no-athletes > span { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; color: #fff; background: #b07c19; font-size: 12px; font-weight: 900; }
 .garmin-no-athletes strong { display: block; font-size: 13px; }
 .garmin-no-athletes p { margin: 4px 0 0; color: #756542; font-size: 10px; line-height: 1.45; }
+
+.device-center-page { display: grid; gap: 22px; padding-bottom: 42px; }
+.device-center-hero { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, 360px); align-items: center; gap: 32px; overflow: hidden; padding: 30px 32px; border: 1px solid rgba(23, 111, 91, .16); border-radius: 20px; background: radial-gradient(circle at 90% 10%, rgba(199, 239, 211, .72), transparent 36%), linear-gradient(125deg, rgba(255,255,255,.98), rgba(238,248,242,.92)); box-shadow: 0 18px 42px rgba(20, 69, 56, .08); }
+.device-center-hero::after { position: absolute; right: -85px; bottom: -115px; width: 250px; height: 250px; border: 1px solid rgba(39, 140, 112, .14); border-radius: 50%; box-shadow: 0 0 0 28px rgba(39, 140, 112, .05), 0 0 0 62px rgba(39, 140, 112, .03); content: ""; animation: orbitDrift 12s linear infinite; }
+.device-center-hero > * { position: relative; z-index: 1; }
+.device-center-hero h2 { max-width: 760px; margin: 8px 0 10px; font: 650 clamp(24px, 2.5vw, 38px)/1.14 Manrope; letter-spacing: -.035em; }
+.device-center-hero p { max-width: 760px; margin: 0; color: #61746c; font-size: 13px; line-height: 1.65; }
+.device-readiness { display: grid; grid-template-columns: 58px minmax(0, 1fr); align-items: center; gap: 14px; padding: 15px; border: 1px solid #d3e4da; border-radius: 16px; background: rgba(255,255,255,.8); backdrop-filter: blur(8px); }
+.device-readiness > span { display: grid; place-items: center; width: 56px; height: 56px; border-radius: 15px; color: #fff; background: linear-gradient(145deg, #126b59, #28a184); box-shadow: 0 9px 20px rgba(24, 113, 91, .2); font: 900 13px Manrope; letter-spacing: .08em; }
+.device-readiness.preparing > span { color: #25463c; background: linear-gradient(145deg, #d8f292, #9ed986); }
+.device-readiness strong, .device-readiness small { display: block; }
+.device-readiness strong { color: #254039; font-size: 12px; line-height: 1.4; }
+.device-readiness small { margin-top: 4px; color: #71827a; font-size: 9px; line-height: 1.5; }
+.device-notice { padding: 13px 16px; border-radius: 12px; font-size: 12px; font-weight: 700; }
+.device-notice.success { color: #2b6549; border: 1px solid #b9dec2; background: #e9f7e8; }
+.device-notice.error { color: #8e4036; border: 1px solid #edc6bf; background: #fff0ec; }
+.device-summary-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.device-summary-grid article { position: relative; overflow: hidden; padding: 19px 20px; border: 1px solid #dce5de; border-radius: 15px; background: rgba(255,255,255,.88); box-shadow: 0 9px 22px rgba(25, 70, 57, .045); }
+.device-summary-grid article::after { position: absolute; top: 0; right: 0; width: 46%; height: 3px; border-radius: 0 0 0 3px; background: linear-gradient(90deg, transparent, #66baa5); content: ""; }
+.device-summary-grid small, .device-summary-grid span { display: block; color: #72827a; }
+.device-summary-grid small { font-size: 10px; font-weight: 750; letter-spacing: .04em; text-transform: uppercase; }
+.device-summary-grid strong { display: block; margin: 9px 0 5px; color: #1d302a; font: 650 27px Manrope; }
+.device-summary-grid span { font-size: 9px; line-height: 1.5; }
+.provider-card, .device-roster-card { padding: 26px; border: 1px solid #d9e4dd; border-radius: 18px; background: rgba(255,255,255,.92); box-shadow: 0 14px 34px rgba(24, 67, 55, .06); }
+.provider-card { display: grid; grid-template-columns: minmax(260px, 1.15fr) minmax(230px, .8fr); gap: 20px 28px; }
+.provider-identity { display: flex; align-items: center; gap: 17px; }
+.garmin-wordmark { display: grid; flex: none; place-items: center; width: 76px; height: 76px; border-radius: 19px; color: #fff; background: linear-gradient(145deg, #142d29, #0c5f52); box-shadow: 0 12px 25px rgba(11, 69, 58, .2); font: 900 11px Manrope; letter-spacing: .08em; }
+.provider-identity h3 { margin: 0 0 6px; font-size: 20px; }
+.provider-identity p { max-width: 580px; margin: 0; color: #65766e; font-size: 11px; line-height: 1.6; }
+.provider-state { display: flex; align-items: center; gap: 11px; padding: 13px 15px; border: 1px solid #e6d8b9; border-radius: 13px; background: #fff9eb; }
+.provider-state > i, .roster-connection > i { flex: none; width: 9px; height: 9px; border-radius: 50%; background: #c69038; box-shadow: 0 0 0 5px rgba(198, 144, 56, .12); }
+.provider-state.connected { border-color: #c6dfcc; background: #edf8ee; }
+.provider-state.connected > i, .roster-connection.connected > i { background: #56a66a; box-shadow: 0 0 0 5px rgba(86, 166, 106, .12); animation: statusPulse 2.4s ease-in-out infinite; }
+.provider-state strong, .provider-state small { display: block; }
+.provider-state strong { font-size: 12px; }
+.provider-state small { margin-top: 4px; color: #776c55; font-size: 9px; line-height: 1.45; }
+.provider-capabilities { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; padding: 14px; border-radius: 13px; background: #f5f8f5; }
+.provider-capabilities span { padding: 7px 10px; border-radius: 8px; font-size: 9px; font-weight: 750; }
+.provider-capabilities .available { color: #356c4c; background: #e3f2e6; }
+.provider-capabilities .pending { color: #7b6943; background: #fff1ce; }
+.provider-actions { display: flex; flex-wrap: wrap; gap: 9px; }
+.provider-actions a { display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
+.device-privacy-note { align-self: center; margin: 0; color: #73837b; font-size: 9px; line-height: 1.55; }
+.device-roster-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; margin-bottom: 19px; }
+.device-roster-heading h3 { margin: 5px 0; font-size: 20px; }
+.device-roster-heading p { margin: 0; color: #687970; font-size: 11px; line-height: 1.55; }
+.consent-badge { flex: none; padding: 8px 11px; border-radius: 9px; color: #35634f; background: #e7f2ea; font-size: 9px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+.device-roster-table { display: grid; gap: 8px; }
+.device-roster-table > article { display: grid; grid-template-columns: 42px minmax(150px, .75fr) minmax(250px, 1fr) auto; align-items: center; gap: 13px; padding: 13px 14px; border: 1px solid #e2e8e3; border-radius: 12px; background: #fbfdfb; transition: transform .2s ease, box-shadow .2s ease; }
+.device-roster-table > article:hover { box-shadow: 0 9px 20px rgba(24, 75, 61, .07); transform: translateY(-1px); }
+.device-athlete-avatar { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 12px; color: #23483d; background: linear-gradient(145deg, #daf18b, #94ddbd); font-weight: 900; }
+.device-roster-table > article > div:nth-child(2) strong, .device-roster-table > article > div:nth-child(2) small { display: block; }
+.device-roster-table > article > div:nth-child(2) strong { font-size: 12px; }
+.device-roster-table > article > div:nth-child(2) small { margin-top: 3px; color: #819087; font-size: 9px; }
+.roster-connection { display: flex; align-items: center; gap: 11px; }
+.roster-connection > span strong, .roster-connection > span small { display: block; }
+.roster-connection > span strong { font-size: 10px; }
+.roster-connection > span small { margin-top: 3px; color: #7a8981; font-size: 8px; }
+.device-roster-table a { text-decoration: none; }
+.device-workflow { padding: 7px 0; }
+.delivery-history-card { padding: 24px 26px; border: 1px solid #d9e4dd; border-radius: 18px; background: rgba(255,255,255,.9); box-shadow: 0 14px 34px rgba(24, 67, 55, .05); }
+.delivery-history-card .section-title { margin-top: 0; }
+.delivery-history-list { display: grid; gap: 7px; }
+.delivery-history-list article { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 11px 13px; border: 1px solid #e2e8e3; border-radius: 11px; background: #fbfdfb; }
+.delivery-state-mark { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 10px; color: #fff; background: #6d8178; font-size: 13px; font-weight: 900; }
+.delivery-state-mark.delivered { background: #5a9d62; }
+.delivery-state-mark.failed { background: #b95e4f; }
+.delivery-history-list article > div strong, .delivery-history-list article > div small { display: block; }
+.delivery-history-list article > div strong { font-size: 11px; }
+.delivery-history-list article > div small { margin-top: 3px; color: #7b8a82; font-size: 8px; }
+.status.queued, .status.processing { color: #6e5b2e; background: #fff0c9; }
+.status.failed, .status.canceled { color: #8c493a; background: #f5e6e0; }
+.device-workflow-steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.device-workflow-steps article { display: grid; grid-template-columns: 34px minmax(0, 1fr); align-items: start; gap: 11px; padding: 18px; border: 1px solid #dfe6e1; border-radius: 15px; background: rgba(255,255,255,.8); }
+.device-workflow-steps article > span { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; color: #fff; background: #7d8e86; font: 800 11px Manrope; }
+.device-workflow-steps article.complete > span { background: #59a463; }
+.device-workflow-steps article.active > span { background: #167a65; box-shadow: 0 0 0 7px rgba(22, 122, 101, .09); }
+.device-workflow-steps article.pending { opacity: .72; }
+.device-workflow-steps strong { font-size: 11px; }
+.device-workflow-steps p { margin: 5px 0 0; color: #6d7e75; font-size: 9px; line-height: 1.55; }
+@keyframes statusPulse { 0%, 100% { box-shadow: 0 0 0 4px rgba(86, 166, 106, .09); } 50% { box-shadow: 0 0 0 8px rgba(86, 166, 106, .03); } }
+
+@media (max-width: 980px) {
+  .device-center-hero { grid-template-columns: 1fr; }
+  .device-readiness { max-width: 480px; }
+  .device-roster-table > article { grid-template-columns: 42px minmax(140px, .7fr) minmax(210px, 1fr); }
+  .device-roster-table > article > a { grid-column: 2 / -1; justify-self: start; }
+}
+
+@media (max-width: 720px) {
+  .device-center-page { gap: 16px; }
+  .device-center-hero { gap: 20px; padding: 23px 20px; border-radius: 16px; }
+  .device-center-hero h2 { font-size: 27px; }
+  .device-summary-grid, .device-workflow-steps { grid-template-columns: 1fr; }
+  .provider-card { grid-template-columns: 1fr; padding: 19px; }
+  .provider-capabilities { grid-column: auto; }
+  .provider-actions { flex-direction: column; }
+  .provider-actions > * { width: 100%; }
+  .device-roster-card { padding: 19px; }
+  .delivery-history-card { padding: 19px; }
+  .delivery-history-list article { grid-template-columns: 34px 1fr; }
+  .delivery-history-list article > .status { grid-column: 2; justify-self: start; }
+  .device-roster-heading { align-items: flex-start; flex-direction: column; }
+  .device-roster-table > article { grid-template-columns: 40px 1fr; }
+  .device-roster-table > article .roster-connection, .device-roster-table > article > a { grid-column: 2; }
+}
 .workout-structure-preview { display: grid; gap: 9px; padding: 8px 28px 30px; }
 .workout-structure-preview article { display: grid; grid-template-columns: 36px 1fr auto; align-items: center; gap: 13px; padding: 14px; border-left: 4px solid #8dbda8; border-radius: 12px; background: #f8faf8; }
 .workout-structure-preview article.work { border-color: #1c9a78; }

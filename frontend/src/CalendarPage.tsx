@@ -269,8 +269,22 @@ function CalendarEventDetail({ event, onClose }: { event: CalendarEvent; onClose
   const { locale, t } = useLanguage();
   const navigate = useNavigate();
   const [garminDownloading, setGarminDownloading] = useState(false);
+  const [garminQueueing, setGarminQueueing] = useState(false);
   const [garminError, setGarminError] = useState("");
+  const [garminQueued, setGarminQueued] = useState(false);
+  const [directDeliveryReady, setDirectDeliveryReady] = useState(false);
   const dateLocale = locale === "ru" ? "ru-RU" : "en-US";
+
+  useEffect(() => {
+    if (!event.workout_id || event.status !== "planned") return;
+    Promise.all([api.deviceProviders(), api.deviceConnections()])
+      .then(([providers, connections]) => {
+        const garmin = providers.find((provider) => provider.provider === "garmin");
+        const connection = connections.results.find((item) => item.athlete.id === event.athlete.id);
+        setDirectDeliveryReady(Boolean(garmin?.direct_delivery_available && connection?.is_usable));
+      })
+      .catch(() => setDirectDeliveryReady(false));
+  }, [event.athlete.id, event.status, event.workout_id]);
 
   async function downloadGarminWorkout() {
     if (!event.workout_id || garminDownloading) return;
@@ -282,6 +296,20 @@ function CalendarEventDetail({ event, onClose }: { event: CalendarEvent; onClose
       setGarminError(localizeApiError((caught as Error).message, t));
     } finally {
       setGarminDownloading(false);
+    }
+  }
+
+  async function queueGarminWorkout() {
+    if (!event.workout_id || garminQueueing) return;
+    setGarminQueueing(true);
+    setGarminError("");
+    try {
+      await api.queueWorkoutDelivery(event.workout_id);
+      setGarminQueued(true);
+    } catch (caught) {
+      setGarminError(localizeApiError((caught as Error).message, t));
+    } finally {
+      setGarminQueueing(false);
     }
   }
 
@@ -325,13 +353,18 @@ function CalendarEventDetail({ event, onClose }: { event: CalendarEvent; onClose
           <section className="calendar-garmin-export">
             <span className="calendar-garmin-mark">FIT</span>
             <div>
-              <strong>{t("calendarGarminTitle")}</strong>
-              <p>{t("calendarGarminHelp")}</p>
+              <strong>{directDeliveryReady ? t("calendarGarminDirectTitle") : t("calendarGarminTitle")}</strong>
+              <p>{directDeliveryReady ? t("calendarGarminDirectHelp") : t("calendarGarminHelp")}</p>
+              {garminQueued && <small className="success-message" role="status">{t("calendarGarminQueued")}</small>}
               {garminError && <small role="alert">{garminError}</small>}
             </div>
-            <button className="primary" disabled={garminDownloading} onClick={() => void downloadGarminWorkout()} type="button">
-              {garminDownloading ? t("garminGenerating") : t("calendarGarminDownload")}
-            </button>
+            <div className="calendar-garmin-actions">
+              {directDeliveryReady && <button className="primary" disabled={garminQueueing || garminQueued} onClick={() => void queueGarminWorkout()} type="button">{garminQueueing ? t("working") : garminQueued ? t("calendarGarminQueuedShort") : t("calendarGarminSend")}</button>}
+              <button className={directDeliveryReady ? "secondary" : "primary"} disabled={garminDownloading} onClick={() => void downloadGarminWorkout()} type="button">
+                {garminDownloading ? t("garminGenerating") : directDeliveryReady ? t("calendarGarminFitFallback") : t("calendarGarminDownload")}
+              </button>
+              {!directDeliveryReady && <button className="device-center-link" onClick={() => navigate("/devices")} type="button">{t("openDeviceCenter")}</button>}
+            </div>
           </section>
         )}
         <footer>

@@ -30,6 +30,21 @@ X_FRAME_OPTIONS = "DENY"
 CSRF_TRUSTED_ORIGINS = [origin.strip() for origin in os.getenv("CSRF_TRUSTED_ORIGINS", "").split(",") if origin]
 JWT_REFRESH_COOKIE_SAMESITE = os.getenv("JWT_REFRESH_COOKIE_SAMESITE", "None")
 
+if base_settings.GARMIN_TRAINING_API_ENABLED:
+    garmin_required_settings = {
+        "DEVICE_TOKEN_ENCRYPTION_KEY": base_settings.DEVICE_TOKEN_ENCRYPTION_KEY,
+        "GARMIN_CLIENT_ID": base_settings.GARMIN_CLIENT_ID,
+        "GARMIN_CLIENT_SECRET": base_settings.GARMIN_CLIENT_SECRET,
+        "GARMIN_OAUTH_AUTHORIZATION_URL": base_settings.GARMIN_OAUTH_AUTHORIZATION_URL,
+        "GARMIN_OAUTH_TOKEN_URL": base_settings.GARMIN_OAUTH_TOKEN_URL,
+        "GARMIN_OAUTH_REDIRECT_URI": base_settings.GARMIN_OAUTH_REDIRECT_URI,
+    }
+    missing_garmin_settings = [name for name, value in garmin_required_settings.items() if not value]
+    if missing_garmin_settings:
+        raise ImproperlyConfigured(
+            "Garmin integration is enabled but required settings are missing: " + ", ".join(missing_garmin_settings)
+        )
+
 EMAIL_BACKEND = os.getenv("EMAIL_BACKEND", "django.core.mail.backends.smtp.EmailBackend")
 EMAIL_HOST = os.getenv("EMAIL_HOST", "")
 EMAIL_PORT = int(os.getenv("EMAIL_PORT", "587"))

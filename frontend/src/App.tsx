@@ -1,18 +1,20 @@
-import { FormEvent, useEffect, useRef, useState } from "react";
+import { FormEvent, lazy, Suspense, useEffect, useRef, useState } from "react";
 import { Link, Navigate, NavLink, Route, Routes, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { api } from "./api";
 import { AthleteThresholdPanel } from "./AthleteThresholdPanel";
-import { ActivitiesPage } from "./ActivitiesPage";
-import { CalendarPage } from "./CalendarPage";
 import heroImage from "./assets/endurance-hero-v2.webp";
 import { useAuth } from "./auth";
 import { localizeGeneratedWorkoutTitle } from "./generatedContent";
 import { localizeApiError, useLanguage } from "./i18n";
-import { PerformancePage } from "./PerformancePage";
-import { RecoveryPage } from "./RecoveryPage";
-import { TrainingPlansPage } from "./TrainingPlansPage";
-import { WorkoutLibraryPage } from "./WorkoutLibraryPage";
 import type { Analytics, Relationship, Role, TrainingCalendar, TrainingPlan, WeeklyAnalytics, Workout } from "./types";
+
+const ActivitiesPage = lazy(() => import("./ActivitiesPage").then((module) => ({ default: module.ActivitiesPage })));
+const CalendarPage = lazy(() => import("./CalendarPage").then((module) => ({ default: module.CalendarPage })));
+const DeviceCenterPage = lazy(() => import("./DeviceCenterPage").then((module) => ({ default: module.DeviceCenterPage })));
+const PerformancePage = lazy(() => import("./PerformancePage").then((module) => ({ default: module.PerformancePage })));
+const RecoveryPage = lazy(() => import("./RecoveryPage").then((module) => ({ default: module.RecoveryPage })));
+const TrainingPlansPage = lazy(() => import("./TrainingPlansPage").then((module) => ({ default: module.TrainingPlansPage })));
+const WorkoutLibraryPage = lazy(() => import("./WorkoutLibraryPage").then((module) => ({ default: module.WorkoutLibraryPage })));
 
 function LanguageSwitcher() {
   const { locale, setLocale, t } = useLanguage();
@@ -265,6 +267,7 @@ function Layout({ children }: { children: React.ReactNode }) {
           <NavLink to="/plans">{t("trainingPlans")}</NavLink>
           {user?.role === "coach" && <NavLink to="/workout-library">{t("workoutLibraryNav")}</NavLink>}
           <NavLink to="/activities">{t("activities")}</NavLink>
+          <NavLink to="/devices">{t("deviceCenterNav")}</NavLink>
           {user?.role === "coach" && <NavLink to="/athletes">{t("athletes")}</NavLink>}
         </nav>
         <div className="account">
@@ -289,7 +292,7 @@ function Protected({ children }: { children: React.ReactNode }) {
   const { t } = useLanguage();
   if (loading) return <div className="loader"><span />{t("loading")}</div>;
   if (!user) return <Navigate to="/auth" replace />;
-  return <Layout>{children}</Layout>;
+  return <Layout><Suspense fallback={<div className="loader"><span />{t("loading")}</div>}>{children}</Suspense></Layout>;
 }
 
 function localDateKey(value: Date): string {
@@ -697,6 +700,7 @@ export default function App() {
       <Route path="/plans" element={<Protected><TrainingPlansPage /></Protected>} />
       <Route path="/workout-library" element={<Protected><WorkoutLibraryPage /></Protected>} />
       <Route path="/activities" element={<Protected><ActivitiesPage /></Protected>} />
+      <Route path="/devices" element={<Protected><DeviceCenterPage /></Protected>} />
       <Route path="/athletes" element={<Protected><AthletesPage /></Protected>} />
       <Route path="*" element={<Navigate to="/" />} />
     </Routes>
