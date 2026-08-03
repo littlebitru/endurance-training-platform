@@ -1840,3 +1840,180 @@ h1, h2, h3, h4, h5, strong, b, .brand-mark, .logo, .activity-sport, .eyebrow {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
+/* Professional structured workout library */
+.workout-library-page { display: grid; gap: 24px; padding-bottom: 56px; }
+.library-command-card {
+  position: relative; overflow: hidden; display: grid; grid-template-columns: minmax(320px, 1fr) auto auto;
+  gap: 28px; align-items: center; padding: 30px 32px; border: 1px solid rgba(17, 91, 79, .14);
+  border-radius: 22px; background: linear-gradient(120deg, rgba(255,255,255,.98), rgba(230,247,239,.94));
+  box-shadow: 0 18px 50px rgba(22, 65, 57, .08);
+}
+.library-command-card::after { content: ""; position: absolute; width: 260px; height: 260px; right: -90px; top: -150px; border-radius: 50%; border: 40px solid rgba(145, 213, 111, .12); pointer-events: none; }
+.library-command-card h2 { margin: 6px 0 8px; max-width: 760px; font-size: clamp(26px, 3vw, 42px); line-height: 1.04; letter-spacing: -.035em; }
+.library-command-card p { margin: 0; max-width: 760px; color: var(--muted); font-size: 15px; line-height: 1.6; }
+.library-command-card > button { position: relative; z-index: 1; white-space: nowrap; }
+.library-command-metrics { display: flex; align-items: stretch; gap: 8px; }
+.library-command-metrics > span { min-width: 106px; padding: 13px 15px; border: 1px solid rgba(17,91,79,.1); border-radius: 14px; background: rgba(255,255,255,.78); }
+.library-command-metrics strong, .library-command-metrics small { display: block; }
+.library-command-metrics strong { color: #0a6858; font-size: 22px; }
+.library-command-metrics small { margin-top: 3px; color: var(--muted); font-size: 10px; line-height: 1.25; text-transform: uppercase; letter-spacing: .08em; }
+.library-command-metrics .fit-foundation strong { color: #6d9425; letter-spacing: .08em; }
+
+.library-toolbar { display: grid; grid-template-columns: minmax(260px, 1fr) repeat(3, minmax(150px, 200px)); gap: 12px; padding: 16px; border: 1px solid rgba(17,91,79,.11); border-radius: 18px; background: rgba(255,255,255,.8); }
+.library-toolbar label { display: grid; gap: 6px; margin: 0; }
+.library-toolbar label > span { color: #64746f; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .09em; }
+.library-toolbar input, .library-toolbar select { min-height: 44px; background: #fff; }
+
+.template-catalog { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.template-catalog-card { --sport-color: #218c74; position: relative; overflow: hidden; display: flex; flex-direction: column; min-height: 344px; padding: 21px; border: 1px solid rgba(25, 70, 62, .12); border-top: 3px solid var(--sport-color); border-radius: 19px; background: rgba(255,255,255,.92); box-shadow: 0 12px 30px rgba(22,65,57,.055); transition: transform .24s ease, box-shadow .24s ease, border-color .24s ease; }
+.template-catalog-card:hover { transform: translateY(-4px); border-color: color-mix(in srgb, var(--sport-color) 42%, white); box-shadow: 0 22px 44px rgba(22,65,57,.1); }
+.template-catalog-card.cycling { --sport-color: #d9872c; }
+.template-catalog-card.swimming { --sport-color: #358cae; }
+.template-catalog-card.triathlon { --sport-color: #7f5bb1; }
+.template-catalog-card > header { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.template-sport { display: inline-flex; align-items: center; gap: 8px; color: #64746f; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .07em; }
+.template-sport i { display: grid; place-items: center; min-width: 35px; height: 27px; padding: 0 7px; border-radius: 8px; color: #fff; background: var(--sport-color, #218c74); font-style: normal; font-size: 8px; letter-spacing: .08em; }
+.compatibility-pill { padding: 6px 8px; border-radius: 999px; font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .055em; }
+.compatibility-pill.ready { color: #27651f; background: #e5f5d6; }
+.compatibility-pill.adaptation_required { color: #85590c; background: #fff0c9; }
+.compatibility-pill.blocked { color: #8d342f; background: #ffe0dc; }
+.template-source-line { display: flex; justify-content: space-between; gap: 10px; margin-top: 19px; color: #71817b; font-size: 10px; font-weight: 750; text-transform: uppercase; letter-spacing: .07em; }
+.template-source-line b { color: var(--sport-color); }
+.template-catalog-card h3 { margin: 9px 0 8px; font-size: 22px; line-height: 1.15; letter-spacing: -.025em; }
+.template-catalog-card > p { flex: 1; margin: 0; color: var(--muted); font-size: 13px; line-height: 1.55; }
+.template-dose { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; margin: 18px 0 12px; }
+.template-dose span { padding: 9px 7px; border-radius: 10px; background: #f4f7f3; text-align: center; }
+.template-dose strong, .template-dose small { display: block; }
+.template-dose strong { font-size: 15px; }
+.template-dose small { margin-top: 2px; color: #74847e; font-size: 9px; line-height: 1.15; text-transform: uppercase; }
+.template-tags { display: flex; flex-wrap: wrap; gap: 5px; min-height: 23px; }
+.template-tags span { padding: 4px 7px; border-radius: 7px; color: #5c6c67; background: #edf2ef; font-size: 9px; text-transform: uppercase; letter-spacing: .05em; }
+.template-catalog-card footer { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 15px; }
+
+.template-detail-workspace, .template-builder-workspace { --sport-color: #218c74; border: 1px solid rgba(17,91,79,.13); border-radius: 22px; background: rgba(255,255,255,.92); box-shadow: 0 18px 45px rgba(22,65,57,.07); }
+.template-detail-workspace.cycling { --sport-color: #d9872c; }
+.template-detail-workspace.swimming { --sport-color: #358cae; }
+.template-detail-workspace.triathlon { --sport-color: #7f5bb1; }
+.back-link { padding: 0; border: 0; color: #397467; background: transparent; font-weight: 750; cursor: pointer; }
+.template-detail-workspace > .back-link { margin: 24px 28px 0; }
+.template-detail-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 30px; padding: 20px 28px 25px; border-bottom: 1px solid #e5ebe7; }
+.template-detail-header h2 { margin: 12px 0 8px; font-size: clamp(28px, 4vw, 45px); letter-spacing: -.035em; }
+.template-detail-header p { max-width: 760px; margin: 0; color: var(--muted); line-height: 1.6; }
+.template-detail-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.template-detail-summary { display: grid; grid-template-columns: 1.5fr .65fr .8fr; gap: 10px; padding: 18px 28px; }
+.template-detail-summary > span { padding: 14px; border-radius: 13px; background: #f4f7f4; }
+.template-detail-summary small, .template-detail-summary strong { display: block; }
+.template-detail-summary small { margin-bottom: 6px; color: #74847e; font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .07em; }
+.template-detail-summary strong { font-size: 13px; line-height: 1.35; }
+.workout-structure-preview { display: grid; gap: 9px; padding: 8px 28px 30px; }
+.workout-structure-preview article { display: grid; grid-template-columns: 36px 1fr auto; align-items: center; gap: 13px; padding: 14px; border-left: 4px solid #8dbda8; border-radius: 12px; background: #f8faf8; }
+.workout-structure-preview article.work { border-color: #1c9a78; }
+.workout-structure-preview article.recovery { border-color: #8dc64f; }
+.workout-structure-preview article.cooldown { border-color: #63a8c0; }
+.workout-structure-preview article.drill { border-color: #8d67b3; }
+.workout-structure-preview article > span { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; color: #fff; background: #1b6556; font-size: 11px; font-weight: 800; }
+.workout-structure-preview strong, .workout-structure-preview small { display: block; }
+.workout-structure-preview small { margin-top: 4px; color: var(--muted); }
+.workout-structure-preview article > b { color: #1b6556; font-size: 12px; }
+
+.template-builder-workspace { overflow: hidden; }
+.builder-workspace-header { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 22px 26px; border-bottom: 1px solid #e3eae6; background: linear-gradient(100deg, #fff, #eef8f2); }
+.builder-workspace-header h2 { margin: 5px 0 0; font-size: 26px; }
+.builder-workspace-header .back-link { display: block; margin-bottom: 12px; }
+.builder-workspace-header > div:last-child { display: flex; gap: 8px; }
+.builder-layout { display: grid; grid-template-columns: minmax(0, 1fr) 310px; align-items: start; }
+.builder-canvas { min-width: 0; padding: 24px; }
+.builder-inspector { position: sticky; top: 22px; display: grid; gap: 17px; min-width: 0; padding: 25px; border-left: 1px solid #e3eae6; background: #f5f8f5; }
+.builder-meta-card { display: grid; gap: 13px; padding: 18px; border: 1px solid #e0e8e3; border-radius: 16px; background: #fbfcfb; }
+.builder-meta-card legend { padding: 0 8px; color: #315d53; font-size: 12px; font-weight: 850; text-transform: uppercase; letter-spacing: .07em; }
+.builder-meta-card label { margin: 0; }
+.builder-step-heading { display: flex; align-items: end; justify-content: space-between; gap: 16px; margin: 28px 0 13px; }
+.builder-step-heading h3 { margin: 4px 0 0; font-size: 23px; }
+.professional-step-list { display: grid; gap: 12px; }
+.professional-step { overflow: hidden; border: 1px solid #dfe8e3; border-left: 4px solid #8dbda8; border-radius: 15px; background: #fff; }
+.professional-step.work { border-left-color: #168e70; }
+.professional-step.recovery { border-left-color: #93c952; }
+.professional-step.cooldown { border-left-color: #4d99b7; }
+.professional-step.drill { border-left-color: #8760ad; }
+.professional-step > header { display: grid; grid-template-columns: 34px 1fr auto; align-items: center; gap: 11px; padding: 12px 15px; border-bottom: 1px solid #e8eeea; background: #f8faf8; }
+.professional-step > header > span { display: grid; place-items: center; width: 29px; height: 29px; border-radius: 50%; color: #fff; background: #1d6657; font-size: 11px; font-weight: 800; }
+.professional-step > header strong, .professional-step > header small { display: block; }
+.professional-step > header small { margin-top: 2px; color: #71817b; font-size: 10px; }
+.step-order-actions { display: flex; gap: 4px; }
+.step-order-actions button { display: grid; place-items: center; width: 30px; height: 30px; padding: 0; border: 1px solid #d8e2dc; border-radius: 8px; color: #315d53; background: #fff; cursor: pointer; }
+.step-order-actions button:disabled { opacity: .35; cursor: default; }
+.step-editor-grid { display: grid; grid-template-columns: repeat(4, minmax(115px, 1fr)); gap: 10px; padding: 15px; }
+.step-editor-grid label { margin: 0; }
+.step-name-field { grid-column: span 2; }
+.professional-step > label { display: grid; gap: 6px; margin: 0; padding: 0 15px 15px; }
+.zone-resolution { display: flex; justify-content: space-between; gap: 12px; margin: 0 15px 13px; padding: 9px 11px; border-radius: 9px; font-size: 11px; }
+.zone-resolution span { font-weight: 800; text-transform: uppercase; letter-spacing: .06em; }
+.zone-resolution.resolved { color: #27651f; background: #e8f6dc; }
+.zone-resolution.pending { color: #7d611b; background: #fff4d7; }
+.builder-inspector h3 { margin: -10px 0 0; font-size: 22px; }
+.builder-dose-ring { display: grid; place-items: center; align-content: center; width: 142px; height: 142px; margin: 2px auto; border: 13px solid #d9e9df; border-top-color: #8fc753; border-right-color: #1a9375; border-radius: 50%; background: #fff; box-shadow: 0 10px 24px rgba(25,85,72,.08); }
+.builder-dose-ring strong { font-size: 32px; line-height: 1; }
+.builder-dose-ring small { margin-top: 3px; color: #71817b; text-transform: uppercase; }
+.builder-dose-metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.builder-dose-metrics span { padding: 9px 5px; border-radius: 9px; background: #fff; text-align: center; }
+.builder-dose-metrics small, .builder-dose-metrics strong { display: block; }
+.builder-dose-metrics small { color: #74847e; font-size: 8px; text-transform: uppercase; }
+.builder-dose-metrics strong { margin-top: 4px; font-size: 12px; }
+.builder-profile-bars { display: flex; align-items: end; gap: 4px; height: 74px; padding: 7px; border-radius: 10px; background: #fff; }
+.builder-profile-bars i { min-width: 7px; border-radius: 4px 4px 1px 1px; background: #8dbda8; }
+.builder-profile-bars i.work { background: #188f71; }
+.builder-profile-bars i.recovery { background: #9cce5d; }
+.builder-profile-bars i.cooldown { background: #54a2bd; }
+.builder-inspector label { margin: 0; }
+.builder-inspector label small { margin-top: 6px; line-height: 1.4; }
+.builder-compatibility { padding: 13px; border-radius: 12px; }
+.builder-compatibility.ready { color: #27651f; background: #e6f5da; }
+.builder-compatibility.adaptation_required { color: #7d5b16; background: #fff0c8; }
+.builder-compatibility strong { display: block; font-size: 12px; }
+.builder-compatibility p { margin: 5px 0 0; font-size: 10px; line-height: 1.45; }
+.schedule-template-panel { max-width: 610px; }
+.schedule-template-panel > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
+.schedule-template-panel form { display: grid; gap: 13px; }
+.schedule-context { display: flex; align-items: center; gap: 12px; padding: 13px; border-radius: 12px; background: #edf7f1; }
+.schedule-context > span { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 12px; color: #fff; background: #176957; font-size: 9px; font-weight: 850; letter-spacing: .07em; }
+.schedule-context strong, .schedule-context small { display: block; }
+.schedule-context small { margin-top: 3px; color: #61736d; line-height: 1.4; }
+
+@media (max-width: 1250px) {
+  .library-command-card { grid-template-columns: 1fr auto; }
+  .library-command-metrics { grid-column: 1 / -1; order: 3; }
+  .template-catalog { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .builder-layout { grid-template-columns: 1fr; }
+  .builder-inspector { position: static; grid-template-columns: repeat(3, 1fr); border-top: 1px solid #e3eae6; border-left: 0; }
+  .builder-inspector > .eyebrow, .builder-inspector > h3 { grid-column: 1 / -1; }
+  .builder-dose-ring { grid-row: span 2; }
+}
+@media (max-width: 850px) {
+  .library-command-card { grid-template-columns: 1fr; padding: 24px; }
+  .library-command-card > button { width: 100%; }
+  .library-command-metrics { grid-column: auto; overflow-x: auto; }
+  .library-toolbar { grid-template-columns: 1fr 1fr; }
+  .library-search { grid-column: 1 / -1; }
+  .template-catalog { grid-template-columns: 1fr; }
+  .template-detail-header, .builder-workspace-header { flex-direction: column; }
+  .template-detail-actions, .builder-workspace-header > div:last-child { width: 100%; }
+  .template-detail-actions button, .builder-workspace-header > div:last-child button { flex: 1; }
+  .template-detail-summary { grid-template-columns: 1fr; }
+  .step-editor-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .builder-inspector { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 540px) {
+  .library-command-metrics > span { min-width: 92px; }
+  .library-toolbar { grid-template-columns: 1fr; }
+  .library-search { grid-column: auto; }
+  .template-catalog-card { min-height: 0; padding: 17px; }
+  .template-detail-header, .template-detail-summary, .workout-structure-preview, .builder-canvas, .builder-inspector { padding-left: 16px; padding-right: 16px; }
+  .workout-structure-preview article { grid-template-columns: 30px 1fr; }
+  .workout-structure-preview article > b { grid-column: 2; }
+  .step-editor-grid { grid-template-columns: 1fr; }
+  .step-name-field { grid-column: auto; }
+  .professional-step > header { grid-template-columns: 30px 1fr; }
+  .step-order-actions { grid-column: 1 / -1; justify-content: flex-end; }
+  .builder-inspector { grid-template-columns: 1fr; }
+  .template-dose { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}

@@ -11,6 +11,7 @@ import { localizeApiError, useLanguage } from "./i18n";
 import { PerformancePage } from "./PerformancePage";
 import { RecoveryPage } from "./RecoveryPage";
 import { TrainingPlansPage } from "./TrainingPlansPage";
+import { WorkoutLibraryPage } from "./WorkoutLibraryPage";
 import type { Analytics, Relationship, Role, TrainingCalendar, TrainingPlan, WeeklyAnalytics, Workout } from "./types";
 
 function LanguageSwitcher() {
@@ -262,6 +263,7 @@ function Layout({ children }: { children: React.ReactNode }) {
           <NavLink to="/performance">{t("performance")}</NavLink>
           <NavLink to="/recovery">{t("recoveryHealth")}</NavLink>
           <NavLink to="/plans">{t("trainingPlans")}</NavLink>
+          {user?.role === "coach" && <NavLink to="/workout-library">{t("workoutLibraryNav")}</NavLink>}
           <NavLink to="/activities">{t("activities")}</NavLink>
           {user?.role === "coach" && <NavLink to="/athletes">{t("athletes")}</NavLink>}
         </nav>
@@ -693,6 +695,7 @@ export default function App() {
       <Route path="/performance" element={<Protected><PerformancePage /></Protected>} />
       <Route path="/recovery" element={<Protected><RecoveryPage /></Protected>} />
       <Route path="/plans" element={<Protected><TrainingPlansPage /></Protected>} />
+      <Route path="/workout-library" element={<Protected><WorkoutLibraryPage /></Protected>} />
       <Route path="/activities" element={<Protected><ActivitiesPage /></Protected>} />
       <Route path="/athletes" element={<Protected><AthletesPage /></Protected>} />
       <Route path="*" element={<Navigate to="/" />} />

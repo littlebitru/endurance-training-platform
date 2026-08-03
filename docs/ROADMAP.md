@@ -12,18 +12,21 @@
 - Weekly adherence analytics and interactive fitness, fatigue, form, and load forecasting
 - Athlete-owned daily wellness check-ins with sleep, fatigue, stress, soreness, overall feeling, HRV, and resting heart rate
 - Personal recovery baselines, explicit sharing controls, coach recovery queues, and load-aware readiness context
+- Professional workout studio with curated multisport templates, repeat blocks, live dose previews, and athlete-zone resolution
+- Immutable system templates, private coach copies, structure versioning, compatibility reporting, and atomic calendar assignment
 - Responsive bilingual React application for coach and athlete workflows
 - PostgreSQL, Docker Compose, OpenAPI, automated tests, quality checks, CI, and Render staging
 
-## Current milestone: Reliable coaching communication
+## Current milestone: Garmin-ready workout delivery
 
-- Notification preferences and asynchronous email delivery
-- Recovery, missed-session, coach-comment, and plan-publication notification events
-- In-product notification center with read state and deep links
-- Per-user channel and event preferences
-- Expanded permission, validation, accessibility, and concurrency tests
+- Official FIT workout encoding and integrity validation
+- Secure workout-download endpoint with deterministic file naming and audit metadata
+- Garmin Connect Developer Program application package, privacy policy, and account-disconnection flow
+- Provider-neutral integration connections, encrypted credentials, idempotent delivery jobs, and sync history
+- Garmin OAuth 2.0 PKCE and Training API publishing after partner credentials are approved
+- Activity API webhook ingestion and automatic matching of completed Garmin activities
 
-Exit criteria: important athlete and coach events are delivered once, remain visible in-product, and respect explicit user preferences.
+Exit criteria: a coach can validate and export any compatible structured workout as FIT; after Garmin approval, an athlete can explicitly connect Garmin, receive scheduled workouts on a compatible device, and sync completed activities back without duplicate records.
 
 ## Production readiness
 
@@ -50,7 +53,9 @@ Exit criteria: the product owner accepts the release candidate and the operation
 
 ## Recommended implementation order
 
-1. Notifications and background jobs
-2. Caching, error tracking, and metrics
-3. Security, accessibility, and performance review
-4. Production acceptance and release
+1. FIT workout export and compatibility tests
+2. Privacy, consent, account deletion, and Garmin application package
+3. Background delivery jobs, notifications, and sync observability
+4. Garmin OAuth and Training API adapter after partner approval
+5. Caching, error tracking, security, accessibility, and performance review
+6. Production acceptance and release

@@ -4,7 +4,7 @@ export interface User { id: number; username: string; email: string; first_name:
 export interface Page<T> { count: number; next: string | null; previous: string | null; results: T[] }
 export interface Exercise { id: number; workout: number; name: string; step_type: string; order: number; description: string; repetitions: number | null; duration_seconds: number | null; distance_meters: number | null; recovery_seconds: number | null; target_type: string; target_min: string | null; target_max: string | null; target_unit: string; resolved_target_min: string | null; resolved_target_max: string | null; resolved_target_unit: string; resolved_target_label: string }
 export interface CoachComment { id: number; workout: number; coach: number; coach_name: string; body: string; created_at: string }
-export interface Workout { id: number; weekly_plan: number; title: string; sport: string; workout_type: string; status: string; scheduled_at: string; planned_duration_minutes: number | null; planned_distance_km: string | null; intensity: string; notes: string; exercises: Exercise[]; coach_comments: CoachComment[]; log?: WorkoutLog | null }
+export interface Workout { id: number; weekly_plan: number; title: string; sport: string; workout_type: string; status: string; scheduled_at: string; planned_duration_minutes: number | null; planned_distance_km: string | null; intensity: string; notes: string; source_template?: number | null; structure_version?: number; exercises: Exercise[]; coach_comments: CoachComment[]; log?: WorkoutLog | null }
 export interface WorkoutLog { id: number; workout: number; completed_at: string; actual_duration_minutes: number | null; actual_distance_km: string | null; perceived_exertion: number | null; notes: string }
 export interface WeeklyPlan { id: number; training_plan: number; week_number: number; start_date: string; phase: string; planned_duration_minutes: number | null; is_recovery: boolean; notes: string; workouts: Workout[] }
 export type PlanPublicationStatus = "draft" | "published" | "archived";
@@ -148,7 +148,61 @@ export interface RecoveryRoster {
 
 export interface TrainingZone { id: number; athlete: number; sport: string; metric: string; zone_number: number; name: string; lower_bound: string; upper_bound: string; unit: string; display_range: string }
 export interface AthleteThreshold { id: number; athlete: number; sport: string; effective_from: string; source: string; notes: string; is_current: boolean; threshold_heart_rate: number | null; maximum_heart_rate: number | null; functional_threshold_power: number | null; threshold_pace_seconds_per_km: number | null; critical_swim_speed_seconds_per_100m: number | null; heart_rate_basis: string; zones: TrainingZone[]; updated_at: string }
-export interface WorkoutTemplate { id: number; coach: number; title: string; sport: string; workout_type: string; description: string; planned_duration_minutes: number | null; planned_distance_km: string | null; intensity: string; structured_steps: Array<Record<string, string | number | null>> }
+export interface WorkoutTemplateStep {
+  name: string;
+  name_ru?: string;
+  step_type: string;
+  order?: number;
+  description?: string;
+  description_ru?: string;
+  repetitions?: number | null;
+  duration_seconds?: number | null;
+  distance_meters?: number | null;
+  recovery_seconds?: number | null;
+  target_type: string;
+  target_min?: string | number | null;
+  target_max?: string | number | null;
+  target_unit?: string;
+}
+export interface WorkoutTemplate {
+  id: number;
+  coach: number | null;
+  slug: string | null;
+  source: "system" | "coach";
+  is_system: boolean;
+  is_archived: boolean;
+  title: string;
+  title_ru: string;
+  sport: string;
+  workout_type: string;
+  description: string;
+  description_ru: string;
+  objective: string;
+  objective_ru: string;
+  difficulty: "all" | "beginner" | "intermediate" | "advanced";
+  tags: string[];
+  equipment: string[];
+  planned_duration_minutes: number | null;
+  planned_distance_km: string | null;
+  intensity: string;
+  structured_steps: WorkoutTemplateStep[];
+  schema_version: number;
+  usage_count: number;
+  structure_summary: {
+    step_count: number;
+    work_intervals: number;
+    total_duration_seconds: number;
+    total_duration_minutes: number;
+    total_distance_meters: number;
+    total_distance_km: string;
+  };
+  compatibility: {
+    status: "ready" | "adaptation_required" | "blocked";
+    garmin_ready: boolean;
+    issues: string[];
+    warnings: string[];
+  };
+}
 export interface ActivityStreamPoint { elapsed: number; heart_rate?: number; power?: number; cadence?: number; speed?: number; distance?: number; elevation?: number }
 export interface ActivityZone { zone: number; name: string; seconds: number; percentage: number }
 export interface Activity {

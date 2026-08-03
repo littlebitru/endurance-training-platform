@@ -14,6 +14,9 @@ The repository also includes a responsive React and TypeScript web application w
 - Automatic event-based periodization across Base, Build, Peak, Taper, Recovery, and Race phases
 - Coach-controlled draft, review, publication, retraction, and archival lifecycle for athlete plans
 - Interactive weekly calendar with workout editing, drag-and-drop rescheduling, duplication, and reusable libraries
+- Professional bilingual workout studio with curated running, cycling, swimming, and triathlon templates
+- Step-by-step workout authoring with repeat blocks, time, distance, open duration, and zone-aware targets
+- Atomic template assignment that preserves the reusable prescription while resolving each athlete's current zones
 - Training plans, weekly plans, structured workouts, and exercises
 - Historical sport-specific thresholds with automatically calculated heart-rate, pace, and power zones
 - Structured workout targets that dynamically follow the athlete's latest thresholds
@@ -101,6 +104,8 @@ On Windows, activate the environment with `.venv\\Scripts\\activate`.
 | Workouts | `/api/v1/workouts/` |
 | Duplicate workout | `POST /api/v1/workouts/{id}/duplicate/` |
 | Workout library | `/api/v1/workout-templates/` |
+| Copy workout template | `POST /api/v1/workout-templates/{id}/duplicate/` |
+| Schedule workout template | `POST /api/v1/workout-templates/{id}/assign/` |
 | Exercises | `/api/v1/exercises/` |
 | Coach comments | `/api/v1/coach-comments/` |
 | Workout logs | `/api/v1/workout-logs/` |
@@ -115,6 +120,16 @@ On Windows, activate the environment with `.venv\\Scripts\\activate`.
 | Athlete analytics | `GET /api/v1/athlete/analytics/summary/` |
 
 Collection endpoints accept `page`, `page_size`, `ordering`, and resource-specific filters. Search-enabled endpoints accept `search`. Discover the complete contract in Swagger or download `/api/schema/`.
+
+### Structured workout studio
+
+The workout library combines immutable, professionally curated templates with private coach-authored templates. The initial catalog covers recovery, endurance, long, tempo, threshold, VO2 max, technique, swim CSS, and triathlon brick sessions. System templates contain English and Russian content, difficulty, search tags, equipment, objective, structured steps, and a device-compatibility summary.
+
+Coaches can create, reorder, copy, and version reusable prescriptions without binding them to one athlete. Each step supports time, distance, or open duration; repetitions and between-repeat recovery; heart-rate, pace, power, cadence, RPE, or free targets. Relative heart-rate, pace, and power zones keep the template portable across athletes.
+
+`POST /api/v1/workout-templates/{id}/assign/` atomically snapshots a template into a selected training week. The assigned workout records its source template and schema version, while its API representation resolves zone targets from the athlete's current threshold profile. The original template remains unchanged. Coaches can therefore improve future templates without silently rewriting workouts already prescribed to athletes.
+
+The bilingual web studio offers catalog search and filters, a step-by-step visual builder, repeat-block editing, live dose and intensity previews, athlete-specific target previews, Garmin-compatibility guidance, and direct scheduling into an athlete plan. This canonical structure is intentionally device-neutral; FIT export and Garmin Training API delivery are implemented as adapters in the next milestone.
 
 ### Completed activity imports
 
