@@ -10,6 +10,8 @@ from django.utils import timezone
 
 from apps.integrations.crypto import decrypt_secret, encrypt_secret
 from apps.integrations.models import DeviceConnection, OAuthAuthorizationState, WorkoutDelivery
+from apps.integrations.services import DeviceIntegrationError
+from apps.integrations.strava import sync_strava_activity
 from apps.training.models import Activity, Exercise, TrainingPlan, WeeklyPlan, Workout
 from apps.users.models import Profile, User
 
@@ -447,3 +449,25 @@ def test_strava_webhook_verification_requires_matching_token(api_client):
     assert accepted.status_code == 200
     assert accepted.data == {"hub.challenge": "challenge"}
     assert rejected.status_code == 403
+
+
+@override_settings(**STRAVA_SETTINGS)
+@patch("apps.integrations.strava._api_get")
+def test_strava_activity_sync_rejects_non_numeric_provider_identifier(api_get, athlete):
+    connection = DeviceConnection.objects.create(
+        athlete=athlete,
+        provider="strava",
+        status="connected",
+        external_user_id="98765",
+        access_token_encrypted=encrypt_secret("strava-access"),
+        refresh_token_encrypted=encrypt_secret("strava-refresh"),
+        token_expires_at=timezone.now() + timedelta(hours=6),
+        sync_activities=True,
+        sync_workouts=False,
+    )
+
+    with pytest.raises(DeviceIntegrationError) as error:
+        sync_strava_activity(connection, "24680/../../metadata")
+
+    assert error.value.code == "strava_activity_id_invalid"
+    api_get.assert_not_called()

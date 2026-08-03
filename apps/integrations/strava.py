@@ -326,7 +326,8 @@ def sync_strava_activities(connection: DeviceConnection) -> StravaSyncResult:
 
 
 def sync_strava_activity(connection: DeviceConnection, external_id: str) -> str:
-    payload = _api_get(connection, f"activities/{external_id}")
+    activity_id = _validated_strava_activity_id(external_id)
+    payload = _api_get(connection, f"activities/{activity_id:d}")
     if not isinstance(payload, dict):
         raise DeviceIntegrationError("strava_response_invalid", "Strava returned an invalid activity response.")
     outcome = _upsert_strava_activity(connection, payload)
@@ -337,11 +338,12 @@ def sync_strava_activity(connection: DeviceConnection, external_id: str) -> str:
 
 @transaction.atomic
 def delete_strava_activity(connection: DeviceConnection, external_id: str) -> None:
+    activity_id = _validated_strava_activity_id(external_id)
     activity = (
         Activity.objects.filter(
             athlete=connection.athlete,
             source=Activity.Source.STRAVA,
-            external_id=external_id,
+            external_id=str(activity_id),
         )
         .select_related("workout")
         .first()
@@ -439,10 +441,11 @@ def handle_strava_webhook_event(payload: dict) -> None:
 
 
 def _upsert_strava_activity(connection: DeviceConnection, payload: dict) -> str:
-    external_id = str(payload.get("id") or "")
-    sport = _map_strava_sport(str(payload.get("sport_type") or payload.get("type") or ""))
-    if not external_id:
+    try:
+        external_id = str(_validated_strava_activity_id(payload.get("id")))
+    except DeviceIntegrationError:
         return "skipped"
+    sport = _map_strava_sport(str(payload.get("sport_type") or payload.get("type") or ""))
     if not sport:
         return "unsupported"
     started_at = parse_datetime(str(payload.get("start_date") or ""))
@@ -526,6 +529,22 @@ def _map_strava_sport(value: str) -> str | None:
     if normalized == "triathlon":
         return Workout.Sport.TRIATHLON
     return None
+
+
+def _validated_strava_activity_id(value) -> int:
+    try:
+        activity_id = int(value)
+    except (TypeError, ValueError) as exc:
+        raise DeviceIntegrationError(
+            "strava_activity_id_invalid",
+            "Strava returned an invalid activity identifier.",
+        ) from exc
+    if activity_id <= 0 or str(value).strip() != str(activity_id):
+        raise DeviceIntegrationError(
+            "strava_activity_id_invalid",
+            "Strava returned an invalid activity identifier.",
+        )
+    return activity_id
 
 
 def _number(value) -> float | None:
