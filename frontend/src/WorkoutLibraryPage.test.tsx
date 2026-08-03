@@ -206,6 +206,13 @@ test("coach builds and saves a reusable structured workout", async () => {
   await screen.findByRole("heading", { name: systemTemplate.title });
   fireEvent.click(screen.getByRole("button", { name: /Create workout/ }));
   fireEvent.change(screen.getByLabelText("Workout title"), { target: { value: "Aerobic progression" } });
+  fireEvent.change(screen.getAllByLabelText("Duration type")[1], { target: { value: "distance" } });
+  expect(screen.getByLabelText(/Distance, kilometers/)).toHaveValue(1);
+  fireEvent.change(screen.getByLabelText(/Distance, kilometers/), { target: { value: "1.2" } });
+  fireEvent.change(screen.getByLabelText("Sport"), { target: { value: "swimming" } });
+  expect(screen.getByLabelText(/Distance, meters/)).toHaveValue(1200);
+  fireEvent.change(screen.getByLabelText("Sport"), { target: { value: "running" } });
+  expect(screen.getByLabelText(/Distance, kilometers/)).toHaveValue(1.2);
   fireEvent.click(screen.getByRole("button", { name: "Save to library" }));
 
   await waitFor(() => expect(api.createWorkoutTemplate).toHaveBeenCalledTimes(1));
@@ -213,10 +220,11 @@ test("coach builds and saves a reusable structured workout", async () => {
     title: "Aerobic progression",
     sport: "running",
     workout_type: "endurance",
-    planned_duration_minutes: 50,
+    planned_duration_minutes: 20,
+    planned_distance_km: "1.20",
     structured_steps: expect.arrayContaining([
       expect.objectContaining({ step_type: "warmup", duration_seconds: 600 }),
-      expect.objectContaining({ step_type: "work", target_unit: "zone" }),
+      expect.objectContaining({ step_type: "work", duration_seconds: null, distance_meters: 1200, target_unit: "zone" }),
     ]),
   }));
 });
@@ -235,13 +243,31 @@ test("coach downloads a personalized Garmin FIT workout", async () => {
 
   await screen.findByRole("heading", { name: systemTemplate.title });
   fireEvent.click(screen.getByRole("button", { name: "Review" }));
+  expect(api.previewGarminFit).not.toHaveBeenCalled();
+  fireEvent.change(screen.getByLabelText(/Choose the athlete/), { target: { value: "2" } });
 
   await waitFor(() => expect(api.previewGarminFit).toHaveBeenCalledWith(41, 2, "en"));
   expect(await screen.findByText("Personalized FIT file is ready")).toBeInTheDocument();
-  fireEvent.click(screen.getByRole("button", { name: "Download Garmin .FIT" }));
+  fireEvent.click(screen.getByRole("button", { name: "Download .FIT file" }));
 
   await waitFor(() => expect(api.downloadGarminFit).toHaveBeenCalledWith(41, 2, "en"));
   expect(createObjectUrl).toHaveBeenCalled();
   expect(anchorClick).toHaveBeenCalled();
   expect(revokeObjectUrl).toHaveBeenCalledWith("blob:garmin-fit");
+});
+
+test("coach sees how to enable Garmin export when no athletes are assigned", async () => {
+  vi.mocked(api.athletes).mockResolvedValue({ count: 0, next: null, previous: null, results: [] });
+  render(
+    <MemoryRouter>
+      <LanguageProvider><WorkoutLibraryPage /></LanguageProvider>
+    </MemoryRouter>,
+  );
+
+  await screen.findByRole("heading", { name: systemTemplate.title });
+  fireEvent.click(screen.getByRole("button", { name: "Review" }));
+
+  expect(await screen.findByText("Add an athlete before exporting")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Open athletes" })).toBeInTheDocument();
+  expect(api.previewGarminFit).not.toHaveBeenCalled();
 });

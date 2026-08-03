@@ -14,6 +14,7 @@ import type {
 } from "./types";
 
 type DurationMode = "time" | "distance" | "open";
+type DistanceUnit = "km" | "m";
 
 interface StepDraft {
   id: number;
@@ -87,7 +88,26 @@ function newStep(values: Partial<StepDraft> = {}): StepDraft {
   };
 }
 
-function stepToDraft(step: WorkoutTemplateStep, locale: "en" | "ru"): StepDraft {
+function distanceUnitForSport(sport: string): DistanceUnit {
+  return sport === "swimming" ? "m" : "km";
+}
+
+function distanceValueFromMeters(distanceMeters: number, sport: string): string {
+  return String(distanceUnitForSport(sport) === "km" ? distanceMeters / 1000 : distanceMeters);
+}
+
+function distanceMetersFromDraft(step: StepDraft, sport: string): number {
+  const value = Number(step.durationValue) || 0;
+  return distanceUnitForSport(sport) === "km" ? value * 1000 : value;
+}
+
+function formatStepDistance(distanceMeters: number, sport: string): string {
+  if (distanceUnitForSport(sport) === "m") return `${distanceMeters} m`;
+  const kilometers = distanceMeters / 1000;
+  return `${Number(kilometers.toFixed(3))} km`;
+}
+
+function stepToDraft(step: WorkoutTemplateStep, locale: "en" | "ru", sport: string): StepDraft {
   const durationMode: DurationMode = step.duration_seconds ? "time" : step.distance_meters ? "distance" : "open";
   return newStep({
     name: locale === "ru" ? step.name_ru || step.name : step.name,
@@ -96,7 +116,7 @@ function stepToDraft(step: WorkoutTemplateStep, locale: "en" | "ru"): StepDraft 
     durationValue: step.duration_seconds
       ? String(Number(step.duration_seconds) / 60)
       : step.distance_meters
-        ? String(step.distance_meters)
+        ? distanceValueFromMeters(step.distance_meters, sport)
         : "",
     repetitions: String(step.repetitions || 1),
     recoverySeconds: step.recovery_seconds ? String(step.recovery_seconds) : "",
@@ -141,11 +161,11 @@ function templateDraft(template: WorkoutTemplate, locale: "en" | "ru"): Template
     tags: template.tags.join(", "),
     equipment: template.equipment.join(", "),
     intensity: template.intensity,
-    steps: template.structured_steps.map((step) => stepToDraft(step, locale)),
+    steps: template.structured_steps.map((step) => stepToDraft(step, locale, template.sport)),
   };
 }
 
-function stepPayload(step: StepDraft): WorkoutTemplateStep {
+function stepPayload(step: StepDraft, sport: string): WorkoutTemplateStep {
   const targetUsesZone = ["heart_rate", "pace", "power"].includes(step.targetType);
   return {
     name: step.name.trim(),
@@ -153,7 +173,7 @@ function stepPayload(step: StepDraft): WorkoutTemplateStep {
     description: step.description.trim(),
     repetitions: Math.max(1, Number(step.repetitions) || 1),
     duration_seconds: step.durationMode === "time" ? Math.round((Number(step.durationValue) || 0) * 60) || null : null,
-    distance_meters: step.durationMode === "distance" ? Math.round(Number(step.durationValue)) || null : null,
+    distance_meters: step.durationMode === "distance" ? Math.round(distanceMetersFromDraft(step, sport)) || null : null,
     recovery_seconds: Number(step.recoverySeconds) || null,
     target_type: step.targetType,
     target_min: step.targetMin || null,
@@ -162,14 +182,14 @@ function stepPayload(step: StepDraft): WorkoutTemplateStep {
   };
 }
 
-function structureSummary(steps: StepDraft[]) {
+function structureSummary(steps: StepDraft[], sport: string) {
   let seconds = 0;
   let meters = 0;
   let intervals = 0;
   steps.forEach((step) => {
     const repetitions = Math.max(1, Number(step.repetitions) || 1);
     if (step.durationMode === "time") seconds += (Number(step.durationValue) || 0) * 60 * repetitions;
-    if (step.durationMode === "distance") meters += (Number(step.durationValue) || 0) * repetitions;
+    if (step.durationMode === "distance") meters += distanceMetersFromDraft(step, sport) * repetitions;
     seconds += (Number(step.recoverySeconds) || 0) * Math.max(0, repetitions - 1);
     if (step.stepType === "work") intervals += repetitions;
   });
@@ -252,17 +272,12 @@ export function WorkoutLibraryPage() {
   }, [draft?.sport, previewAthleteId]);
 
   useEffect(() => {
-    if (selected && !garminAthleteId && relationships.length) {
-      setGarminAthleteId(String(relationships[0].athlete.id));
-    }
-  }, [garminAthleteId, relationships, selected]);
-
-  useEffect(() => {
     if (!selected || !garminAthleteId) {
       setGarminPreview(null);
       return;
     }
     let cancelled = false;
+    setGarminPreview(null);
     setGarminLoading(true);
     api.previewGarminFit(selected.id, Number(garminAthleteId), locale)
       .then((preview) => {
@@ -294,12 +309,14 @@ export function WorkoutLibraryPage() {
 
   const selectedPlan = plans.find((plan) => String(plan.id) === schedulePlanId);
   const selectedWeek = selectedPlan?.weeks.find((week) => String(week.id) === scheduleWeekId);
-  const draftSummary = draft ? structureSummary(draft.steps) : null;
+  const draftSummary = draft ? structureSummary(draft.steps, draft.sport) : null;
+  const previewRelationship = relationships.find((item) => String(item.athlete.id) === previewAthleteId);
+  const garminRelationship = relationships.find((item) => String(item.athlete.id) === garminAthleteId);
 
   function openTemplate(template: WorkoutTemplate) {
     setSelected(template);
     setDraft(null);
-    setGarminAthleteId(relationships[0] ? String(relationships[0].athlete.id) : "");
+    setGarminAthleteId("");
     setGarminPreview(null);
     setMessage("");
   }
@@ -310,6 +327,20 @@ export function WorkoutLibraryPage() {
     setPreviewAthleteId("");
     setPreviewZones([]);
     setMessage("");
+  }
+
+  function changeDraftSport(sport: string) {
+    setDraft((current) => {
+      if (!current || current.sport === sport) return current;
+      const currentUnit = distanceUnitForSport(current.sport);
+      const nextUnit = distanceUnitForSport(sport);
+      const steps = currentUnit === nextUnit ? current.steps : current.steps.map((step) => {
+        if (step.durationMode !== "distance") return step;
+        const meters = distanceMetersFromDraft(step, current.sport);
+        return { ...step, durationValue: distanceValueFromMeters(meters, sport) };
+      });
+      return { ...current, sport, steps };
+    });
   }
 
   function garminIssueLabel(issue: GarminFitIssue): string {
@@ -361,6 +392,17 @@ export function WorkoutLibraryPage() {
     } : current);
   }
 
+  function changeStepDurationMode(id: number, durationMode: DurationMode) {
+    setDraft((current) => current ? {
+      ...current,
+      steps: current.steps.map((step) => step.id === id ? {
+        ...step,
+        durationMode,
+        durationValue: durationMode === "time" ? "5" : durationMode === "distance" ? (distanceUnitForSport(current.sport) === "km" ? "1" : "100") : "",
+      } : step),
+    } : current);
+  }
+
   function moveStep(index: number, direction: -1 | 1) {
     setDraft((current) => {
       if (!current) return current;
@@ -391,7 +433,7 @@ export function WorkoutLibraryPage() {
     setSaving(true);
     setError("");
     try {
-      const summary = structureSummary(draft.steps);
+      const summary = structureSummary(draft.steps, draft.sport);
       const payload = {
         title: draft.title.trim(),
         sport: draft.sport,
@@ -404,7 +446,7 @@ export function WorkoutLibraryPage() {
         intensity: draft.intensity.trim(),
         planned_duration_minutes: summary.minutes ? Math.max(1, Math.round(summary.minutes)) : null,
         planned_distance_km: summary.meters ? (summary.meters / 1000).toFixed(2) : null,
-        structured_steps: draft.steps.map(stepPayload),
+        structured_steps: draft.steps.map((step) => stepPayload(step, draft.sport)),
       };
       const saved = draft.source === "coach" && draft.id
         ? await api.updateWorkoutTemplate(draft.id, payload)
@@ -412,6 +454,8 @@ export function WorkoutLibraryPage() {
       await load();
       setDraft(null);
       setSelected(saved);
+      setGarminAthleteId(previewAthleteId);
+      setGarminPreview(null);
       setMessage(t("builderTemplateSaved"));
     } catch (caught) {
       setError(localizeApiError((caught as Error).message, t));
@@ -547,21 +591,37 @@ export function WorkoutLibraryPage() {
             <div className="template-detail-actions"><button className="secondary" onClick={() => void copyTemplate(selected)} type="button">{t("builderCopyAndEdit")}</button>{selected.source === "coach" && <button className="secondary" onClick={() => startBuilder(selected)} type="button">{t("edit")}</button>}<button className="primary" onClick={() => openSchedule(selected)} type="button">{t("builderSchedule")}</button></div>
           </div>
           <div className="template-detail-summary"><span><small>{t("builderObjective")}</small><strong>{locale === "ru" ? selected.objective_ru || selected.objective : selected.objective}</strong></span><span><small>{t("builderDifficulty")}</small><strong>{selected.difficulty === "all" ? t("builderAllLevels") : t(selected.difficulty === "beginner" ? "experienceBeginner" : selected.difficulty === "intermediate" ? "experienceIntermediate" : "experienceAdvanced")}</strong></span><span><small>{t("builderCompatibility")}</small><strong>{selected.compatibility.garmin_ready ? t("builderGarminReady") : t("builderAdaptationRequired")}</strong></span></div>
-          <section className="garmin-export-panel" aria-live="polite">
+          <section className="garmin-export-panel">
             <div className="garmin-export-intro">
               <span className="garmin-fit-mark">FIT <small>2.0</small></span>
               <div><span className="eyebrow">{t("garminExportEyebrow")}</span><h3>{t("garminExportTitle")}</h3><p>{t("garminExportHelp")}</p></div>
             </div>
-            <label className="garmin-athlete-select">{t("garminExportAthlete")}<select onChange={(event) => setGarminAthleteId(event.target.value)} value={garminAthleteId}><option value="">{t("garminChooseAthlete")}</option>{relationships.map((item) => <option key={item.id} value={item.athlete.id}>{athleteName(item)}</option>)}</select><small>{t("garminPersonalizationHelp")}</small></label>
-            <div className={`garmin-export-status ${garminPreview?.status ?? "pending"}`}>
-              {garminLoading ? <strong>{t("garminChecking")}</strong> : garminPreview ? <><strong>{garminPreview.can_export ? t("garminFileReady") : t("garminNeedsAttention")}</strong><small>{t("garminExportSummary", { count: garminPreview.step_count, version: garminPreview.sdk_version })}</small>{[...garminPreview.issues, ...garminPreview.warnings].length > 0 && <ul>{[...garminPreview.issues, ...garminPreview.warnings].map((issue, index) => <li key={`${issue.code}-${issue.step_index ?? 0}-${index}`}>{garminIssueLabel(issue)}</li>)}</ul>}</> : <><strong>{t("garminChooseAthlete")}</strong><small>{t("garminChooseAthleteHelp")}</small></>}
-            </div>
-            <button className="primary garmin-download-button" disabled={garminDownloading || garminLoading || !garminPreview?.can_export} onClick={() => void downloadGarminFit()} type="button">{garminDownloading ? t("garminGenerating") : t("garminDownloadFit")}</button>
+            {relationships.length ? (
+              <div className="garmin-export-flow">
+                <div className={`garmin-export-step ${garminAthleteId ? "complete" : "active"}`}>
+                  <span className="garmin-step-number">1</span>
+                  <label className="garmin-athlete-select">{t("garminStepChooseAthlete")}<select onChange={(event) => setGarminAthleteId(event.target.value)} value={garminAthleteId}><option value="">{t("garminChooseAthlete")}</option>{relationships.map((item) => <option key={item.id} value={item.athlete.id}>{athleteName(item)}</option>)}</select><small>{t("garminSelectionNotAssignment")}</small></label>
+                </div>
+                <div className={`garmin-export-step ${garminPreview?.can_export ? "complete" : garminAthleteId ? "active" : "pending"}`}>
+                  <span className="garmin-step-number">2</span>
+                  <div className={`garmin-export-status ${garminPreview?.status ?? "pending"}`} aria-live="polite">
+                    {garminLoading ? <strong>{t("garminChecking")}</strong> : garminPreview ? <><strong>{garminPreview.can_export ? t("garminFileReady") : t("garminNeedsAttention")}</strong><small>{t("garminExportSummary", { count: garminPreview.step_count, version: garminPreview.sdk_version })}</small>{[...garminPreview.issues, ...garminPreview.warnings].length > 0 && <ul>{[...garminPreview.issues, ...garminPreview.warnings].map((issue, index) => <li key={`${issue.code}-${issue.step_index ?? 0}-${index}`}>{garminIssueLabel(issue)}</li>)}</ul>}</> : <><strong>{t("garminStepCheckZones")}</strong><small>{t("garminChooseAthleteHelp")}</small></>}
+                  </div>
+                </div>
+                <div className={`garmin-export-step garmin-export-action ${garminPreview?.can_export ? "active" : "pending"}`}>
+                  <span className="garmin-step-number">3</span>
+                  <div><strong>{t("garminStepDownload")}</strong><small>{garminRelationship ? t("garminDownloadForAthlete", { athlete: athleteName(garminRelationship) }) : t("garminDownloadAfterCheck")}</small></div>
+                  <button className="primary garmin-download-button" disabled={garminDownloading || garminLoading || !garminPreview?.can_export} onClick={() => void downloadGarminFit()} type="button">{garminDownloading ? t("garminGenerating") : t("garminDownloadFit")}</button>
+                </div>
+              </div>
+            ) : (
+              <div className="garmin-no-athletes"><span>1</span><div><strong>{t("garminNoAthletesTitle")}</strong><p>{t("garminNoAthletesHelp")}</p></div><button className="secondary" onClick={() => navigate("/athletes")} type="button">{t("garminOpenAthletes")}</button></div>
+            )}
           </section>
           <div className="workout-structure-preview">
             {selected.structured_steps.map((step, index) => (
               <article className={step.step_type} key={`${step.name}-${index}`}>
-                <span>{index + 1}</span><div><strong>{locale === "ru" ? step.name_ru || step.name : step.name}</strong><small>{step.duration_seconds ? `${Number(step.duration_seconds) / 60} ${t("minutes")}` : step.distance_meters ? `${step.distance_meters} m` : t("builderOpenDuration")}{Number(step.repetitions || 1) > 1 ? ` · ${step.repetitions}× · ${t("recovery")} ${step.recovery_seconds || 0}s` : ""}</small></div><b>{step.target_unit === "zone" ? `Z${step.target_min}${step.target_max !== step.target_min ? `–Z${step.target_max}` : ""}` : step.target_type === "free" ? t("targetFree") : `${step.target_min || ""} ${step.target_unit || ""}`}</b>
+                <span>{index + 1}</span><div><strong>{locale === "ru" ? step.name_ru || step.name : step.name}</strong><small>{step.duration_seconds ? `${Number(step.duration_seconds) / 60} ${t("minutes")}` : step.distance_meters ? formatStepDistance(step.distance_meters, selected.sport) : t("builderOpenDuration")}{Number(step.repetitions || 1) > 1 ? ` · ${step.repetitions}× · ${t("recovery")} ${step.recovery_seconds || 0}s` : ""}</small></div><b>{step.target_unit === "zone" ? `Z${step.target_min}${step.target_max !== step.target_min ? `–Z${step.target_max}` : ""}` : step.target_type === "free" ? t("targetFree") : `${step.target_min || ""} ${step.target_unit || ""}`}</b>
               </article>
             ))}
           </div>
@@ -573,13 +633,28 @@ export function WorkoutLibraryPage() {
           <header className="builder-workspace-header"><div><button className="back-link" onClick={() => setDraft(null)} type="button">← {t("builderBackToLibrary")}</button><span className="eyebrow">{draft.source === "coach" ? t("builderEditTemplate") : t("builderNewTemplate")}</span><h2>{draft.title || t("builderUntitled")}</h2></div><div><button className="secondary" onClick={() => setDraft(null)} type="button">{t("cancel")}</button><button className="primary" disabled={saving} type="submit">{saving ? t("saving") : t("builderSaveTemplate")}</button></div></header>
           <div className="builder-layout">
             <section className="builder-canvas">
-              <fieldset className="builder-meta-card"><legend>{t("builderSessionDefinition")}</legend><div className="form-grid"><label>{t("workoutTitle")}<input onChange={(event) => updateDraft("title", event.target.value)} required value={draft.title} /></label><label>{t("sport")}<select onChange={(event) => updateDraft("sport", event.target.value)} value={draft.sport}>{SPORTS.map((sport) => <option key={sport} value={sport}>{t(SPORT_KEYS[sport])}</option>)}</select></label><label>{t("workoutType")}<select onChange={(event) => updateDraft("workoutType", event.target.value)} value={draft.workoutType}>{WORKOUT_TYPES.map((type) => <option key={type} value={type}>{t(TYPE_KEYS[type])}</option>)}</select></label><label>{t("builderDifficulty")}<select onChange={(event) => updateDraft("difficulty", event.target.value)} value={draft.difficulty}><option value="all">{t("builderAllLevels")}</option><option value="beginner">{t("experienceBeginner")}</option><option value="intermediate">{t("experienceIntermediate")}</option><option value="advanced">{t("experienceAdvanced")}</option></select></label><label>{t("intensity")}<input onChange={(event) => updateDraft("intensity", event.target.value)} value={draft.intensity} /></label><label>{t("builderTags")}<input onChange={(event) => updateDraft("tags", event.target.value)} placeholder="threshold, intervals" value={draft.tags} /></label></div><label>{t("builderObjective")}<input onChange={(event) => updateDraft("objective", event.target.value)} value={draft.objective} /></label><label>{t("description")}<textarea onChange={(event) => updateDraft("description", event.target.value)} rows={3} value={draft.description} /></label><label>{t("builderEquipment")}<input onChange={(event) => updateDraft("equipment", event.target.value)} placeholder="running shoes, heart rate monitor" value={draft.equipment} /></label></fieldset>
+              <fieldset className="builder-meta-card"><legend>{t("builderSessionDefinition")}</legend><div className="form-grid"><label>{t("workoutTitle")}<input onChange={(event) => updateDraft("title", event.target.value)} required value={draft.title} /></label><label>{t("sport")}<select onChange={(event) => changeDraftSport(event.target.value)} value={draft.sport}>{SPORTS.map((sport) => <option key={sport} value={sport}>{t(SPORT_KEYS[sport])}</option>)}</select></label><label>{t("workoutType")}<select onChange={(event) => updateDraft("workoutType", event.target.value)} value={draft.workoutType}>{WORKOUT_TYPES.map((type) => <option key={type} value={type}>{t(TYPE_KEYS[type])}</option>)}</select></label><label>{t("builderDifficulty")}<select onChange={(event) => updateDraft("difficulty", event.target.value)} value={draft.difficulty}><option value="all">{t("builderAllLevels")}</option><option value="beginner">{t("experienceBeginner")}</option><option value="intermediate">{t("experienceIntermediate")}</option><option value="advanced">{t("experienceAdvanced")}</option></select></label><label>{t("intensity")}<input onChange={(event) => updateDraft("intensity", event.target.value)} value={draft.intensity} /></label><label>{t("builderTags")}<input onChange={(event) => updateDraft("tags", event.target.value)} placeholder="threshold, intervals" value={draft.tags} /></label></div><label>{t("builderObjective")}<input onChange={(event) => updateDraft("objective", event.target.value)} value={draft.objective} /></label><label>{t("description")}<textarea onChange={(event) => updateDraft("description", event.target.value)} rows={3} value={draft.description} /></label><label>{t("builderEquipment")}<input onChange={(event) => updateDraft("equipment", event.target.value)} placeholder="running shoes, heart rate monitor" value={draft.equipment} /></label></fieldset>
+              <section className="builder-athlete-context">
+                <span className="builder-context-number">1</span>
+                <div><strong>{t("builderAthleteContextTitle")}</strong><p>{t("builderAthleteContextHelp")}</p></div>
+                {relationships.length ? <label>{t("builderAthletePreview")}<select onChange={(event) => setPreviewAthleteId(event.target.value)} value={previewAthleteId}><option value="">{t("builderNoAthletePreview")}</option>{relationships.map((item) => <option key={item.id} value={item.athlete.id}>{athleteName(item)}</option>)}</select></label> : <button className="secondary" onClick={() => navigate("/athletes")} type="button">{t("garminOpenAthletes")}</button>}
+              </section>
               <div className="builder-step-heading"><div><span className="eyebrow">{t("builderStructure")}</span><h3>{t("builderWorkoutSteps")}</h3></div><button className="secondary compact" onClick={() => updateDraft("steps", [...draft.steps, newStep({ name: t("stepWork") })])} type="button">+ {t("addStep")}</button></div>
               <div className="professional-step-list">
                 {draft.steps.map((step, index) => (
                   <article className={`professional-step ${step.stepType}`} key={step.id}>
                     <header><span>{index + 1}</span><div><strong>{step.name || t("unnamedStep")}</strong><small>{Number(step.repetitions) > 1 ? t("builderRepeatBlock", { count: Number(step.repetitions) }) : t("builderSingleStep")}</small></div><div className="step-order-actions"><button aria-label={t("builderMoveUp")} disabled={index === 0} onClick={() => moveStep(index, -1)} type="button">↑</button><button aria-label={t("builderMoveDown")} disabled={index === draft.steps.length - 1} onClick={() => moveStep(index, 1)} type="button">↓</button><button aria-label={t("removeStep")} disabled={draft.steps.length === 1} onClick={() => updateDraft("steps", draft.steps.filter((item) => item.id !== step.id))} type="button">×</button></div></header>
-                    <div className="step-editor-grid"><label>{t("stepType")}<select onChange={(event) => updateStep(step.id, "stepType", event.target.value)} value={step.stepType}><option value="warmup">{t("stepWarmup")}</option><option value="work">{t("stepWork")}</option><option value="recovery">{t("stepRecovery")}</option><option value="cooldown">{t("stepCooldown")}</option><option value="steady">{t("stepSteady")}</option><option value="drill">{t("stepDrill")}</option></select></label><label className="step-name-field">{t("stepName")}<input onChange={(event) => updateStep(step.id, "name", event.target.value)} required value={step.name} /></label><label>{t("builderDurationType")}<select onChange={(event) => updateStep(step.id, "durationMode", event.target.value)} value={step.durationMode}><option value="time">{t("builderTime")}</option><option value="distance">{t("builderDistance")}</option><option value="open">{t("builderOpen")}</option></select></label>{step.durationMode !== "open" && <label>{step.durationMode === "time" ? t("stepDurationMinutes") : t("distanceMeters")}<input min="0.1" onChange={(event) => updateStep(step.id, "durationValue", event.target.value)} required step={step.durationMode === "time" ? "0.1" : "1"} type="number" value={step.durationValue} /></label>}<label>{t("repetitions")}<input max="100" min="1" onChange={(event) => updateStep(step.id, "repetitions", event.target.value)} type="number" value={step.repetitions} /></label>{Number(step.repetitions) > 1 && <label>{t("recoverySeconds")}<input min="0" onChange={(event) => updateStep(step.id, "recoverySeconds", event.target.value)} type="number" value={step.recoverySeconds} /></label>}<label>{t("targetType")}<select onChange={(event) => updateStep(step.id, "targetType", event.target.value)} value={step.targetType}><option value="free">{t("targetFree")}</option><option value="heart_rate">{t("targetHeartRate")}</option><option value="pace">{t("targetPace")}</option><option value="power">{t("targetPower")}</option><option value="cadence">{t("builderCadence")}</option><option value="rpe">RPE</option></select></label>{step.targetType !== "free" && <><label>{["heart_rate", "pace", "power"].includes(step.targetType) ? t("targetZoneFrom") : t("targetMin")}<input max={step.targetType === "rpe" ? 10 : step.targetType === "cadence" ? 250 : 7} min={step.targetType === "cadence" ? 20 : 1} onChange={(event) => updateStep(step.id, "targetMin", event.target.value)} type="number" value={step.targetMin} /></label><label>{["heart_rate", "pace", "power"].includes(step.targetType) ? t("targetZoneTo") : t("targetMax")}<input max={step.targetType === "rpe" ? 10 : step.targetType === "cadence" ? 250 : 7} min={step.targetType === "cadence" ? 20 : 1} onChange={(event) => updateStep(step.id, "targetMax", event.target.value)} type="number" value={step.targetMax} /></label></>}</div>
+                    <div className="step-editor-grid">
+                      <label>{t("stepType")}<select onChange={(event) => updateStep(step.id, "stepType", event.target.value)} value={step.stepType}><option value="warmup">{t("stepWarmup")}</option><option value="work">{t("stepWork")}</option><option value="recovery">{t("stepRecovery")}</option><option value="cooldown">{t("stepCooldown")}</option><option value="steady">{t("stepSteady")}</option><option value="drill">{t("stepDrill")}</option></select></label>
+                      <label className="step-name-field">{t("stepName")}<input onChange={(event) => updateStep(step.id, "name", event.target.value)} required value={step.name} /></label>
+                      <label>{t("builderDurationType")}<select onChange={(event) => changeStepDurationMode(step.id, event.target.value as DurationMode)} value={step.durationMode}><option value="time">{t("builderTime")}</option><option value="distance">{t("builderDistance")}</option><option value="open">{t("builderOpen")}</option></select></label>
+                      {step.durationMode === "time" && <label>{t("stepDurationMinutes")}<input min="0.1" onChange={(event) => updateStep(step.id, "durationValue", event.target.value)} required step="0.1" type="number" value={step.durationValue} /></label>}
+                      {step.durationMode === "distance" && <label className="distance-input-field">{distanceUnitForSport(draft.sport) === "km" ? t("distanceKilometers") : t("distanceMeters")}<span className="distance-input-control"><input max={distanceUnitForSport(draft.sport) === "km" ? "500" : "100000"} min={distanceUnitForSport(draft.sport) === "km" ? "0.01" : "1"} onChange={(event) => updateStep(step.id, "durationValue", event.target.value)} required step={distanceUnitForSport(draft.sport) === "km" ? "0.01" : "1"} type="number" value={step.durationValue} /><b>{distanceUnitForSport(draft.sport)}</b></span><small>{distanceUnitForSport(draft.sport) === "km" ? t("builderDistanceKmHelp") : t("builderDistanceMetersHelp")}</small></label>}
+                      <label>{t("repetitions")}<input max="100" min="1" onChange={(event) => updateStep(step.id, "repetitions", event.target.value)} type="number" value={step.repetitions} /></label>
+                      {Number(step.repetitions) > 1 && <label>{t("recoverySeconds")}<input min="0" onChange={(event) => updateStep(step.id, "recoverySeconds", event.target.value)} type="number" value={step.recoverySeconds} /></label>}
+                      <label>{t("targetType")}<select onChange={(event) => updateStep(step.id, "targetType", event.target.value)} value={step.targetType}><option value="free">{t("targetFree")}</option><option value="heart_rate">{t("targetHeartRate")}</option><option value="pace">{t("targetPace")}</option><option value="power">{t("targetPower")}</option><option value="cadence">{t("builderCadence")}</option><option value="rpe">RPE</option></select></label>
+                      {step.targetType !== "free" && <><label>{["heart_rate", "pace", "power"].includes(step.targetType) ? t("targetZoneFrom") : t("targetMin")}<input max={step.targetType === "rpe" ? 10 : step.targetType === "cadence" ? 250 : 7} min={step.targetType === "cadence" ? 20 : 1} onChange={(event) => updateStep(step.id, "targetMin", event.target.value)} type="number" value={step.targetMin} /></label><label>{["heart_rate", "pace", "power"].includes(step.targetType) ? t("targetZoneTo") : t("targetMax")}<input max={step.targetType === "rpe" ? 10 : step.targetType === "cadence" ? 250 : 7} min={step.targetType === "cadence" ? 20 : 1} onChange={(event) => updateStep(step.id, "targetMax", event.target.value)} type="number" value={step.targetMax} /></label></>}
+                    </div>
                     {["heart_rate", "pace", "power"].includes(step.targetType) && <div className={`zone-resolution ${previewZones.length ? "resolved" : "pending"}`}><span>{t("automaticTarget")}</span><strong>{previewAthleteId ? zoneLabel(step) : t("builderChooseAthletePreview")}</strong></div>}
                     <label>{t("exerciseDescription")}<textarea onChange={(event) => updateStep(step.id, "description", event.target.value)} rows={2} value={step.description} /></label>
                   </article>
@@ -589,9 +664,9 @@ export function WorkoutLibraryPage() {
             <aside className="builder-inspector">
               <span className="eyebrow">{t("builderLivePreview")}</span><h3>{t("builderSessionDose")}</h3>
               <div className="builder-dose-ring"><strong>{draftSummary?.minutes || "—"}</strong><small>{t("minutes")}</small></div>
-              <div className="builder-dose-metrics"><span><small>{t("builderDistance")}</small><strong>{draftSummary?.meters ? `${(draftSummary.meters / 1000).toFixed(2)} km` : "—"}</strong></span><span><small>{t("builderIntervals")}</small><strong>{draftSummary?.intervals || 0}</strong></span><span><small>{t("structuredSteps")}</small><strong>{draft.steps.length}</strong></span></div>
+              <div className="builder-dose-metrics"><span><small>{t("builderDistance")}</small><strong>{draftSummary?.meters ? formatStepDistance(draftSummary.meters, draft.sport) : "—"}</strong></span><span><small>{t("builderIntervals")}</small><strong>{draftSummary?.intervals || 0}</strong></span><span><small>{t("structuredSteps")}</small><strong>{draft.steps.length}</strong></span></div>
               <div className="builder-profile-bars">{draft.steps.map((step) => <i className={step.stepType} key={step.id} style={{ flexGrow: Math.max(1, Number(step.durationValue) * Number(step.repetitions || 1)), height: `${30 + Math.min(65, Number(step.targetMax || step.targetMin || 1) * 11)}%` }} />)}</div>
-              <label>{t("builderAthletePreview")}<select onChange={(event) => setPreviewAthleteId(event.target.value)} value={previewAthleteId}><option value="">{t("builderNoAthletePreview")}</option>{relationships.map((item) => <option key={item.id} value={item.athlete.id}>{athleteName(item)}</option>)}</select><small>{t("builderAthletePreviewHelp")}</small></label>
+              <div className="builder-preview-subject"><small>{t("builderAthletePreview")}</small><strong>{previewRelationship ? athleteName(previewRelationship) : t("builderNoAthletePreview")}</strong><p>{previewRelationship ? t("builderPreviewOnlyHelp") : t("builderAthletePreviewHelp")}</p></div>
               <div className={`builder-compatibility ${draft.steps.some((step) => step.targetType === "rpe") ? "adaptation_required" : "ready"}`}><strong>{draft.steps.some((step) => step.targetType === "rpe") ? t("builderAdaptationRequired") : t("builderGarminReady")}</strong><p>{draft.steps.some((step) => step.targetType === "rpe") ? t("builderRpeCompatibility") : t("builderCompatibilityReadyHelp")}</p></div>
             </aside>
           </div>
