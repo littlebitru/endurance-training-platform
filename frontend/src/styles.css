@@ -1909,26 +1909,40 @@ h1, h2, h3, h4, h5, strong, b, .brand-mark, .logo, .activity-sport, .eyebrow {
 .template-detail-summary small { margin-bottom: 6px; color: #74847e; font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .07em; }
 .template-detail-summary strong { font-size: 13px; line-height: 1.35; }
 .garmin-export-panel {
-  display: grid; grid-template-columns: minmax(270px, 1.2fr) minmax(230px, .8fr) minmax(250px, .9fr) auto;
-  align-items: center; gap: 16px; margin: 4px 28px 20px; padding: 18px; border: 1px solid rgba(25, 106, 88, .16);
+  display: grid; gap: 18px; margin: 4px 28px 20px; padding: 20px; border: 1px solid rgba(25, 106, 88, .16);
   border-radius: 17px; background: linear-gradient(115deg, #f0f8f3, #fbfcfa 55%, #edf8f6);
 }
 .garmin-export-intro { display: flex; align-items: center; gap: 14px; min-width: 0; }
 .garmin-fit-mark { display: grid; flex: none; place-items: center; width: 60px; height: 60px; border-radius: 16px; color: #fff; background: linear-gradient(145deg, #116d5a, #1d9d80); box-shadow: 0 10px 22px rgba(18, 108, 89, .2); font-size: 17px; font-weight: 900; letter-spacing: .06em; }
 .garmin-fit-mark small { margin-top: -13px; color: #c9f2df; font-size: 8px; letter-spacing: .12em; }
 .garmin-export-intro h3 { margin: 4px 0 5px; font-size: 17px; line-height: 1.25; }
-.garmin-export-intro p { margin: 0; color: #60726c; font-size: 11px; line-height: 1.45; }
+.garmin-export-intro p { margin: 0; max-width: 820px; color: #60726c; font-size: 12px; line-height: 1.5; }
+.garmin-export-flow { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.garmin-export-step { position: relative; display: grid; grid-template-columns: 30px minmax(0, 1fr); align-items: start; gap: 10px; min-width: 0; padding: 14px; border: 1px solid #d9e5df; border-radius: 14px; background: rgba(255,255,255,.82); }
+.garmin-export-step.active { border-color: rgba(22, 130, 104, .42); box-shadow: 0 8px 20px rgba(24, 104, 84, .08); }
+.garmin-export-step.complete { border-color: #b9ddb8; background: rgba(241, 251, 235, .94); }
+.garmin-export-step.pending { opacity: .72; }
+.garmin-step-number { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; color: #fff; background: #6f817a; font-size: 11px; font-weight: 900; }
+.garmin-export-step.active .garmin-step-number { background: #167a65; }
+.garmin-export-step.complete .garmin-step-number { background: #6ba844; }
 .garmin-athlete-select { display: grid; gap: 6px; margin: 0; min-width: 0; font-size: 11px; font-weight: 750; }
 .garmin-athlete-select select { width: 100%; min-width: 0; min-height: 44px; padding: 9px 11px; border: 1px solid #cbdcd4; border-radius: 10px; color: #173a33; background: #fff; font: inherit; }
 .garmin-athlete-select small { color: #6e7f79; font-size: 9px; font-weight: 500; line-height: 1.4; }
-.garmin-export-status { display: grid; gap: 4px; min-width: 0; padding: 12px 13px; border-radius: 12px; color: #50645d; background: rgba(255,255,255,.8); }
+.garmin-export-status { display: grid; gap: 4px; min-width: 0; min-height: 69px; padding: 10px 11px; border-radius: 11px; color: #50645d; background: rgba(244,247,245,.92); }
 .garmin-export-status.ready { color: #275f32; background: #e5f5dc; }
 .garmin-export-status.adaptation_required { color: #76591c; background: #fff2d2; }
 .garmin-export-status.blocked { color: #813c35; background: #fee6df; }
 .garmin-export-status strong { font-size: 11px; line-height: 1.35; }
 .garmin-export-status small { font-size: 9px; line-height: 1.4; }
 .garmin-export-status ul { display: grid; gap: 3px; margin: 4px 0 0; padding-left: 16px; font-size: 9px; line-height: 1.35; }
-.garmin-download-button { min-height: 46px; white-space: nowrap; }
+.garmin-export-action > div { display: grid; gap: 5px; }
+.garmin-export-action > div strong { font-size: 11px; line-height: 1.35; }
+.garmin-export-action > div small { color: #6e7f79; font-size: 9px; line-height: 1.45; }
+.garmin-download-button { grid-column: 2; width: 100%; min-height: 44px; margin-top: 4px; white-space: normal; }
+.garmin-no-athletes { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 14px; border: 1px solid #e6c98c; border-radius: 13px; background: #fff7df; }
+.garmin-no-athletes > span { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; color: #fff; background: #b07c19; font-size: 12px; font-weight: 900; }
+.garmin-no-athletes strong { display: block; font-size: 13px; }
+.garmin-no-athletes p { margin: 4px 0 0; color: #756542; font-size: 10px; line-height: 1.45; }
 .workout-structure-preview { display: grid; gap: 9px; padding: 8px 28px 30px; }
 .workout-structure-preview article { display: grid; grid-template-columns: 36px 1fr auto; align-items: center; gap: 13px; padding: 14px; border-left: 4px solid #8dbda8; border-radius: 12px; background: #f8faf8; }
 .workout-structure-preview article.work { border-color: #1c9a78; }
@@ -1965,6 +1979,12 @@ h1, h2, h3, h4, h5, strong, b, .brand-mark, .logo, .activity-sport, .eyebrow {
   border-color: #188f71; outline: 3px solid rgba(24, 143, 113, .12);
 }
 .builder-step-heading { display: flex; align-items: end; justify-content: space-between; gap: 16px; margin: 28px 0 13px; }
+.builder-athlete-context { display: grid; grid-template-columns: 36px minmax(145px, 1fr) minmax(190px, 240px); align-items: center; gap: 13px; margin-top: 16px; padding: 14px; border: 1px solid #cee1d6; border-radius: 14px; background: linear-gradient(110deg, #f1f8f4, #fbfcfb); }
+.builder-context-number { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; color: #fff; background: #177a65; font-size: 12px; font-weight: 900; }
+.builder-athlete-context strong { display: block; font-size: 13px; }
+.builder-athlete-context p { margin: 4px 0 0; color: #667872; font-size: 10px; line-height: 1.45; }
+.builder-athlete-context label { display: grid; gap: 5px; margin: 0; font-size: 10px; font-weight: 800; }
+.builder-athlete-context select { width: 100%; min-width: 0; min-height: 42px; padding: 8px 10px; border: 1px solid #cbdcd4; border-radius: 10px; background: #fff; }
 .builder-step-heading h3 { margin: 4px 0 0; font-size: 23px; }
 .professional-step-list { display: grid; gap: 12px; }
 .professional-step { overflow: hidden; border: 1px solid #dfe8e3; border-left: 4px solid #8dbda8; border-radius: 15px; background: #fff; }
@@ -1979,8 +1999,13 @@ h1, h2, h3, h4, h5, strong, b, .brand-mark, .logo, .activity-sport, .eyebrow {
 .step-order-actions { display: flex; gap: 4px; }
 .step-order-actions button { display: grid; place-items: center; width: 30px; height: 30px; padding: 0; border: 1px solid #d8e2dc; border-radius: 8px; color: #315d53; background: #fff; cursor: pointer; }
 .step-order-actions button:disabled { opacity: .35; cursor: default; }
-.step-editor-grid { display: grid; grid-template-columns: repeat(4, minmax(115px, 1fr)); gap: 10px; padding: 15px; }
+.step-editor-grid { display: grid; grid-template-columns: repeat(3, minmax(140px, 1fr)); gap: 10px; padding: 15px; }
 .step-editor-grid label { margin: 0; }
+.distance-input-field { align-content: start; }
+.distance-input-control { display: grid; grid-template-columns: minmax(0, 1fr) 40px; align-items: stretch; }
+.distance-input-control input { border-radius: 10px 0 0 10px !important; }
+.distance-input-control b { display: grid; place-items: center; border: 1px solid #cfdcd5; border-left: 0; border-radius: 0 10px 10px 0; color: #315d53; background: #eef5f1; font-size: 11px; text-transform: uppercase; }
+.distance-input-field > small { color: #71817b; font-size: 9px; line-height: 1.35; }
 .step-name-field { grid-column: span 2; }
 .professional-step > label { display: grid; gap: 6px; margin: 0; padding: 0 15px 15px; }
 .zone-resolution { display: flex; justify-content: space-between; gap: 12px; margin: 0 15px 13px; padding: 9px 11px; border-radius: 9px; font-size: 11px; }
@@ -2003,6 +2028,10 @@ h1, h2, h3, h4, h5, strong, b, .brand-mark, .logo, .activity-sport, .eyebrow {
 .builder-profile-bars i.cooldown { background: #54a2bd; }
 .builder-inspector label { margin: 0; }
 .builder-inspector label small { margin-top: 6px; line-height: 1.4; }
+.builder-preview-subject { display: grid; gap: 4px; padding: 12px; border-radius: 11px; background: #fff; }
+.builder-preview-subject small { color: #71817b; font-size: 8px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; }
+.builder-preview-subject strong { font-size: 12px; line-height: 1.35; }
+.builder-preview-subject p { margin: 0; color: #6e7f79; font-size: 9px; line-height: 1.4; }
 .builder-compatibility { padding: 13px; border-radius: 12px; }
 .builder-compatibility.ready { color: #27651f; background: #e6f5da; }
 .builder-compatibility.adaptation_required { color: #7d5b16; background: #fff0c8; }
@@ -2024,7 +2053,7 @@ h1, h2, h3, h4, h5, strong, b, .brand-mark, .logo, .activity-sport, .eyebrow {
   .builder-inspector { position: static; grid-template-columns: repeat(3, 1fr); border-top: 1px solid #e3eae6; border-left: 0; }
   .builder-inspector > .eyebrow, .builder-inspector > h3 { grid-column: 1 / -1; }
   .builder-dose-ring { grid-row: span 2; }
-  .garmin-export-panel { grid-template-columns: 1fr 1fr; }
+  .garmin-export-flow { grid-template-columns: 1fr; }
   .garmin-download-button { width: 100%; }
 }
 @media (max-width: 850px) {
@@ -2038,7 +2067,8 @@ h1, h2, h3, h4, h5, strong, b, .brand-mark, .logo, .activity-sport, .eyebrow {
   .template-detail-actions, .builder-workspace-header > div:last-child { width: 100%; }
   .template-detail-actions button, .builder-workspace-header > div:last-child button { flex: 1; }
   .template-detail-summary { grid-template-columns: 1fr; }
-  .garmin-export-panel { grid-template-columns: 1fr; }
+  .builder-athlete-context { grid-template-columns: 36px 1fr; }
+  .builder-athlete-context label, .builder-athlete-context > button { grid-column: 2; }
   .step-editor-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .builder-inspector { grid-template-columns: 1fr 1fr; }
 }
@@ -2049,6 +2079,8 @@ h1, h2, h3, h4, h5, strong, b, .brand-mark, .logo, .activity-sport, .eyebrow {
   .template-catalog-card { min-height: 0; padding: 17px; }
   .template-detail-header, .template-detail-summary, .workout-structure-preview, .builder-canvas, .builder-inspector { padding-left: 16px; padding-right: 16px; }
   .garmin-export-panel { margin-right: 16px; margin-left: 16px; padding: 15px; }
+  .garmin-no-athletes { grid-template-columns: 32px 1fr; }
+  .garmin-no-athletes > button { grid-column: 2; width: 100%; }
   .workout-structure-preview article { grid-template-columns: 30px 1fr; }
   .workout-structure-preview article > b { grid-column: 2; }
   .step-editor-grid { grid-template-columns: 1fr; }
