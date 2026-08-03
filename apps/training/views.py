@@ -4,7 +4,9 @@ from pathlib import Path
 from django.conf import settings
 from django.db import IntegrityError, transaction
 from django.db.models import F, Prefetch, Q
+from django.http import HttpResponse
 from django.utils import timezone
+from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import extend_schema
 from rest_framework import mixins, serializers, status, viewsets
 from rest_framework.decorators import action
@@ -27,6 +29,7 @@ from .activity_analysis import (
 from .activity_import import ActivityImportError, parse_activity_file
 from .analytics import build_athlete_summary, build_coach_summary
 from .calendar import build_training_calendar
+from .garmin_fit import FIT_MIME_TYPE, GarminFitCompatibilityError, build_garmin_fit_file, prepare_garmin_workout
 from .models import (
     Activity,
     ActivityStream,
@@ -55,6 +58,8 @@ from .serializers import (
     CoachAnalyticsSummarySerializer,
     CoachCommentSerializer,
     ExerciseSerializer,
+    GarminFitExportQuerySerializer,
+    GarminFitPreviewSerializer,
     PerformanceInsightsQuerySerializer,
     PerformanceInsightsSerializer,
     PeriodizedPlanSerializer,
@@ -860,6 +865,61 @@ class WorkoutTemplateViewSet(viewsets.ModelViewSet):
         if instance.is_system:
             raise PermissionDenied("System templates cannot be deleted.")
         instance.delete()
+
+    def _garmin_export_context(self, request):
+        query = GarminFitExportQuerySerializer(data=request.query_params)
+        query.is_valid(raise_exception=True)
+        relationship = (
+            CoachingRelationship.objects.select_related("athlete")
+            .filter(
+                coach=request.user,
+                athlete_id=query.validated_data["athlete_id"],
+                is_active=True,
+            )
+            .first()
+        )
+        if relationship is None:
+            raise PermissionDenied("Garmin export is limited to athletes assigned to this coach.")
+        return relationship.athlete, query.validated_data["locale"]
+
+    @extend_schema(
+        parameters=[GarminFitExportQuerySerializer],
+        responses={status.HTTP_200_OK: GarminFitPreviewSerializer},
+        summary="Preview a personalized Garmin FIT workout export",
+    )
+    @action(detail=True, methods=("get",), url_path="garmin-preview")
+    def garmin_preview(self, request, pk=None):
+        template = self.get_object()
+        athlete, locale = self._garmin_export_context(request)
+        preview, _ = prepare_garmin_workout(template, athlete, locale)
+        return Response(GarminFitPreviewSerializer(preview).data)
+
+    @extend_schema(
+        parameters=[GarminFitExportQuerySerializer],
+        responses={(status.HTTP_200_OK, FIT_MIME_TYPE): OpenApiTypes.BINARY},
+        summary="Download a personalized Garmin FIT workout file",
+    )
+    @action(detail=True, methods=("get",), url_path="garmin-fit")
+    def garmin_fit(self, request, pk=None):
+        template = self.get_object()
+        athlete, locale = self._garmin_export_context(request)
+        try:
+            payload, preview = build_garmin_fit_file(template, athlete, locale)
+        except GarminFitCompatibilityError as error:
+            return Response(
+                {
+                    "detail": "Resolve the Garmin compatibility issues before exporting this workout.",
+                    "preview": GarminFitPreviewSerializer(error.preview).data,
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        response = HttpResponse(payload, content_type=FIT_MIME_TYPE)
+        response["Content-Disposition"] = f'attachment; filename="{preview["filename"]}"'
+        response["Cache-Control"] = "private, no-store"
+        response["X-Content-Type-Options"] = "nosniff"
+        response["X-Garmin-Fit-SDK-Version"] = preview["sdk_version"]
+        return response
 
     @extend_schema(
         request=WorkoutTemplateDuplicateSerializer,

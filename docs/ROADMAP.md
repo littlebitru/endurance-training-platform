@@ -14,13 +14,15 @@
 - Personal recovery baselines, explicit sharing controls, coach recovery queues, and load-aware readiness context
 - Professional workout studio with curated multisport templates, repeat blocks, live dose previews, and athlete-zone resolution
 - Immutable system templates, private coach copies, structure versioning, compatibility reporting, and atomic calendar assignment
+- Personalized Garmin FIT workout preview and download using the official SDK, athlete zones, and post-encoding integrity validation
 - Responsive bilingual React application for coach and athlete workflows
 - PostgreSQL, Docker Compose, OpenAPI, automated tests, quality checks, CI, and Render staging
 
-## Current milestone: Garmin-ready workout delivery
+## Current milestone: connected Garmin delivery
 
-- Official FIT workout encoding and integrity validation
-- Secure workout-download endpoint with deterministic file naming and audit metadata
+- Completed: official FIT workout encoding, semantic decoding, and CRC integrity validation
+- Completed: secure personalized preview and download endpoints with deterministic file naming
+- Completed: responsive bilingual Garmin export workflow in the workout library
 - Garmin Connect Developer Program application package, privacy policy, and account-disconnection flow
 - Provider-neutral integration connections, encrypted credentials, idempotent delivery jobs, and sync history
 - Garmin OAuth 2.0 PKCE and Training API publishing after partner credentials are approved
@@ -53,9 +55,8 @@ Exit criteria: the product owner accepts the release candidate and the operation
 
 ## Recommended implementation order
 
-1. FIT workout export and compatibility tests
-2. Privacy, consent, account deletion, and Garmin application package
-3. Background delivery jobs, notifications, and sync observability
-4. Garmin OAuth and Training API adapter after partner approval
-5. Caching, error tracking, security, accessibility, and performance review
-6. Production acceptance and release
+1. Privacy, consent, account deletion, and Garmin application package
+2. Background delivery jobs, notifications, and sync observability
+3. Garmin OAuth and Training API adapter after partner approval
+4. Caching, error tracking, security, accessibility, and performance review
+5. Production acceptance and release

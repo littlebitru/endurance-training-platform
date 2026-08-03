@@ -30,6 +30,8 @@ vi.mock("./api", () => ({
     updateWorkoutTemplate: vi.fn(),
     duplicateWorkoutTemplate: vi.fn(),
     assignWorkoutTemplate: vi.fn(),
+    previewGarminFit: vi.fn(),
+    downloadGarminFit: vi.fn(),
   },
 }));
 
@@ -142,6 +144,25 @@ beforeEach(() => {
     exercises: [],
     coach_comments: [],
   });
+  vi.mocked(api.previewGarminFit).mockResolvedValue({
+    template_id: 41,
+    title: systemTemplate.title,
+    sport: "running",
+    athlete: { id: 2, name: "Alex Miles" },
+    filename: "threshold-development.fit",
+    sdk_version: "21.208.0",
+    fit_protocol_version: "2.0",
+    status: "ready",
+    can_export: true,
+    issues: [],
+    warnings: [],
+    step_count: 9,
+    steps: [],
+  });
+  vi.mocked(api.downloadGarminFit).mockResolvedValue({
+    blob: new Blob(["fit"]),
+    filename: "threshold-development.fit",
+  });
 });
 
 afterEach(() => {
@@ -198,4 +219,29 @@ test("coach builds and saves a reusable structured workout", async () => {
       expect.objectContaining({ step_type: "work", target_unit: "zone" }),
     ]),
   }));
+});
+
+test("coach downloads a personalized Garmin FIT workout", async () => {
+  Object.defineProperty(URL, "createObjectURL", { configurable: true, value: vi.fn(() => "blob:garmin-fit") });
+  Object.defineProperty(URL, "revokeObjectURL", { configurable: true, value: vi.fn() });
+  const createObjectUrl = vi.mocked(URL.createObjectURL);
+  const revokeObjectUrl = vi.mocked(URL.revokeObjectURL);
+  const anchorClick = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
+  render(
+    <MemoryRouter>
+      <LanguageProvider><WorkoutLibraryPage /></LanguageProvider>
+    </MemoryRouter>,
+  );
+
+  await screen.findByRole("heading", { name: systemTemplate.title });
+  fireEvent.click(screen.getByRole("button", { name: "Review" }));
+
+  await waitFor(() => expect(api.previewGarminFit).toHaveBeenCalledWith(41, 2, "en"));
+  expect(await screen.findByText("Personalized FIT file is ready")).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Download Garmin .FIT" }));
+
+  await waitFor(() => expect(api.downloadGarminFit).toHaveBeenCalledWith(41, 2, "en"));
+  expect(createObjectUrl).toHaveBeenCalled();
+  expect(anchorClick).toHaveBeenCalled();
+  expect(revokeObjectUrl).toHaveBeenCalledWith("blob:garmin-fit");
 });

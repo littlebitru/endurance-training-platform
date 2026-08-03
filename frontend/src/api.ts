@@ -52,6 +52,22 @@ export async function request<T>(path: string, options: RequestInit = {}, retry 
   return response.json();
 }
 
+export async function requestBlob(path: string, retry = true): Promise<{ blob: Blob; filename: string }> {
+  const tokens = tokenStore.get();
+  const headers = new Headers();
+  if (tokens?.access) headers.set("Authorization", `Bearer ${tokens.access}`);
+  const response = await fetch(`${API_URL}${path}`, { headers, credentials: "include" });
+  if (response.status === 401 && retry) {
+    const refreshed = await refreshAccessToken();
+    if (refreshed) return requestBlob(path, false);
+    tokenStore.clear();
+  }
+  if (!response.ok) throw new Error(await parseError(response));
+  const disposition = response.headers.get("Content-Disposition") ?? "";
+  const filename = disposition.match(/filename="([^"]+)"/)?.[1] ?? "workout.fit";
+  return { blob: await response.blob(), filename };
+}
+
 export const api = {
   login: (username: string, password: string) => request<Tokens>("/auth/token/", { method: "POST", body: JSON.stringify({ username, password }) }),
   restoreSession: refreshAccessToken,
@@ -134,6 +150,8 @@ export const api = {
   updateWorkoutTemplate: (id: number, data: object) => request<import("./types").WorkoutTemplate>(`/workout-templates/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
   duplicateWorkoutTemplate: (id: number, data: object = {}) => request<import("./types").WorkoutTemplate>(`/workout-templates/${id}/duplicate/`, { method: "POST", body: JSON.stringify(data) }),
   assignWorkoutTemplate: (id: number, data: object) => request<import("./types").Workout>(`/workout-templates/${id}/assign/`, { method: "POST", body: JSON.stringify(data) }),
+  previewGarminFit: (id: number, athleteId: number, locale: string) => request<import("./types").GarminFitPreview>(`/workout-templates/${id}/garmin-preview/?athlete_id=${athleteId}&locale=${locale}`),
+  downloadGarminFit: (id: number, athleteId: number, locale: string) => requestBlob(`/workout-templates/${id}/garmin-fit/?athlete_id=${athleteId}&locale=${locale}`),
   deleteWorkoutTemplate: (id: number) => request<void>(`/workout-templates/${id}/`, { method: "DELETE" }),
   createExercise: (data: object) => request<import("./types").Exercise>("/exercises/", { method: "POST", body: JSON.stringify(data) }),
   createComment: (data: object) => request<import("./types").CoachComment>("/coach-comments/", { method: "POST", body: JSON.stringify(data) }),

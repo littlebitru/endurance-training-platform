@@ -622,6 +622,27 @@ class WorkoutTemplateAssignSerializer(serializers.Serializer):
         return attrs
 
 
+class GarminFitExportQuerySerializer(serializers.Serializer):
+    athlete_id = serializers.IntegerField(min_value=1)
+    locale = serializers.ChoiceField(choices=("en", "ru"), default="en")
+
+
+class GarminFitPreviewSerializer(serializers.Serializer):
+    template_id = serializers.IntegerField()
+    title = serializers.CharField()
+    sport = serializers.CharField()
+    athlete = serializers.DictField()
+    filename = serializers.CharField()
+    sdk_version = serializers.CharField()
+    fit_protocol_version = serializers.CharField()
+    status = serializers.ChoiceField(choices=("ready", "adaptation_required", "blocked"))
+    can_export = serializers.BooleanField()
+    issues = serializers.ListField(child=serializers.DictField())
+    warnings = serializers.ListField(child=serializers.DictField())
+    step_count = serializers.IntegerField()
+    steps = serializers.ListField(child=serializers.DictField())
+
+
 class TrainingPlanSerializer(serializers.ModelSerializer):
     weeks = WeeklyPlanSerializer(many=True, read_only=True)
     threshold_profile = ThresholdValuesSerializer(write_only=True, required=False)
