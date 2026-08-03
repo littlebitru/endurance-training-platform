@@ -144,6 +144,7 @@ export const api = {
   createWorkout: (data: object) => request<import("./types").Workout>("/workouts/", { method: "POST", body: JSON.stringify(data) }),
   updateWorkout: (id: number, data: object) => request<import("./types").Workout>(`/workouts/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
   duplicateWorkout: (id: number, data: object) => request<import("./types").Workout>(`/workouts/${id}/duplicate/`, { method: "POST", body: JSON.stringify(data) }),
+  downloadScheduledGarminFit: (id: number, locale: string) => requestBlob(`/workouts/${id}/garmin-fit/?locale=${locale}`),
   deleteWorkout: (id: number) => request<void>(`/workouts/${id}/`, { method: "DELETE" }),
   workoutTemplates: () => request<import("./types").Page<import("./types").WorkoutTemplate>>("/workout-templates/?page_size=100"),
   createWorkoutTemplate: (data: object) => request<import("./types").WorkoutTemplate>("/workout-templates/", { method: "POST", body: JSON.stringify(data) }),

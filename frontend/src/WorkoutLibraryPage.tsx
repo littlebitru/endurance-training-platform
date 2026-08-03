@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { api } from "./api";
 import { useAuth } from "./auth";
+import { downloadBlob } from "./download";
 import { localizeApiError, useLanguage } from "./i18n";
 import type {
   GarminFitIssue,
@@ -365,14 +366,7 @@ export function WorkoutLibraryPage() {
     setError("");
     try {
       const file = await api.downloadGarminFit(selected.id, Number(garminAthleteId), locale);
-      const url = URL.createObjectURL(file.blob);
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = file.filename;
-      document.body.appendChild(anchor);
-      anchor.click();
-      anchor.remove();
-      URL.revokeObjectURL(url);
+      downloadBlob(file);
       setMessage(t("garminDownloadReady"));
     } catch (caught) {
       setError(localizeApiError((caught as Error).message, t));

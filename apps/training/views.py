@@ -29,7 +29,14 @@ from .activity_analysis import (
 from .activity_import import ActivityImportError, parse_activity_file
 from .analytics import build_athlete_summary, build_coach_summary
 from .calendar import build_training_calendar
-from .garmin_fit import FIT_MIME_TYPE, GarminFitCompatibilityError, build_garmin_fit_file, prepare_garmin_workout
+from .garmin_fit import (
+    FIT_MIME_TYPE,
+    GarminFitCompatibilityError,
+    build_garmin_fit_file,
+    build_scheduled_garmin_fit_file,
+    prepare_garmin_workout,
+    prepare_scheduled_garmin_workout,
+)
 from .models import (
     Activity,
     ActivityStream,
@@ -63,6 +70,7 @@ from .serializers import (
     PerformanceInsightsQuerySerializer,
     PerformanceInsightsSerializer,
     PeriodizedPlanSerializer,
+    ScheduledGarminFitQuerySerializer,
     TrainingCalendarSerializer,
     TrainingGoalProfileSerializer,
     TrainingGoalQuerySerializer,
@@ -801,6 +809,51 @@ class WorkoutViewSet(RelatedPlanViewSet):
         self.validate_coach_ownership(target_week.training_plan, "weekly_plan")
         workout = duplicate_workout(source, target_week, input_serializer.validated_data["scheduled_at"])
         return Response(WorkoutSerializer(workout).data, status=status.HTTP_201_CREATED)
+
+    def _scheduled_garmin_context(self, request, workout):
+        query = ScheduledGarminFitQuerySerializer(data=request.query_params)
+        query.is_valid(raise_exception=True)
+        athlete = workout.weekly_plan.training_plan.athlete
+        return athlete, query.validated_data["locale"]
+
+    @extend_schema(
+        parameters=[ScheduledGarminFitQuerySerializer],
+        responses={status.HTTP_200_OK: GarminFitPreviewSerializer},
+        summary="Preview a personalized Garmin FIT file for a scheduled workout",
+    )
+    @action(detail=True, methods=("get",), url_path="garmin-preview")
+    def garmin_preview(self, request, pk=None):
+        workout = self.get_object()
+        athlete, locale = self._scheduled_garmin_context(request, workout)
+        preview, _ = prepare_scheduled_garmin_workout(workout, athlete, locale)
+        return Response(GarminFitPreviewSerializer(preview).data)
+
+    @extend_schema(
+        parameters=[ScheduledGarminFitQuerySerializer],
+        responses={(status.HTTP_200_OK, FIT_MIME_TYPE): OpenApiTypes.BINARY},
+        summary="Download a personalized Garmin FIT file for a scheduled workout",
+    )
+    @action(detail=True, methods=("get",), url_path="garmin-fit")
+    def garmin_fit(self, request, pk=None):
+        workout = self.get_object()
+        athlete, locale = self._scheduled_garmin_context(request, workout)
+        try:
+            payload, preview = build_scheduled_garmin_fit_file(workout, athlete, locale)
+        except GarminFitCompatibilityError as error:
+            return Response(
+                {
+                    "detail": "Resolve the Garmin compatibility issues before exporting this scheduled workout.",
+                    "preview": GarminFitPreviewSerializer(error.preview).data,
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        response = HttpResponse(payload, content_type=FIT_MIME_TYPE)
+        response["Content-Disposition"] = f'attachment; filename="{preview["filename"]}"'
+        response["Cache-Control"] = "private, no-store"
+        response["X-Content-Type-Options"] = "nosniff"
+        response["X-Garmin-Fit-SDK-Version"] = preview["sdk_version"]
+        return response
 
 
 def duplicate_workout(source, target_week, scheduled_at):

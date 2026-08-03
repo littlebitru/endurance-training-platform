@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "./api";
 import { useAuth } from "./auth";
+import { downloadBlob } from "./download";
 import { localizeGeneratedWorkoutTitle } from "./generatedContent";
 import { localizeApiError, useLanguage } from "./i18n";
 import type { CalendarEvent, PlanPublicationStatus, Relationship, TrainingCalendar } from "./types";
@@ -267,7 +268,23 @@ function EventState({ event }: { event: CalendarEvent }) {
 function CalendarEventDetail({ event, onClose }: { event: CalendarEvent; onClose: () => void }) {
   const { locale, t } = useLanguage();
   const navigate = useNavigate();
+  const [garminDownloading, setGarminDownloading] = useState(false);
+  const [garminError, setGarminError] = useState("");
   const dateLocale = locale === "ru" ? "ru-RU" : "en-US";
+
+  async function downloadGarminWorkout() {
+    if (!event.workout_id || garminDownloading) return;
+    setGarminDownloading(true);
+    setGarminError("");
+    try {
+      downloadBlob(await api.downloadScheduledGarminFit(event.workout_id, locale));
+    } catch (caught) {
+      setGarminError(localizeApiError((caught as Error).message, t));
+    } finally {
+      setGarminDownloading(false);
+    }
+  }
+
   return (
     <div className="editor-backdrop" onMouseDown={(mouseEvent) => { if (mouseEvent.target === mouseEvent.currentTarget) onClose(); }}>
       <section className={`editor-panel calendar-event-detail ${event.sport}`} aria-modal="true" role="dialog">
@@ -302,6 +319,19 @@ function CalendarEventDetail({ event, onClose }: { event: CalendarEvent; onClose
               <DetailMetric label={t("averagePace")} value={pace(event.activities[0].average_pace_seconds_per_km)} />
               <DetailMetric label={t("matchConfidence")} value={event.match_confidence || "—"} />
             </div>
+          </section>
+        )}
+        {event.kind === "workout" && event.workout_id && event.status === "planned" && (
+          <section className="calendar-garmin-export">
+            <span className="calendar-garmin-mark">FIT</span>
+            <div>
+              <strong>{t("calendarGarminTitle")}</strong>
+              <p>{t("calendarGarminHelp")}</p>
+              {garminError && <small role="alert">{garminError}</small>}
+            </div>
+            <button className="primary" disabled={garminDownloading} onClick={() => void downloadGarminWorkout()} type="button">
+              {garminDownloading ? t("garminGenerating") : t("calendarGarminDownload")}
+            </button>
           </section>
         )}
         <footer>

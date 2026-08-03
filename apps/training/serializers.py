@@ -627,8 +627,15 @@ class GarminFitExportQuerySerializer(serializers.Serializer):
     locale = serializers.ChoiceField(choices=("en", "ru"), default="en")
 
 
+class ScheduledGarminFitQuerySerializer(serializers.Serializer):
+    locale = serializers.ChoiceField(choices=("en", "ru"), default="en")
+
+
 class GarminFitPreviewSerializer(serializers.Serializer):
-    template_id = serializers.IntegerField()
+    source_type = serializers.ChoiceField(choices=("template", "workout"))
+    source_id = serializers.IntegerField()
+    template_id = serializers.IntegerField(required=False)
+    workout_id = serializers.IntegerField(required=False)
     title = serializers.CharField()
     sport = serializers.CharField()
     athlete = serializers.DictField()

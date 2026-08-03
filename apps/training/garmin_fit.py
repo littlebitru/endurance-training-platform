@@ -11,7 +11,7 @@ from garmin_fit_sdk import __version__ as fit_sdk_version
 
 from apps.users.models import User
 
-from .models import TrainingZone, WorkoutTemplate
+from .models import TrainingZone, Workout, WorkoutTemplate
 from .workout_structure import materialize_steps, structure_compatibility
 
 FIT_MIME_TYPE = "application/vnd.ant.fit"
@@ -240,21 +240,26 @@ def _capabilities(step_messages: list[dict[str, Any]]) -> int:
     return capabilities
 
 
-def prepare_garmin_workout(
-    template: WorkoutTemplate,
+def _prepare_garmin_workout(
+    *,
+    source_id: int,
+    source_type: str,
+    title: str,
+    title_ru: str,
+    sport: str,
+    structured_steps: list[dict[str, Any]],
     athlete: User,
     locale: str = "en",
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
-    source_compatibility = structure_compatibility(template.structured_steps)
+    source_compatibility = structure_compatibility(structured_steps)
     issues = [_issue(code) for code in source_compatibility["issues"]]
-    if template.sport == "triathlon":
+    if sport == "triathlon":
         issues.append(_issue("multisport_session_structure_required"))
     warnings = [_issue(code) for code in source_compatibility["warnings"] if code != "guidance_only_target"]
     zones = {
-        (zone.metric, zone.zone_number): zone
-        for zone in TrainingZone.objects.filter(athlete=athlete, sport=template.sport)
+        (zone.metric, zone.zone_number): zone for zone in TrainingZone.objects.filter(athlete=athlete, sport=sport)
     }
-    localized_steps = materialize_steps(template.structured_steps, locale)
+    localized_steps = materialize_steps(structured_steps, locale)
     preview_steps: list[dict[str, Any]] = []
     fit_steps: list[dict[str, Any]] = []
 
@@ -321,15 +326,17 @@ def prepare_garmin_workout(
 
     unique_issues = list({(item["code"], item.get("step_index"), str(item)): item for item in issues}.values())
     unique_warnings = list({(item["code"], item.get("step_index"), str(item)): item for item in warnings}.values())
-    title = template.title_ru if locale == "ru" and template.title_ru else template.title
+    localized_title = title_ru if locale == "ru" and title_ru else title
     athlete_name = athlete.get_full_name().strip() or athlete.username
     status = "blocked" if unique_issues else "adaptation_required" if unique_warnings else "ready"
     preview = {
-        "template_id": template.id,
-        "title": title,
-        "sport": template.sport,
+        "source_type": source_type,
+        "source_id": source_id,
+        f"{source_type}_id": source_id,
+        "title": localized_title,
+        "sport": sport,
         "athlete": {"id": athlete.id, "name": athlete_name},
-        "filename": f"{slugify(template.title) or f'workout-{template.id}'}.fit",
+        "filename": f"{slugify(title) or f'workout-{source_id}'}.fit",
         "sdk_version": fit_sdk_version,
         "fit_protocol_version": "2.0",
         "status": status,
@@ -342,16 +349,69 @@ def prepare_garmin_workout(
     return preview, fit_steps
 
 
-def build_garmin_fit_file(
+def prepare_garmin_workout(
     template: WorkoutTemplate,
     athlete: User,
     locale: str = "en",
-    created_at: datetime | None = None,
-) -> tuple[bytes, dict[str, Any]]:
-    preview, step_messages = prepare_garmin_workout(template, athlete, locale)
-    if not preview["can_export"]:
-        raise GarminFitCompatibilityError(preview)
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    return _prepare_garmin_workout(
+        source_id=template.id,
+        source_type="template",
+        title=template.title,
+        title_ru=template.title_ru,
+        sport=template.sport,
+        structured_steps=template.structured_steps,
+        athlete=athlete,
+        locale=locale,
+    )
 
+
+def _scheduled_workout_steps(workout: Workout) -> list[dict[str, Any]]:
+    return [
+        {
+            "name": step.name,
+            "step_type": step.step_type,
+            "order": step.order,
+            "description": step.description,
+            "repetitions": step.repetitions,
+            "duration_seconds": step.duration_seconds,
+            "distance_meters": step.distance_meters,
+            "recovery_seconds": step.recovery_seconds,
+            "target_type": step.target_type,
+            "target_min": step.target_min,
+            "target_max": step.target_max,
+            "target_unit": step.target_unit,
+        }
+        for step in workout.exercises.all()
+    ]
+
+
+def prepare_scheduled_garmin_workout(
+    workout: Workout,
+    athlete: User,
+    locale: str = "en",
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    return _prepare_garmin_workout(
+        source_id=workout.id,
+        source_type="workout",
+        title=workout.title,
+        title_ru="",
+        sport=workout.sport,
+        structured_steps=_scheduled_workout_steps(workout),
+        athlete=athlete,
+        locale=locale,
+    )
+
+
+def _encode_garmin_fit_file(
+    *,
+    preview: dict[str, Any],
+    step_messages: list[dict[str, Any]],
+    serial_number: int,
+    sport: str,
+    description: str,
+    created_at: datetime | None,
+) -> bytes:
     encoder = Encoder()
     encoder.on_mesg(
         Profile["mesg_num"]["FILE_ID"],
@@ -359,20 +419,19 @@ def build_garmin_fit_file(
             "type": "workout",
             "manufacturer": "development",
             "product": FIT_PRODUCT_ID,
-            "serial_number": template.id or 1,
+            "serial_number": serial_number or 1,
             "time_created": created_at or timezone.now(),
             "product_name": FIT_PRODUCT_NAME,
         },
     )
-    description = template.description_ru if locale == "ru" and template.description_ru else template.description
     encoder.on_mesg(
         Profile["mesg_num"]["WORKOUT"],
         {
-            "sport": SPORT_MAP[template.sport],
+            "sport": SPORT_MAP[sport],
             "capabilities": _capabilities(step_messages),
             "num_valid_steps": len(step_messages),
             "wkt_name": _fit_text(preview["title"], 64),
-            "wkt_description": _fit_text(description or "", 160),
+            "wkt_description": _fit_text(description, 160),
         },
     )
     for message in step_messages:
@@ -385,4 +444,47 @@ def build_garmin_fit_file(
     decoded, errors = Decoder(Stream.from_byte_array(bytearray(payload))).read()
     if errors or len(decoded.get("workout_step_mesgs", [])) != len(step_messages):
         raise RuntimeError("The generated Garmin FIT file failed semantic validation.")
+    return payload
+
+
+def build_garmin_fit_file(
+    template: WorkoutTemplate,
+    athlete: User,
+    locale: str = "en",
+    created_at: datetime | None = None,
+) -> tuple[bytes, dict[str, Any]]:
+    preview, step_messages = prepare_garmin_workout(template, athlete, locale)
+    if not preview["can_export"]:
+        raise GarminFitCompatibilityError(preview)
+
+    description = template.description_ru if locale == "ru" and template.description_ru else template.description
+    payload = _encode_garmin_fit_file(
+        preview=preview,
+        step_messages=step_messages,
+        serial_number=template.id,
+        sport=template.sport,
+        description=description or "",
+        created_at=created_at,
+    )
+    return payload, preview
+
+
+def build_scheduled_garmin_fit_file(
+    workout: Workout,
+    athlete: User,
+    locale: str = "en",
+    created_at: datetime | None = None,
+) -> tuple[bytes, dict[str, Any]]:
+    preview, step_messages = prepare_scheduled_garmin_workout(workout, athlete, locale)
+    if not preview["can_export"]:
+        raise GarminFitCompatibilityError(preview)
+
+    payload = _encode_garmin_fit_file(
+        preview=preview,
+        step_messages=step_messages,
+        serial_number=workout.id,
+        sport=workout.sport,
+        description=workout.notes,
+        created_at=created_at,
+    )
     return payload, preview

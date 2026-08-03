@@ -228,7 +228,10 @@ export interface GarminFitPreviewStep {
   };
 }
 export interface GarminFitPreview {
-  template_id: number;
+  source_type: "template" | "workout";
+  source_id: number;
+  template_id?: number;
+  workout_id?: number;
   title: string;
   sport: string;
   athlete: { id: number; name: string };

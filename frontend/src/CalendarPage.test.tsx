@@ -26,6 +26,7 @@ vi.mock("./api", () => ({
     calendar: vi.fn(),
     athletes: vi.fn(),
     publishPlan: vi.fn(),
+    downloadScheduledGarminFit: vi.fn(),
   },
 }));
 
@@ -158,6 +159,39 @@ test("opens a linked upcoming workout directly in the calendar", async () => {
 
   expect(await screen.findByRole("dialog")).toBeInTheDocument();
   expect(screen.getByRole("heading", { name: "Aerobic endurance run" })).toBeInTheDocument();
+});
+
+test("downloads an assigned workout as a personalized Garmin FIT file", async () => {
+  const plannedCalendar: TrainingCalendar = {
+    ...calendar,
+    events: calendar.events.map((event) => ({
+      ...event,
+      status: "planned",
+      activity_ids: [],
+      activities: [],
+    })),
+  };
+  vi.mocked(api.calendar).mockResolvedValue(plannedCalendar);
+  vi.mocked(api.downloadScheduledGarminFit).mockResolvedValue({
+    blob: new Blob(["fit"]),
+    filename: "threshold-intervals.fit",
+  });
+  Object.defineProperty(URL, "createObjectURL", { configurable: true, value: vi.fn(() => "blob:scheduled-fit") });
+  Object.defineProperty(URL, "revokeObjectURL", { configurable: true, value: vi.fn() });
+  const anchorClick = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
+
+  render(
+    <MemoryRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
+      <LanguageProvider><CalendarPage /></LanguageProvider>
+    </MemoryRouter>,
+  );
+
+  fireEvent.click((await screen.findAllByRole("button", { name: /Aerobic endurance run/ }))[0]);
+  fireEvent.click(await screen.findByRole("button", { name: "Download Garmin FIT" }));
+
+  await waitFor(() => expect(api.downloadScheduledGarminFit).toHaveBeenCalledWith(12, "en"));
+  expect(anchorClick).toHaveBeenCalled();
+  expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:scheduled-fit");
 });
 
 test("lets the coach publish a reviewed generated plan from the calendar", async () => {
