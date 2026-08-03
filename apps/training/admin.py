@@ -9,6 +9,7 @@ from .models import (
     TrainingPlan,
     TrainingZone,
     WeeklyPlan,
+    WellnessCheckIn,
     Workout,
     WorkoutLog,
     WorkoutTemplate,
@@ -27,5 +28,6 @@ admin.site.register(
         WorkoutLog,
         WorkoutTemplate,
         ActivityStream,
+        WellnessCheckIn,
     )
 )

@@ -18,6 +18,7 @@ from .models import (
     TrainingPlan,
     TrainingZone,
     WeeklyPlan,
+    WellnessCheckIn,
     Workout,
     WorkoutLog,
     WorkoutTemplate,
@@ -655,6 +656,182 @@ class PerformanceInsightsSerializer(serializers.Serializer):
     summary = PerformanceSummarySerializer()
     data_quality = PerformanceDataQualitySerializer()
     points = PerformancePointSerializer(many=True)
+
+
+class WellnessCheckInSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = WellnessCheckIn
+        fields = (
+            "id",
+            "athlete",
+            "check_in_date",
+            "sleep_duration_minutes",
+            "sleep_quality",
+            "fatigue",
+            "stress",
+            "muscle_soreness",
+            "overall_feeling",
+            "resting_heart_rate",
+            "hrv_rmssd",
+            "illness_severity",
+            "injury_severity",
+            "notes",
+            "share_with_coach",
+            "source",
+            "created_at",
+            "updated_at",
+        )
+        read_only_fields = ("athlete", "source")
+        extra_kwargs = {
+            "sleep_quality": {"required": True},
+            "fatigue": {"required": True},
+            "stress": {"required": True},
+            "muscle_soreness": {"required": True},
+            "overall_feeling": {"required": True},
+        }
+
+    def validate_check_in_date(self, value):
+        if value > timezone.localdate():
+            raise serializers.ValidationError("Wellness check-ins cannot be dated in the future.")
+        return value
+
+    def validate(self, attrs):
+        request = self.context.get("request")
+        athlete = request.user if request else getattr(self.instance, "athlete", None)
+        check_in_date = attrs.get(
+            "check_in_date",
+            getattr(self.instance, "check_in_date", timezone.localdate()),
+        )
+        if athlete:
+            duplicate = WellnessCheckIn.objects.filter(
+                athlete=athlete,
+                check_in_date=check_in_date,
+            )
+            if self.instance:
+                duplicate = duplicate.exclude(pk=self.instance.pk)
+            if duplicate.exists():
+                raise serializers.ValidationError(
+                    {"check_in_date": "A wellness check-in already exists for this date."}
+                )
+        return attrs
+
+
+class WellnessCheckInFilterSerializer(serializers.Serializer):
+    athlete = serializers.IntegerField(min_value=1, required=False)
+    date_from = serializers.DateField(required=False)
+    date_to = serializers.DateField(required=False)
+
+    def validate(self, attrs):
+        date_from = attrs.get("date_from")
+        date_to = attrs.get("date_to")
+        if date_from and date_to and date_to < date_from:
+            raise serializers.ValidationError({"date_to": "Date to must not precede date from."})
+        if date_from and date_to and (date_to - date_from).days > 89:
+            raise serializers.ValidationError({"date_to": "Wellness list ranges cannot exceed 90 days."})
+        return attrs
+
+
+class WellnessInsightsQuerySerializer(serializers.Serializer):
+    athlete_id = serializers.IntegerField(min_value=1, required=False)
+    days = serializers.ChoiceField(choices=(14, 28, 90), default=28)
+
+    def validate(self, attrs):
+        days = int(attrs["days"])
+        today = timezone.localdate()
+        attrs["date_from"] = today - timedelta(days=days - 1)
+        attrs["date_to"] = today
+        return attrs
+
+
+class WellnessRosterQuerySerializer(serializers.Serializer):
+    as_of = serializers.DateField(required=False)
+
+    def validate_as_of(self, value):
+        if value > timezone.localdate():
+            raise serializers.ValidationError("Roster dates cannot be in the future.")
+        return value
+
+
+class WellnessAthleteSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    name = serializers.CharField()
+
+
+class WellnessPointSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    date = serializers.DateField()
+    sleep_duration_minutes = serializers.IntegerField(allow_null=True)
+    sleep_quality = serializers.IntegerField()
+    fatigue = serializers.IntegerField()
+    stress = serializers.IntegerField()
+    muscle_soreness = serializers.IntegerField()
+    overall_feeling = serializers.IntegerField()
+    resting_heart_rate = serializers.IntegerField(allow_null=True)
+    hrv_rmssd = serializers.DecimalField(max_digits=6, decimal_places=2, allow_null=True)
+    illness_severity = serializers.IntegerField()
+    injury_severity = serializers.IntegerField()
+    notes = serializers.CharField(allow_blank=True)
+    share_with_coach = serializers.BooleanField()
+    readiness_score = serializers.IntegerField()
+    subjective_score = serializers.IntegerField()
+    status = serializers.ChoiceField(choices=("ready", "monitor", "recovery_focus"))
+    signals = serializers.ListField(child=serializers.CharField())
+    resting_heart_rate_baseline = serializers.FloatField(allow_null=True)
+    resting_heart_rate_deviation_pct = serializers.FloatField(allow_null=True)
+    resting_heart_rate_baseline_samples = serializers.IntegerField()
+    hrv_baseline = serializers.FloatField(allow_null=True)
+    hrv_deviation_pct = serializers.FloatField(allow_null=True)
+    hrv_baseline_samples = serializers.IntegerField()
+
+
+class WellnessSummarySerializer(serializers.Serializer):
+    latest = WellnessPointSerializer(allow_null=True)
+    average_readiness = serializers.IntegerField(allow_null=True)
+    readiness_change = serializers.IntegerField()
+    check_in_days = serializers.IntegerField()
+    completion_rate = serializers.IntegerField()
+    attention_days = serializers.IntegerField()
+
+
+class WellnessLoadContextSerializer(serializers.Serializer):
+    completed_load_7d = serializers.DecimalField(max_digits=10, decimal_places=2)
+    planned_load_next_7d = serializers.DecimalField(max_digits=10, decimal_places=2)
+    fitness = serializers.DecimalField(max_digits=10, decimal_places=2)
+    fatigue = serializers.DecimalField(max_digits=10, decimal_places=2)
+    form = serializers.DecimalField(max_digits=10, decimal_places=2)
+
+
+class WellnessInsightsSerializer(serializers.Serializer):
+    athlete = WellnessAthleteSerializer()
+    date_from = serializers.DateField()
+    date_to = serializers.DateField()
+    summary = WellnessSummarySerializer()
+    load_context = WellnessLoadContextSerializer()
+    points = WellnessPointSerializer(many=True)
+
+
+class WellnessRosterAthleteSerializer(serializers.Serializer):
+    athlete = WellnessAthleteSerializer()
+    latest_date = serializers.DateField(allow_null=True)
+    days_since_check_in = serializers.IntegerField(allow_null=True)
+    readiness_score = serializers.IntegerField(allow_null=True)
+    status = serializers.ChoiceField(choices=("ready", "monitor", "recovery_focus", "missing"))
+    signals = serializers.ListField(child=serializers.CharField())
+    attention_required = serializers.BooleanField()
+    completed_load_7d = serializers.DecimalField(max_digits=10, decimal_places=2)
+    planned_load_next_7d = serializers.DecimalField(max_digits=10, decimal_places=2)
+
+
+class WellnessRosterSummarySerializer(serializers.Serializer):
+    athletes_count = serializers.IntegerField()
+    checked_in_today = serializers.IntegerField()
+    attention_count = serializers.IntegerField()
+
+
+class WellnessRosterSerializer(serializers.Serializer):
+    as_of = serializers.DateField()
+    summary = WellnessRosterSummarySerializer()
+    athletes = WellnessRosterAthleteSerializer(many=True)
 
 
 class PeriodizedPlanSerializer(serializers.Serializer):

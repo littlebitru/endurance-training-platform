@@ -9,6 +9,7 @@ import { useAuth } from "./auth";
 import { localizeGeneratedWorkoutTitle } from "./generatedContent";
 import { localizeApiError, useLanguage } from "./i18n";
 import { PerformancePage } from "./PerformancePage";
+import { RecoveryPage } from "./RecoveryPage";
 import { TrainingPlansPage } from "./TrainingPlansPage";
 import type { Analytics, Relationship, Role, TrainingCalendar, TrainingPlan, WeeklyAnalytics, Workout } from "./types";
 
@@ -259,6 +260,7 @@ function Layout({ children }: { children: React.ReactNode }) {
           <NavLink to="/">{t("overview")}</NavLink>
           <NavLink to="/calendar">{t("calendar")}</NavLink>
           <NavLink to="/performance">{t("performance")}</NavLink>
+          <NavLink to="/recovery">{t("recoveryHealth")}</NavLink>
           <NavLink to="/plans">{t("trainingPlans")}</NavLink>
           <NavLink to="/activities">{t("activities")}</NavLink>
           {user?.role === "coach" && <NavLink to="/athletes">{t("athletes")}</NavLink>}
@@ -311,6 +313,8 @@ function Overview() {
   const [relationships, setRelationships] = useState<Relationship[]>([]);
   const [stats, setStats] = useState<Analytics | null>(null);
   const [weekCalendar, setWeekCalendar] = useState<TrainingCalendar | null>(null);
+  const [recoveryAttentionCount, setRecoveryAttentionCount] = useState<number | null>(null);
+  const [hasTodayCheckIn, setHasTodayCheckIn] = useState<boolean | null>(null);
   const [dashboardError, setDashboardError] = useState("");
   useEffect(() => {
     if (!user) return;
@@ -322,8 +326,11 @@ function Overview() {
     if (user.role === "coach") {
       requests.push(api.analytics().then(setStats));
       requests.push(api.athletes().then((response) => setRelationships(response.results)));
+      requests.push(api.recoveryRoster().then((response) => setRecoveryAttentionCount(response.summary.attention_count)));
     } else {
       requests.push(api.athleteAnalytics().then(setStats));
+      const today = localDateKey(new Date());
+      requests.push(api.wellnessCheckIns(today, today).then((response) => setHasTodayCheckIn(response.count > 0)));
     }
     Promise.all(requests).catch((caught) => setDashboardError(localizeApiError((caught as Error).message, t)));
   }, [t, user]);
@@ -358,7 +365,9 @@ function Overview() {
         activePlanCount={athletePlans.length}
         athleteCount={activeAthleteCount}
         calendar={weekCalendar}
+        hasTodayCheckIn={hasTodayCheckIn}
         nextWorkout={next[0]?.workout}
+        recoveryAttentionCount={recoveryAttentionCount}
         role={isCoach ? "coach" : "athlete"}
       />
       {!isCoach && athletePlans.length > 0 && <AthletePlanPortfolio plans={athletePlans} />}
@@ -391,17 +400,22 @@ export function WeeklyCommandCenter({
   calendar,
   athleteCount,
   activePlanCount,
+  recoveryAttentionCount,
+  hasTodayCheckIn,
   nextWorkout,
 }: {
   role: Role;
   calendar: TrainingCalendar | null;
   athleteCount: number;
   activePlanCount: number;
+  recoveryAttentionCount?: number | null;
+  hasTodayCheckIn?: boolean | null;
   nextWorkout?: Workout;
 }) {
   const { locale, t } = useLanguage();
   const summary = calendar?.summary;
   const attentionCount = summary?.attention_count ?? 0;
+  const recoveryAttention = recoveryAttentionCount ?? 0;
   const isCoach = role === "coach";
   const dateLocale = locale === "ru" ? "ru-RU" : "en-US";
   const sportKey = nextWorkout
@@ -418,22 +432,23 @@ export function WeeklyCommandCenter({
       { label: t("athletesUnderCoaching"), value: athleteCount, to: "/athletes" },
       { label: t("plannedSessions"), value: summary?.planned_count ?? "—", to: "/calendar" },
       { label: t("attentionNeeded"), value: summary?.attention_count ?? "—", tone: attentionCount > 0 ? "attention" : "positive", to: "/calendar" },
-      { label: t("averageCompliance"), value: summary?.average_compliance == null ? "—" : `${summary.average_compliance}%`, to: "/activities" },
+      { label: t("recoveryAttention"), value: recoveryAttentionCount ?? "—", tone: recoveryAttention > 0 ? "attention" : "positive", to: "/recovery" },
     ]
     : [
       { label: t("activePlans"), value: activePlanCount, to: "/plans" },
       { label: t("plannedSessions"), value: summary?.planned_count ?? "—", to: "/calendar" },
       { label: t("completionRate"), value: summary ? `${summary.completion_rate}%` : "—", tone: "positive", to: "/calendar" },
-      { label: t("actualLoad"), value: summary ? Math.round(Number(summary.training_load_score)) : "—", to: "/activities" },
+      { label: t("dailyCheckIn"), value: hasTodayCheckIn == null ? "—" : hasTodayCheckIn ? t("checkInComplete") : t("checkInPending"), tone: hasTodayCheckIn ? "positive" : "attention", to: "/recovery" },
     ];
   const title = isCoach
-    ? attentionCount > 0 ? t("coachAttentionTitle") : calendar ? t("coachAllClearTitle") : t("coachWeekTitle")
+    ? attentionCount + recoveryAttention > 0 ? t("coachAttentionTitle") : calendar ? t("coachAllClearTitle") : t("coachWeekTitle")
     : t("athleteWeekTitle");
   const description = isCoach
-    ? attentionCount > 0
-      ? t("coachAttentionDescription", { count: attentionCount })
+    ? attentionCount + recoveryAttention > 0
+      ? t("coachWorkspaceAttentionDescription", { training: attentionCount, recovery: recoveryAttention })
       : t("coachAllClearDescription")
     : t("athleteWeekDescription");
+  const commandRoute = isCoach && attentionCount === 0 && recoveryAttention > 0 ? "/recovery" : "/calendar";
   const rhythmDays = calendar
     ? Array.from({ length: 7 }, (_, index) => {
       const date = new Date(`${calendar.date_from}T12:00:00`);
@@ -460,8 +475,8 @@ export function WeeklyCommandCenter({
         <span className="eyebrow">{isCoach ? t("coachCommandCenter") : t("athleteCommandCenter")}</span>
         <h2 id="weekly-command-title">{title}</h2>
         <p>{description}</p>
-        <NavLink className="command-action" to="/calendar">
-          {isCoach ? t("openReviewQueue") : t("openTrainingCalendar")} →
+        <NavLink className="command-action" to={commandRoute}>
+          {isCoach && commandRoute === "/recovery" ? t("openRecoveryRoster") : isCoach ? t("openReviewQueue") : t("openTrainingCalendar")} →
         </NavLink>
       </div>
       <div className="weekly-rhythm">
@@ -652,6 +667,7 @@ function AthletesPage() {
             <h3>{relationship.athlete.first_name ? `${relationship.athlete.first_name} ${relationship.athlete.last_name}` : relationship.athlete.username}</h3>
             <p>{relationship.athlete.profile?.sport || t("sportMissing")}</p>
             <div className="athlete-actions">
+              <NavLink className="secondary" to={`/recovery?athlete_id=${relationship.athlete.id}`}>{t("recoveryHealth")}</NavLink>
               <NavLink className="secondary" to={`/performance?athlete_id=${relationship.athlete.id}`}>{t("performance")}</NavLink>
               <button className="secondary" onClick={() => setSelectedAthlete(relationship)} type="button">{t("thresholdsAndZones")}</button>
             </div>
@@ -675,6 +691,7 @@ export default function App() {
       <Route path="/" element={<Protected><Overview /></Protected>} />
       <Route path="/calendar" element={<Protected><CalendarPage /></Protected>} />
       <Route path="/performance" element={<Protected><PerformancePage /></Protected>} />
+      <Route path="/recovery" element={<Protected><RecoveryPage /></Protected>} />
       <Route path="/plans" element={<Protected><TrainingPlansPage /></Protected>} />
       <Route path="/activities" element={<Protected><ActivitiesPage /></Protected>} />
       <Route path="/athletes" element={<Protected><AthletesPage /></Protected>} />

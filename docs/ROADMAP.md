@@ -10,18 +10,20 @@
 - FIT, TCX, and GPX imports with matching, compliance, training load, and time-in-zone analysis
 - Unified plan-versus-execution calendar with coach attention queues
 - Weekly adherence analytics and interactive fitness, fatigue, form, and load forecasting
+- Athlete-owned daily wellness check-ins with sleep, fatigue, stress, soreness, overall feeling, HRV, and resting heart rate
+- Personal recovery baselines, explicit sharing controls, coach recovery queues, and load-aware readiness context
 - Responsive bilingual React application for coach and athlete workflows
 - PostgreSQL, Docker Compose, OpenAPI, automated tests, quality checks, CI, and Render staging
 
-## Current milestone: Complete coaching context
+## Current milestone: Reliable coaching communication
 
-- Athlete daily wellness and recovery check-ins
-- Coach recovery-context view alongside load and adherence
-- Explicit separation between subjective athlete feedback and calculated load indicators
 - Notification preferences and asynchronous email delivery
+- Recovery, missed-session, coach-comment, and plan-publication notification events
+- In-product notification center with read state and deep links
+- Per-user channel and event preferences
 - Expanded permission, validation, accessibility, and concurrency tests
 
-Exit criteria: a coach can review plan, execution, load, recovery context, and communication needs without leaving the product.
+Exit criteria: important athlete and coach events are delivered once, remain visible in-product, and respect explicit user preferences.
 
 ## Production readiness
 
@@ -48,8 +50,7 @@ Exit criteria: the product owner accepts the release candidate and the operation
 
 ## Recommended implementation order
 
-1. Daily wellness and recovery context
-2. Notifications and background jobs
-3. Caching, error tracking, and metrics
-4. Security, accessibility, and performance review
-5. Production acceptance and release
+1. Notifications and background jobs
+2. Caching, error tracking, and metrics
+3. Security, accessibility, and performance review
+4. Production acceptance and release

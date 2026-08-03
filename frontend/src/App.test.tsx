@@ -152,6 +152,7 @@ test("shows a compact localized weekly command center for an athlete", () => {
           activePlanCount={2}
           athleteCount={0}
           calendar={weekCalendar}
+          hasTodayCheckIn
           nextWorkout={nextWorkout}
           role="athlete"
         />
@@ -162,7 +163,7 @@ test("shows a compact localized weekly command center for an athlete", () => {
   expect(screen.getByRole("heading", { name: "Ваша тренировочная неделя" })).toBeInTheDocument();
   expect(screen.getByText("бег")).toBeInTheDocument();
   expect(screen.getByText("60%")).toBeInTheDocument();
-  expect(screen.getByText("241")).toBeInTheDocument();
+  expect(screen.getByText("Заполнен")).toBeInTheDocument();
   expect(screen.getByText("Процент выполнения")).toBeInTheDocument();
   expect(screen.getByRole("link", { name: /Активные планы/ })).toHaveAttribute("href", "/plans");
   expect(screen.getByRole("link", { name: /Следующая тренировка/ })).toHaveAttribute(
@@ -170,6 +171,7 @@ test("shows a compact localized weekly command center for an athlete", () => {
     "/calendar?date=2026-07-29&workout_id=30",
   );
   expect(screen.getByRole("link", { name: /Открыть календарь тренировок/ })).toHaveAttribute("href", "/calendar");
+  expect(screen.getByRole("link", { name: /СЕГОДНЯШНИЙ ОПРОС/ })).toHaveAttribute("href", "/recovery");
 });
 
 test("prioritizes the coach review queue when sessions need attention", () => {
@@ -180,6 +182,7 @@ test("prioritizes the coach review queue when sessions need attention", () => {
           activePlanCount={0}
           athleteCount={4}
           calendar={weekCalendar}
+          recoveryAttentionCount={1}
           role="coach"
         />
       </LanguageProvider>
@@ -187,7 +190,7 @@ test("prioritizes the coach review queue when sessions need attention", () => {
   );
 
   expect(screen.getByRole("heading", { name: "Some sessions need your review" })).toBeInTheDocument();
-  expect(screen.getByText("The review queue contains 2 missed or materially deviating sessions.")).toBeInTheDocument();
+  expect(screen.getByText("Items requiring review — training execution: 2; recovery context: 1.")).toBeInTheDocument();
   expect(screen.getByText("4")).toBeInTheDocument();
   expect(screen.getByRole("link", { name: /Open review queue/ })).toHaveAttribute("href", "/calendar");
 });
