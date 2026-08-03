@@ -3,11 +3,12 @@ from pathlib import Path
 
 from django.conf import settings
 from django.db import IntegrityError, transaction
-from django.db.models import Prefetch, Q
+from django.db.models import F, Prefetch, Q
 from django.utils import timezone
 from drf_spectacular.utils import extend_schema
 from rest_framework import mixins, serializers, status, viewsets
 from rest_framework.decorators import action
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -73,10 +74,13 @@ from .serializers import (
     WorkoutDuplicateSerializer,
     WorkoutLogSerializer,
     WorkoutSerializer,
+    WorkoutTemplateAssignSerializer,
+    WorkoutTemplateDuplicateSerializer,
     WorkoutTemplateSerializer,
     training_goal_catalog,
 )
 from .wellness import build_recovery_insights, build_recovery_roster
+from .workout_structure import materialize_steps, summarize_structure
 from .zones import current_threshold, recalculate_training_zones
 
 
@@ -832,17 +836,117 @@ def duplicate_workout(source, target_week, scheduled_at):
 class WorkoutTemplateViewSet(viewsets.ModelViewSet):
     serializer_class = WorkoutTemplateSerializer
     permission_classes = (IsCoach,)
-    filterset_fields = ("sport", "workout_type")
-    search_fields = ("title", "description")
-    ordering_fields = ("title", "sport", "workout_type", "created_at")
+    filterset_fields = ("sport", "workout_type", "difficulty", "is_system", "is_archived")
+    search_fields = ("title", "title_ru", "description", "description_ru", "objective", "objective_ru")
+    ordering_fields = ("title", "sport", "workout_type", "difficulty", "usage_count", "created_at")
 
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):
             return WorkoutTemplate.objects.none()
-        return WorkoutTemplate.objects.filter(coach=self.request.user)
+        return WorkoutTemplate.objects.filter(
+            Q(coach=self.request.user) | Q(is_system=True, coach__isnull=True),
+            is_archived=False,
+        )
 
     def perform_create(self, serializer):
-        serializer.save(coach=self.request.user)
+        serializer.save(
+            coach=self.request.user,
+            is_system=False,
+            slug=None,
+            schema_version=1,
+        )
+
+    def perform_destroy(self, instance):
+        if instance.is_system:
+            raise PermissionDenied("System templates cannot be deleted.")
+        instance.delete()
+
+    @extend_schema(
+        request=WorkoutTemplateDuplicateSerializer,
+        responses={status.HTTP_201_CREATED: WorkoutTemplateSerializer},
+        summary="Copy a workout template into the coach library",
+    )
+    @action(detail=True, methods=("post",), url_path="duplicate")
+    @transaction.atomic
+    def duplicate(self, request, pk=None):
+        source = self.get_object()
+        input_serializer = WorkoutTemplateDuplicateSerializer(data=request.data)
+        input_serializer.is_valid(raise_exception=True)
+        base_title = input_serializer.validated_data.get("title") or f"{source.title} copy"
+        title = base_title
+        suffix = 2
+        while WorkoutTemplate.objects.filter(coach=request.user, sport=source.sport, title=title).exists():
+            title = f"{base_title} {suffix}"
+            suffix += 1
+        template = WorkoutTemplate.objects.create(
+            coach=request.user,
+            title=title,
+            title_ru=source.title_ru,
+            sport=source.sport,
+            workout_type=source.workout_type,
+            description=source.description,
+            description_ru=source.description_ru,
+            objective=source.objective,
+            objective_ru=source.objective_ru,
+            difficulty=source.difficulty,
+            tags=source.tags,
+            equipment=source.equipment,
+            planned_duration_minutes=source.planned_duration_minutes,
+            planned_distance_km=source.planned_distance_km,
+            intensity=source.intensity,
+            structured_steps=source.structured_steps,
+            schema_version=source.schema_version,
+        )
+        return Response(WorkoutTemplateSerializer(template).data, status=status.HTTP_201_CREATED)
+
+    @extend_schema(
+        request=WorkoutTemplateAssignSerializer,
+        responses={status.HTTP_201_CREATED: WorkoutSerializer},
+        summary="Schedule a workout from a template",
+    )
+    @action(detail=True, methods=("post",), url_path="assign")
+    @transaction.atomic
+    def assign(self, request, pk=None):
+        template = self.get_object()
+        input_serializer = WorkoutTemplateAssignSerializer(data=request.data)
+        input_serializer.is_valid(raise_exception=True)
+        week = input_serializer.validated_data["weekly_plan"]
+        if week.training_plan.coach_id != request.user.id:
+            raise PermissionDenied("The selected training week belongs to another coach.")
+
+        locale = input_serializer.validated_data["locale"]
+        localized_title = template.title_ru if locale == "ru" and template.title_ru else template.title
+        localized_description = (
+            template.description_ru if locale == "ru" and template.description_ru else template.description
+        )
+        summary = summarize_structure(template.structured_steps)
+        planned_duration = template.planned_duration_minutes
+        if planned_duration is None and summary["total_duration_seconds"]:
+            planned_duration = max(1, round(summary["total_duration_minutes"]))
+        planned_distance = template.planned_distance_km or (
+            summary["total_distance_km"] if summary["total_distance_meters"] else None
+        )
+        workout_serializer = WorkoutSerializer(
+            data={
+                "weekly_plan": week.id,
+                "title": input_serializer.validated_data.get("title") or localized_title,
+                "sport": template.sport,
+                "workout_type": template.workout_type,
+                "scheduled_at": input_serializer.validated_data["scheduled_at"],
+                "planned_duration_minutes": planned_duration,
+                "planned_distance_km": planned_distance,
+                "intensity": template.intensity,
+                "notes": localized_description,
+                "status": Workout.Status.PLANNED,
+                "source_template": template.id,
+                "structure_version": template.schema_version,
+                "structured_steps": materialize_steps(template.structured_steps, locale),
+            }
+        )
+        workout_serializer.is_valid(raise_exception=True)
+        workout = workout_serializer.save()
+        WorkoutTemplate.objects.filter(pk=template.pk).update(usage_count=F("usage_count") + 1)
+        return Response(WorkoutSerializer(workout).data, status=status.HTTP_201_CREATED)
 
 
 class ExerciseViewSet(RelatedPlanViewSet):

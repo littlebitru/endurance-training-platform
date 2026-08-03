@@ -160,6 +160,14 @@ class Workout(TimeStampedModel):
     intensity = models.CharField(max_length=100, blank=True)
     status = models.CharField(max_length=12, choices=Status.choices, default=Status.PLANNED)
     notes = models.TextField(blank=True)
+    source_template = models.ForeignKey(
+        "WorkoutTemplate",
+        on_delete=models.SET_NULL,
+        related_name="assigned_workouts",
+        null=True,
+        blank=True,
+    )
+    structure_version = models.PositiveSmallIntegerField(default=1)
 
     class Meta:
         ordering = ("scheduled_at",)
@@ -184,6 +192,7 @@ class Exercise(TimeStampedModel):
         HEART_RATE = "heart_rate", "Heart rate"
         PACE = "pace", "Pace"
         POWER = "power", "Power"
+        CADENCE = "cadence", "Cadence"
         RPE = "rpe", "Perceived exertion"
 
     workout = models.ForeignKey(Workout, on_delete=models.CASCADE, related_name="exercises")
@@ -287,19 +296,39 @@ class AthleteThreshold(TimeStampedModel):
 
 
 class WorkoutTemplate(TimeStampedModel):
+    class Difficulty(models.TextChoices):
+        ALL = "all", "All levels"
+        BEGINNER = "beginner", "Beginner"
+        INTERMEDIATE = "intermediate", "Intermediate"
+        ADVANCED = "advanced", "Advanced"
+
     coach = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name="workout_templates",
+        null=True,
+        blank=True,
     )
+    slug = models.SlugField(max_length=120, unique=True, null=True, blank=True)
+    is_system = models.BooleanField(default=False, db_index=True)
+    is_archived = models.BooleanField(default=False, db_index=True)
     title = models.CharField(max_length=200)
+    title_ru = models.CharField(max_length=200, blank=True)
     sport = models.CharField(max_length=16, choices=SportType.choices)
     workout_type = models.CharField(max_length=16, choices=Workout.Type.choices, default=Workout.Type.ENDURANCE)
     description = models.TextField(blank=True)
+    description_ru = models.TextField(blank=True)
+    objective = models.CharField(max_length=240, blank=True)
+    objective_ru = models.CharField(max_length=240, blank=True)
+    difficulty = models.CharField(max_length=16, choices=Difficulty.choices, default=Difficulty.ALL)
+    tags = models.JSONField(default=list, blank=True)
+    equipment = models.JSONField(default=list, blank=True)
     planned_duration_minutes = models.PositiveIntegerField(null=True, blank=True)
     planned_distance_km = models.DecimalField(max_digits=7, decimal_places=2, null=True, blank=True)
     intensity = models.CharField(max_length=100, blank=True)
     structured_steps = models.JSONField(default=list, blank=True)
+    schema_version = models.PositiveSmallIntegerField(default=1)
+    usage_count = models.PositiveIntegerField(default=0)
 
     class Meta:
         ordering = ("sport", "workout_type", "title")
@@ -307,9 +336,20 @@ class WorkoutTemplate(TimeStampedModel):
             models.UniqueConstraint(
                 fields=("coach", "sport", "title"),
                 name="unique_coach_sport_template_title",
-            )
+                condition=models.Q(coach__isnull=False),
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(is_system=True, coach__isnull=True, slug__isnull=False)
+                    | models.Q(is_system=False, coach__isnull=False)
+                ),
+                name="template_system_ownership_valid",
+            ),
         ]
-        indexes = [models.Index(fields=("coach", "sport", "workout_type"), name="template_coach_sport_type_idx")]
+        indexes = [
+            models.Index(fields=("coach", "sport", "workout_type"), name="template_coach_sport_type_idx"),
+            models.Index(fields=("is_system", "sport", "workout_type"), name="template_system_sport_type_idx"),
+        ]
 
 
 class CoachComment(TimeStampedModel):

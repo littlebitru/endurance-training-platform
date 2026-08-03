@@ -19,6 +19,7 @@ import type {
   WeeklyPlan,
   Workout,
   WorkoutTemplate,
+  WorkoutTemplateStep,
 } from "./types";
 
 type Editor =
@@ -188,10 +189,10 @@ function stepFromExercise(step: Workout["exercises"][number]): StepDraft {
   });
 }
 
-function stepFromTemplate(step: Record<string, string | number | null>): StepDraft {
+function stepFromTemplate(step: WorkoutTemplateStep, locale: "en" | "ru"): StepDraft {
   return createStep({
     stepType: String(step.step_type ?? "work"),
-    name: String(step.name ?? ""),
+    name: String(locale === "ru" ? step.name_ru || step.name : step.name ?? ""),
     repetitions: String(step.repetitions ?? 1),
     durationMinutes: step.duration_seconds ? String(Number(step.duration_seconds) / 60) : "",
     distanceMeters: step.distance_meters ? String(step.distance_meters) : "",
@@ -200,7 +201,7 @@ function stepFromTemplate(step: Record<string, string | number | null>): StepDra
     targetMin: step.target_min == null ? "" : String(step.target_min),
     targetMax: step.target_max == null ? "" : String(step.target_max),
     targetUnit: String(step.target_unit ?? ""),
-    description: String(step.description ?? ""),
+    description: String(locale === "ru" ? step.description_ru || step.description || "" : step.description ?? ""),
   });
 }
 
@@ -388,7 +389,7 @@ export function EditorPanel({
   onClose: () => void;
   onSaved: (message: string, destination?: SavedDestination) => Promise<void>;
 }) {
-  const { t } = useLanguage();
+  const { locale, t } = useLanguage();
   const activeRelationships = relationships.filter((item) => item.is_active);
   const initialPlanRelationship = editor.kind === "plan" && activeRelationships.length === 1
     ? activeRelationships[0]
@@ -613,7 +614,7 @@ export function EditorPanel({
     if (!template) return;
     setWorkoutSport(template.sport);
     setWorkoutType(template.workout_type);
-    setSteps(template.structured_steps.map(stepFromTemplate));
+    setSteps(template.structured_steps.map((step) => stepFromTemplate(step, locale)));
   }
 
   function updateStep(id: number, field: keyof StepDraft, value: string) {
@@ -948,7 +949,7 @@ export function EditorPanel({
           {editor.kind === "workout" && (
             <>
               <div className="editor-context"><strong>{t("week", { number: editor.week.week_number })}</strong><small>{editor.week.start_date}</small></div>
-              <label className="template-picker">{t("templateLibrary")}<select defaultValue="" onChange={(event) => loadTemplate(event.target.value)}><option value="">{templates.length ? t("chooseTemplate") : t("noTemplates")}</option>{templates.map((template) => <option key={template.id} value={template.id}>{template.title} · {workoutTypeLabels[template.workout_type] ?? template.workout_type}</option>)}</select><small>{t("templateLibraryHelp")}</small></label>
+              <label className="template-picker">{t("templateLibrary")}<select defaultValue="" onChange={(event) => loadTemplate(event.target.value)}><option value="">{templates.length ? t("chooseTemplate") : t("noTemplates")}</option>{templates.map((template) => <option key={template.id} value={template.id}>{locale === "ru" ? template.title_ru || template.title : template.title} · {workoutTypeLabels[template.workout_type] ?? template.workout_type}</option>)}</select><small>{t("templateLibraryHelp")}</small></label>
               <fieldset className="builder-fieldset">
                 <legend><b>1</b>{t("chooseWorkoutSport")}</legend>
                 <div className="sport-choice-grid">

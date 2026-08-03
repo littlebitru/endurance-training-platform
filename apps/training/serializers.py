@@ -1,6 +1,8 @@
+import json
 from datetime import timedelta
 from decimal import Decimal
 
+from django.core.serializers.json import DjangoJSONEncoder
 from django.db import transaction
 from django.utils import timezone
 from drf_spectacular.utils import extend_schema_field
@@ -23,6 +25,7 @@ from .models import (
     WorkoutLog,
     WorkoutTemplate,
 )
+from .workout_structure import structure_compatibility, summarize_structure
 from .zones import current_threshold, recalculate_training_zones
 
 
@@ -127,6 +130,62 @@ class StructuredStepSerializer(TargetRangeValidationMixin, serializers.ModelSeri
     class Meta:
         model = Exercise
         exclude = ("workout",)
+
+
+class TemplateStructuredStepSerializer(TargetRangeValidationMixin, serializers.Serializer):
+    name = serializers.CharField(max_length=200)
+    name_ru = serializers.CharField(max_length=200, required=False, allow_blank=True)
+    step_type = serializers.ChoiceField(choices=Exercise.StepType.choices, default=Exercise.StepType.WORK)
+    order = serializers.IntegerField(min_value=1, required=False)
+    description = serializers.CharField(required=False, allow_blank=True)
+    description_ru = serializers.CharField(required=False, allow_blank=True)
+    repetitions = serializers.IntegerField(min_value=1, max_value=100, required=False, allow_null=True)
+    duration_seconds = serializers.IntegerField(min_value=1, required=False, allow_null=True)
+    distance_meters = serializers.IntegerField(min_value=1, required=False, allow_null=True)
+    recovery_seconds = serializers.IntegerField(min_value=0, required=False, allow_null=True)
+    target_type = serializers.ChoiceField(choices=Exercise.TargetType.choices, default=Exercise.TargetType.FREE)
+    target_min = serializers.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        required=False,
+        allow_null=True,
+    )
+    target_max = serializers.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        required=False,
+        allow_null=True,
+    )
+    target_unit = serializers.CharField(max_length=20, required=False, allow_blank=True)
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        if attrs.get("duration_seconds") and attrs.get("distance_meters"):
+            raise serializers.ValidationError("A step must use either time or distance, not both.")
+
+        target_type = attrs.get("target_type", Exercise.TargetType.FREE)
+        target_unit = attrs.get("target_unit", "")
+        lower = attrs.get("target_min")
+        upper = attrs.get("target_max")
+        if target_unit == "zone":
+            if target_type not in {
+                Exercise.TargetType.HEART_RATE,
+                Exercise.TargetType.PACE,
+                Exercise.TargetType.POWER,
+            }:
+                raise serializers.ValidationError({"target_unit": "Zones support heart rate, pace, or power."})
+            for field, value in (("target_min", lower), ("target_max", upper)):
+                if value is not None and (value != int(value) or not 1 <= value <= 7):
+                    raise serializers.ValidationError({field: "Zone targets must be whole numbers from 1 to 7."})
+        if target_type == Exercise.TargetType.RPE:
+            for field, value in (("target_min", lower), ("target_max", upper)):
+                if value is not None and not 1 <= value <= 10:
+                    raise serializers.ValidationError({field: "RPE targets must be from 1 to 10."})
+        if target_type == Exercise.TargetType.CADENCE:
+            for field, value in (("target_min", lower), ("target_max", upper)):
+                if value is not None and not 20 <= value <= 250:
+                    raise serializers.ValidationError({field: "Cadence targets must be from 20 to 250 rpm."})
+        return attrs
 
 
 class TrainingZoneSerializer(serializers.ModelSerializer):
@@ -500,15 +559,67 @@ class WeeklyPlanSerializer(serializers.ModelSerializer):
 
 
 class WorkoutTemplateSerializer(serializers.ModelSerializer):
+    source = serializers.SerializerMethodField()
+    structure_summary = serializers.SerializerMethodField()
+    compatibility = serializers.SerializerMethodField()
+
     class Meta:
         model = WorkoutTemplate
         fields = "__all__"
-        read_only_fields = ("coach",)
+        read_only_fields = (
+            "coach",
+            "slug",
+            "is_system",
+            "schema_version",
+            "usage_count",
+        )
+
+    @extend_schema_field(serializers.CharField())
+    def get_source(self, template) -> str:
+        return "system" if template.is_system else "coach"
+
+    @extend_schema_field(serializers.DictField())
+    def get_structure_summary(self, template) -> dict:
+        return summarize_structure(template.structured_steps)
+
+    @extend_schema_field(serializers.DictField())
+    def get_compatibility(self, template) -> dict:
+        return structure_compatibility(template.structured_steps)
 
     def validate_structured_steps(self, value):
-        validator = StructuredStepSerializer(data=value, many=True)
+        if not value:
+            raise serializers.ValidationError("A workout template requires at least one structured step.")
+        validator = TemplateStructuredStepSerializer(data=value, many=True)
         validator.is_valid(raise_exception=True)
-        return value
+        return json.loads(json.dumps(validator.validated_data, cls=DjangoJSONEncoder))
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        if self.instance and self.instance.is_system:
+            raise serializers.ValidationError("System templates cannot be modified.")
+        return attrs
+
+
+class WorkoutTemplateDuplicateSerializer(serializers.Serializer):
+    title = serializers.CharField(max_length=200, required=False)
+
+
+class WorkoutTemplateAssignSerializer(serializers.Serializer):
+    weekly_plan = serializers.PrimaryKeyRelatedField(queryset=WeeklyPlan.objects.select_related("training_plan"))
+    scheduled_at = serializers.DateTimeField()
+    title = serializers.CharField(max_length=200, required=False)
+    locale = serializers.ChoiceField(choices=("en", "ru"), default="en")
+
+    def validate(self, attrs):
+        week = attrs["weekly_plan"]
+        scheduled_date = timezone.localtime(attrs["scheduled_at"]).date()
+        if not week.start_date <= scheduled_date <= week.start_date + timedelta(days=6):
+            raise serializers.ValidationError(
+                {"scheduled_at": "The workout date must fall within the selected training week."}
+            )
+        if week.training_plan.publication_status == TrainingPlan.PublicationStatus.ARCHIVED:
+            raise serializers.ValidationError({"weekly_plan": "Archived plans cannot receive workouts."})
+        return attrs
 
 
 class TrainingPlanSerializer(serializers.ModelSerializer):
