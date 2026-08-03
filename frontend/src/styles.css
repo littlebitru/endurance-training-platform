@@ -337,7 +337,7 @@ h1, h2, h3, h4, h5, strong, b, .brand-mark, .logo, .activity-sport, .eyebrow {
   animation: ambientFloat 19s ease-in-out -7s infinite alternate-reverse;
 }
 
-.app-shell aside {
+.app-shell > aside {
   position: fixed;
   z-index: 2;
   display: grid;
@@ -355,7 +355,7 @@ h1, h2, h3, h4, h5, strong, b, .brand-mark, .logo, .activity-sport, .eyebrow {
     linear-gradient(165deg, #0c2924, #101f2a 72%, #1f2630);
 }
 
-.app-shell aside::before {
+.app-shell > aside::before {
   position: absolute;
   top: -20%;
   left: -70%;
@@ -368,14 +368,14 @@ h1, h2, h3, h4, h5, strong, b, .brand-mark, .logo, .activity-sport, .eyebrow {
   animation: sidebarGlow 11s ease-in-out infinite alternate;
 }
 
-.app-shell aside > * { position: relative; z-index: 1; }
+.app-shell > aside > * { position: relative; z-index: 1; }
 
-.app-shell aside > div:nth-child(2) { padding-top: 5px; animation: navReveal .5s .08s ease backwards; }
-.app-shell aside strong { display: block; font: 600 15px Manrope; }
-.app-shell aside small { display: block; margin-top: 3px; color: #82968d; font-size: 11px; }
-.app-shell nav { display: flex; grid-column: 1/-1; flex-direction: column; gap: 7px; margin-top: 45px; }
+.app-shell > aside > div:nth-child(2) { padding-top: 5px; animation: navReveal .5s .08s ease backwards; }
+.app-shell > aside > div:nth-child(2) strong { display: block; font: 600 15px Manrope; }
+.app-shell > aside > div:nth-child(2) small { display: block; margin-top: 3px; color: #82968d; font-size: 11px; }
+.app-shell > aside > nav { display: flex; grid-column: 1/-1; flex-direction: column; gap: 7px; margin-top: 45px; }
 
-.app-shell nav a {
+.app-shell > aside > nav a {
   position: relative;
   padding: 12px 14px;
   border-radius: 7px;
@@ -386,11 +386,11 @@ h1, h2, h3, h4, h5, strong, b, .brand-mark, .logo, .activity-sport, .eyebrow {
   animation: navReveal .45s cubic-bezier(.22, 1, .36, 1) backwards;
 }
 
-.app-shell nav a:nth-child(1) { animation-delay: .12s; }
-.app-shell nav a:nth-child(2) { animation-delay: .18s; }
-.app-shell nav a:nth-child(3) { animation-delay: .24s; }
+.app-shell > aside > nav a:nth-child(1) { animation-delay: .12s; }
+.app-shell > aside > nav a:nth-child(2) { animation-delay: .18s; }
+.app-shell > aside > nav a:nth-child(3) { animation-delay: .24s; }
 
-.app-shell nav a::after {
+.app-shell > aside > nav a::after {
   position: absolute;
   top: 50%;
   right: 12px;
@@ -404,9 +404,9 @@ h1, h2, h3, h4, h5, strong, b, .brand-mark, .logo, .activity-sport, .eyebrow {
   transition: opacity .2s ease, transform .25s ease;
 }
 
-.app-shell nav a.active::after { opacity: 1; transform: translateY(-50%) scale(1); }
+.app-shell > aside > nav a.active::after { opacity: 1; transform: translateY(-50%) scale(1); }
 
-.app-shell nav a.active, .app-shell nav a:hover { color: white; background: linear-gradient(90deg, #2da99b52, #d8f27618); box-shadow: inset 3px 0 #cfe993; transform: translateX(3px); }
+.app-shell > aside > nav a.active, .app-shell > aside > nav a:hover { color: white; background: linear-gradient(90deg, #2da99b52, #d8f27618); box-shadow: inset 3px 0 #cfe993; transform: translateX(3px); }
 
 .account {
   display: grid;
@@ -431,6 +431,9 @@ h1, h2, h3, h4, h5, strong, b, .brand-mark, .logo, .activity-sport, .eyebrow {
 }
 
 .account:hover > span { box-shadow: 0 0 0 6px #cfe99314; transform: scale(1.06); }
+.account > div { min-width: 0; }
+.account strong { display: block; overflow: hidden; color: #eef5f1; font: 600 13px Manrope; text-overflow: ellipsis; white-space: nowrap; }
+.account small { display: block; margin-top: 3px; color: #82968d; font-size: 10px; }
 .account button { border: 0; color: #849a90; background: none; cursor: pointer; font-size: 20px; transition: color .2s ease, transform .2s ease; }
 .account button:hover { color: #d5ed9e; transform: translate(2px, -2px); }
 .content { position: relative; grid-column: 2; min-width: 0; width: 100%; max-width: 1500px; padding: 38px 5vw 70px; }
@@ -1634,10 +1637,10 @@ h1, h2, h3, h4, h5, strong, b, .brand-mark, .logo, .activity-sport, .eyebrow {
   .auth-shell { grid-template-columns: 1fr; }
   .auth-story { display: none; }
   .app-shell { display: block; }
-  .app-shell aside { position: static; grid-template-rows: auto auto; grid-template-columns: 42px 1fr auto; width: 100%; height: auto; padding: 16px 20px; }
-  .app-shell nav { grid-row: 2; grid-column: 1/-1; flex-direction: row; margin: 10px 0 0; overflow: auto; scrollbar-width: none; }
-  .app-shell nav::-webkit-scrollbar { display: none; }
-  .app-shell nav a.active, .app-shell nav a:hover { transform: translateY(-1px); }
+  .app-shell > aside { position: static; grid-template-rows: auto auto; grid-template-columns: 42px 1fr auto; width: 100%; height: auto; padding: 16px 20px; }
+  .app-shell > aside > nav { grid-row: 2; grid-column: 1/-1; flex-direction: row; margin: 10px 0 0; overflow: auto; scrollbar-width: none; }
+  .app-shell > aside > nav::-webkit-scrollbar { display: none; }
+  .app-shell > aside > nav a.active, .app-shell > aside > nav a:hover { transform: translateY(-1px); }
   .account { grid-row: 1; grid-column: 3; padding: 0; border: 0; }
   .account > div { display: none; }
   .content { padding: 25px 20px; }
@@ -1691,8 +1694,8 @@ h1, h2, h3, h4, h5, strong, b, .brand-mark, .logo, .activity-sport, .eyebrow {
   .auth-card { padding-top: 88px; }
   .content > header { align-items: stretch; flex-direction: column-reverse; gap: 10px; }
   .header-actions { align-self: flex-end; }
-  .app-shell nav { gap: 3px; }
-  .app-shell nav a { flex: none; padding: 10px 11px; font-size: 11px; }
+  .app-shell > aside > nav { gap: 3px; }
+  .app-shell > aside > nav a { flex: none; padding: 10px 11px; font-size: 11px; }
   .weekly-command-center { gap: 18px; padding: 20px 16px; }
   .weekly-command-metrics { grid-template-columns: 1fr 1fr; }
   .next-workout-insight { align-items: flex-start; flex-direction: column; }
@@ -1905,6 +1908,27 @@ h1, h2, h3, h4, h5, strong, b, .brand-mark, .logo, .activity-sport, .eyebrow {
 .template-detail-summary small, .template-detail-summary strong { display: block; }
 .template-detail-summary small { margin-bottom: 6px; color: #74847e; font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .07em; }
 .template-detail-summary strong { font-size: 13px; line-height: 1.35; }
+.garmin-export-panel {
+  display: grid; grid-template-columns: minmax(270px, 1.2fr) minmax(230px, .8fr) minmax(250px, .9fr) auto;
+  align-items: center; gap: 16px; margin: 4px 28px 20px; padding: 18px; border: 1px solid rgba(25, 106, 88, .16);
+  border-radius: 17px; background: linear-gradient(115deg, #f0f8f3, #fbfcfa 55%, #edf8f6);
+}
+.garmin-export-intro { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.garmin-fit-mark { display: grid; flex: none; place-items: center; width: 60px; height: 60px; border-radius: 16px; color: #fff; background: linear-gradient(145deg, #116d5a, #1d9d80); box-shadow: 0 10px 22px rgba(18, 108, 89, .2); font-size: 17px; font-weight: 900; letter-spacing: .06em; }
+.garmin-fit-mark small { margin-top: -13px; color: #c9f2df; font-size: 8px; letter-spacing: .12em; }
+.garmin-export-intro h3 { margin: 4px 0 5px; font-size: 17px; line-height: 1.25; }
+.garmin-export-intro p { margin: 0; color: #60726c; font-size: 11px; line-height: 1.45; }
+.garmin-athlete-select { display: grid; gap: 6px; margin: 0; min-width: 0; font-size: 11px; font-weight: 750; }
+.garmin-athlete-select select { width: 100%; min-width: 0; min-height: 44px; padding: 9px 11px; border: 1px solid #cbdcd4; border-radius: 10px; color: #173a33; background: #fff; font: inherit; }
+.garmin-athlete-select small { color: #6e7f79; font-size: 9px; font-weight: 500; line-height: 1.4; }
+.garmin-export-status { display: grid; gap: 4px; min-width: 0; padding: 12px 13px; border-radius: 12px; color: #50645d; background: rgba(255,255,255,.8); }
+.garmin-export-status.ready { color: #275f32; background: #e5f5dc; }
+.garmin-export-status.adaptation_required { color: #76591c; background: #fff2d2; }
+.garmin-export-status.blocked { color: #813c35; background: #fee6df; }
+.garmin-export-status strong { font-size: 11px; line-height: 1.35; }
+.garmin-export-status small { font-size: 9px; line-height: 1.4; }
+.garmin-export-status ul { display: grid; gap: 3px; margin: 4px 0 0; padding-left: 16px; font-size: 9px; line-height: 1.35; }
+.garmin-download-button { min-height: 46px; white-space: nowrap; }
 .workout-structure-preview { display: grid; gap: 9px; padding: 8px 28px 30px; }
 .workout-structure-preview article { display: grid; grid-template-columns: 36px 1fr auto; align-items: center; gap: 13px; padding: 14px; border-left: 4px solid #8dbda8; border-radius: 12px; background: #f8faf8; }
 .workout-structure-preview article.work { border-color: #1c9a78; }
@@ -1921,12 +1945,25 @@ h1, h2, h3, h4, h5, strong, b, .brand-mark, .logo, .activity-sport, .eyebrow {
 .builder-workspace-header h2 { margin: 5px 0 0; font-size: 26px; }
 .builder-workspace-header .back-link { display: block; margin-bottom: 12px; }
 .builder-workspace-header > div:last-child { display: flex; gap: 8px; }
-.builder-layout { display: grid; grid-template-columns: minmax(0, 1fr) 310px; align-items: start; }
+.builder-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(290px, 320px); align-items: start; }
+.builder-layout > * { min-width: 0; }
 .builder-canvas { min-width: 0; padding: 24px; }
-.builder-inspector { position: sticky; top: 22px; display: grid; gap: 17px; min-width: 0; padding: 25px; border-left: 1px solid #e3eae6; background: #f5f8f5; }
+.builder-inspector { position: sticky; top: 22px; display: grid; align-self: start; gap: 17px; min-width: 0; max-width: 100%; overflow: hidden; padding: 25px; border-left: 1px solid #e3eae6; background: #f5f8f5; }
 .builder-meta-card { display: grid; gap: 13px; padding: 18px; border: 1px solid #e0e8e3; border-radius: 16px; background: #fbfcfb; }
 .builder-meta-card legend { padding: 0 8px; color: #315d53; font-size: 12px; font-weight: 850; text-transform: uppercase; letter-spacing: .07em; }
 .builder-meta-card label { margin: 0; }
+.builder-meta-card input, .builder-meta-card select, .builder-meta-card textarea,
+.professional-step input, .professional-step select, .professional-step textarea,
+.builder-inspector input, .builder-inspector select, .builder-inspector textarea {
+  width: 100%; min-width: 0; min-height: 43px; padding: 10px 11px; border: 1px solid #cfdcd5;
+  border-radius: 10px; color: #173a33; background: #fff; font: inherit; box-shadow: 0 1px 2px rgba(21, 67, 57, .035);
+}
+.builder-meta-card textarea, .professional-step textarea, .builder-inspector textarea { min-height: 86px; resize: vertical; }
+.builder-meta-card input:focus, .builder-meta-card select:focus, .builder-meta-card textarea:focus,
+.professional-step input:focus, .professional-step select:focus, .professional-step textarea:focus,
+.builder-inspector input:focus, .builder-inspector select:focus, .builder-inspector textarea:focus {
+  border-color: #188f71; outline: 3px solid rgba(24, 143, 113, .12);
+}
 .builder-step-heading { display: flex; align-items: end; justify-content: space-between; gap: 16px; margin: 28px 0 13px; }
 .builder-step-heading h3 { margin: 4px 0 0; font-size: 23px; }
 .professional-step-list { display: grid; gap: 12px; }
@@ -1954,11 +1991,11 @@ h1, h2, h3, h4, h5, strong, b, .brand-mark, .logo, .activity-sport, .eyebrow {
 .builder-dose-ring { display: grid; place-items: center; align-content: center; width: 142px; height: 142px; margin: 2px auto; border: 13px solid #d9e9df; border-top-color: #8fc753; border-right-color: #1a9375; border-radius: 50%; background: #fff; box-shadow: 0 10px 24px rgba(25,85,72,.08); }
 .builder-dose-ring strong { font-size: 32px; line-height: 1; }
 .builder-dose-ring small { margin-top: 3px; color: #71817b; text-transform: uppercase; }
-.builder-dose-metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.builder-dose-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
 .builder-dose-metrics span { padding: 9px 5px; border-radius: 9px; background: #fff; text-align: center; }
 .builder-dose-metrics small, .builder-dose-metrics strong { display: block; }
 .builder-dose-metrics small { color: #74847e; font-size: 8px; text-transform: uppercase; }
-.builder-dose-metrics strong { margin-top: 4px; font-size: 12px; }
+.builder-dose-metrics strong { margin-top: 4px; overflow-wrap: anywhere; font-size: 12px; }
 .builder-profile-bars { display: flex; align-items: end; gap: 4px; height: 74px; padding: 7px; border-radius: 10px; background: #fff; }
 .builder-profile-bars i { min-width: 7px; border-radius: 4px 4px 1px 1px; background: #8dbda8; }
 .builder-profile-bars i.work { background: #188f71; }
@@ -1987,6 +2024,8 @@ h1, h2, h3, h4, h5, strong, b, .brand-mark, .logo, .activity-sport, .eyebrow {
   .builder-inspector { position: static; grid-template-columns: repeat(3, 1fr); border-top: 1px solid #e3eae6; border-left: 0; }
   .builder-inspector > .eyebrow, .builder-inspector > h3 { grid-column: 1 / -1; }
   .builder-dose-ring { grid-row: span 2; }
+  .garmin-export-panel { grid-template-columns: 1fr 1fr; }
+  .garmin-download-button { width: 100%; }
 }
 @media (max-width: 850px) {
   .library-command-card { grid-template-columns: 1fr; padding: 24px; }
@@ -1999,6 +2038,7 @@ h1, h2, h3, h4, h5, strong, b, .brand-mark, .logo, .activity-sport, .eyebrow {
   .template-detail-actions, .builder-workspace-header > div:last-child { width: 100%; }
   .template-detail-actions button, .builder-workspace-header > div:last-child button { flex: 1; }
   .template-detail-summary { grid-template-columns: 1fr; }
+  .garmin-export-panel { grid-template-columns: 1fr; }
   .step-editor-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .builder-inspector { grid-template-columns: 1fr 1fr; }
 }
@@ -2008,6 +2048,7 @@ h1, h2, h3, h4, h5, strong, b, .brand-mark, .logo, .activity-sport, .eyebrow {
   .library-search { grid-column: auto; }
   .template-catalog-card { min-height: 0; padding: 17px; }
   .template-detail-header, .template-detail-summary, .workout-structure-preview, .builder-canvas, .builder-inspector { padding-left: 16px; padding-right: 16px; }
+  .garmin-export-panel { margin-right: 16px; margin-left: 16px; padding: 15px; }
   .workout-structure-preview article { grid-template-columns: 30px 1fr; }
   .workout-structure-preview article > b { grid-column: 2; }
   .step-editor-grid { grid-template-columns: 1fr; }

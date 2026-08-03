@@ -203,6 +203,45 @@ export interface WorkoutTemplate {
     warnings: string[];
   };
 }
+export interface GarminFitIssue {
+  code: string;
+  step_index?: number;
+  target_type?: string;
+  zone_from?: number;
+  zone_to?: number;
+  unit?: string;
+}
+export interface GarminFitPreviewStep {
+  index: number;
+  source_step: number;
+  name: string;
+  step_type: string;
+  duration: { type: "time" | "distance" | "open"; value: number | null; unit: string };
+  target: {
+    type: string;
+    source: "athlete_zones" | "explicit" | "open";
+    zone_from?: number;
+    zone_to?: number;
+    minimum: string | null;
+    maximum: string | null;
+    unit: string;
+  };
+}
+export interface GarminFitPreview {
+  template_id: number;
+  title: string;
+  sport: string;
+  athlete: { id: number; name: string };
+  filename: string;
+  sdk_version: string;
+  fit_protocol_version: string;
+  status: "ready" | "adaptation_required" | "blocked";
+  can_export: boolean;
+  issues: GarminFitIssue[];
+  warnings: GarminFitIssue[];
+  step_count: number;
+  steps: GarminFitPreviewStep[];
+}
 export interface ActivityStreamPoint { elapsed: number; heart_rate?: number; power?: number; cadence?: number; speed?: number; distance?: number; elevation?: number }
 export interface ActivityZone { zone: number; name: string; seconds: number; percentage: number }
 export interface Activity {

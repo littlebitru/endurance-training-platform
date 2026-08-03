@@ -3,9 +3,10 @@ from datetime import datetime, time, timedelta
 import pytest
 from django.urls import reverse
 from django.utils import timezone
+from garmin_fit_sdk import Decoder, Stream
 
-from apps.training.models import TrainingPlan, WeeklyPlan, Workout, WorkoutTemplate
-from apps.users.models import Profile, User
+from apps.training.models import TrainingPlan, TrainingZone, WeeklyPlan, Workout, WorkoutTemplate
+from apps.users.models import CoachingRelationship, Profile, User
 
 
 def create_week(coach, athlete):
@@ -22,6 +23,43 @@ def create_week(coach, athlete):
         training_plan=plan,
         week_number=1,
         start_date=start_date,
+    )
+
+
+def create_garmin_template(coach):
+    return WorkoutTemplate.objects.create(
+        coach=coach,
+        title="Aerobic repetitions",
+        title_ru="Аэробные повторы",
+        sport=Workout.Sport.RUNNING,
+        workout_type=Workout.Type.INTERVALS,
+        structured_steps=[
+            {
+                "name": "Aerobic effort",
+                "name_ru": "Аэробный отрезок",
+                "step_type": "work",
+                "repetitions": 2,
+                "duration_seconds": 300,
+                "recovery_seconds": 60,
+                "target_type": "heart_rate",
+                "target_min": 2,
+                "target_max": 2,
+                "target_unit": "zone",
+            }
+        ],
+    )
+
+
+def create_heart_rate_zone(athlete, sport=Workout.Sport.RUNNING):
+    return TrainingZone.objects.create(
+        athlete=athlete,
+        sport=sport,
+        metric=TrainingZone.Metric.HEART_RATE,
+        zone_number=2,
+        name="Aerobic",
+        lower_bound=140,
+        upper_bound=155,
+        unit="bpm",
     )
 
 
@@ -162,3 +200,148 @@ def test_template_step_validation_rejects_ambiguous_duration(api_client, coach):
 
     assert response.status_code == 400
     assert not WorkoutTemplate.objects.filter(title="Invalid duration template").exists()
+
+
+@pytest.mark.django_db
+def test_garmin_preview_resolves_athlete_zones_and_expands_repetitions(
+    api_client,
+    coach,
+    athlete,
+    relationship,
+):
+    template = create_garmin_template(coach)
+    create_heart_rate_zone(athlete)
+    api_client.force_authenticate(coach)
+
+    response = api_client.get(
+        reverse("workout-template-garmin-preview", args=(template.id,)),
+        {"athlete_id": athlete.id, "locale": "ru"},
+    )
+
+    assert response.status_code == 200
+    assert response.data["can_export"] is True
+    assert response.data["status"] == "ready"
+    assert response.data["step_count"] == 3
+    assert response.data["steps"][0]["name"].startswith("Аэробный отрезок")
+    assert response.data["steps"][0]["target"] == {
+        "type": "heart_rate",
+        "source": "athlete_zones",
+        "zone_from": 2,
+        "zone_to": 2,
+        "minimum": "140.00",
+        "maximum": "155.00",
+        "unit": "bpm",
+    }
+    assert response.data["steps"][1]["step_type"] == "recovery"
+
+
+@pytest.mark.django_db
+def test_garmin_fit_download_is_valid_and_contains_workout_messages(
+    api_client,
+    coach,
+    athlete,
+    relationship,
+):
+    template = create_garmin_template(coach)
+    create_heart_rate_zone(athlete)
+    api_client.force_authenticate(coach)
+
+    response = api_client.get(
+        reverse("workout-template-garmin-fit", args=(template.id,)),
+        {"athlete_id": athlete.id, "locale": "en"},
+    )
+
+    assert response.status_code == 200
+    assert response["Content-Type"] == "application/vnd.ant.fit"
+    assert response["Content-Disposition"] == 'attachment; filename="aerobic-repetitions.fit"'
+    assert response.content[8:12] == b".FIT"
+
+    stream = Stream.from_byte_array(bytearray(response.content))
+    assert Decoder(stream).check_integrity() is True
+    messages, errors = Decoder(Stream.from_byte_array(bytearray(response.content))).read()
+    assert errors == []
+    assert messages["file_id_mesgs"][0]["type"] == "workout"
+    assert messages["workout_mesgs"][0]["num_valid_steps"] == 3
+    assert len(messages["workout_step_mesgs"]) == 3
+    assert messages["workout_step_mesgs"][0]["duration_time"] == 300
+    assert messages["workout_step_mesgs"][0]["custom_target_heart_rate_low"] == 240
+    assert messages["workout_step_mesgs"][0]["custom_target_heart_rate_high"] == 255
+
+
+@pytest.mark.django_db
+def test_garmin_fit_export_is_blocked_when_personal_zone_is_missing(
+    api_client,
+    coach,
+    athlete,
+    relationship,
+):
+    template = create_garmin_template(coach)
+    api_client.force_authenticate(coach)
+
+    preview_response = api_client.get(
+        reverse("workout-template-garmin-preview", args=(template.id,)),
+        {"athlete_id": athlete.id},
+    )
+    download_response = api_client.get(
+        reverse("workout-template-garmin-fit", args=(template.id,)),
+        {"athlete_id": athlete.id},
+    )
+
+    assert preview_response.status_code == 200
+    assert preview_response.data["can_export"] is False
+    assert preview_response.data["issues"][0]["code"] == "missing_training_zone"
+    assert download_response.status_code == 400
+    assert download_response.data["preview"]["can_export"] is False
+
+
+@pytest.mark.django_db
+def test_garmin_fit_export_blocks_multisport_until_sessions_are_explicit(
+    api_client,
+    coach,
+    athlete,
+    relationship,
+):
+    template = create_garmin_template(coach)
+    template.sport = Workout.Sport.TRIATHLON
+    template.save(update_fields=["sport"])
+    create_heart_rate_zone(athlete, sport=Workout.Sport.TRIATHLON)
+    api_client.force_authenticate(coach)
+
+    response = api_client.get(
+        reverse("workout-template-garmin-preview", args=(template.id,)),
+        {"athlete_id": athlete.id},
+    )
+
+    assert response.status_code == 200
+    assert response.data["can_export"] is False
+    assert response.data["issues"][0]["code"] == "multisport_session_structure_required"
+
+
+@pytest.mark.django_db
+def test_garmin_export_rejects_another_coachs_athlete(api_client, coach):
+    other_coach = User.objects.create_user(
+        "garmin-other-coach",
+        "garmin-other-coach@example.com",
+        "StrongPass123!",
+        role=User.Role.COACH,
+        is_email_verified=True,
+    )
+    other_athlete = User.objects.create_user(
+        "garmin-other-athlete",
+        "garmin-other-athlete@example.com",
+        "StrongPass123!",
+        role=User.Role.ATHLETE,
+        is_email_verified=True,
+    )
+    Profile.objects.create(user=other_coach)
+    Profile.objects.create(user=other_athlete)
+    CoachingRelationship.objects.create(coach=other_coach, athlete=other_athlete)
+    template = create_garmin_template(coach)
+    api_client.force_authenticate(coach)
+
+    response = api_client.get(
+        reverse("workout-template-garmin-preview", args=(template.id,)),
+        {"athlete_id": other_athlete.id},
+    )
+
+    assert response.status_code == 403

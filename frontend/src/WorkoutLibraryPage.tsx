@@ -4,6 +4,8 @@ import { api } from "./api";
 import { useAuth } from "./auth";
 import { localizeApiError, useLanguage } from "./i18n";
 import type {
+  GarminFitIssue,
+  GarminFitPreview,
   Relationship,
   TrainingPlan,
   TrainingZone,
@@ -213,6 +215,10 @@ export function WorkoutLibraryPage() {
   const [scheduleWeekId, setScheduleWeekId] = useState("");
   const [scheduledAt, setScheduledAt] = useState("");
   const [scheduling, setScheduling] = useState(false);
+  const [garminAthleteId, setGarminAthleteId] = useState("");
+  const [garminPreview, setGarminPreview] = useState<GarminFitPreview | null>(null);
+  const [garminLoading, setGarminLoading] = useState(false);
+  const [garminDownloading, setGarminDownloading] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -245,6 +251,35 @@ export function WorkoutLibraryPage() {
       .catch(() => setPreviewZones([]));
   }, [draft?.sport, previewAthleteId]);
 
+  useEffect(() => {
+    if (selected && !garminAthleteId && relationships.length) {
+      setGarminAthleteId(String(relationships[0].athlete.id));
+    }
+  }, [garminAthleteId, relationships, selected]);
+
+  useEffect(() => {
+    if (!selected || !garminAthleteId) {
+      setGarminPreview(null);
+      return;
+    }
+    let cancelled = false;
+    setGarminLoading(true);
+    api.previewGarminFit(selected.id, Number(garminAthleteId), locale)
+      .then((preview) => {
+        if (!cancelled) setGarminPreview(preview);
+      })
+      .catch((caught) => {
+        if (!cancelled) {
+          setGarminPreview(null);
+          setError(localizeApiError((caught as Error).message, t));
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setGarminLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [garminAthleteId, locale, selected, t]);
+
   const visibleTemplates = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase(locale);
     return templates.filter((template) => {
@@ -264,6 +299,8 @@ export function WorkoutLibraryPage() {
   function openTemplate(template: WorkoutTemplate) {
     setSelected(template);
     setDraft(null);
+    setGarminAthleteId(relationships[0] ? String(relationships[0].athlete.id) : "");
+    setGarminPreview(null);
     setMessage("");
   }
 
@@ -273,6 +310,44 @@ export function WorkoutLibraryPage() {
     setPreviewAthleteId("");
     setPreviewZones([]);
     setMessage("");
+  }
+
+  function garminIssueLabel(issue: GarminFitIssue): string {
+    if (issue.code === "missing_training_zone") {
+      return t("garminMissingZone", {
+        metric: issue.target_type?.replaceAll("_", " ") ?? "",
+        zone: issue.zone_from === issue.zone_to ? `Z${issue.zone_from}` : `Z${issue.zone_from}–Z${issue.zone_to}`,
+      });
+    }
+    if (issue.code === "rpe_target_not_supported" || issue.code === "guidance_only_target") {
+      return t("garminRpeBlocked");
+    }
+    if (issue.code === "multisport_session_structure_required") return t("garminMultisportBlocked");
+    if (issue.code === "missing_target_range") return t("garminMissingTarget");
+    if (issue.code === "open_duration_step") return t("garminOpenDurationWarning");
+    return t("garminCompatibilityIssue");
+  }
+
+  async function downloadGarminFit() {
+    if (!selected || !garminAthleteId || !garminPreview?.can_export) return;
+    setGarminDownloading(true);
+    setError("");
+    try {
+      const file = await api.downloadGarminFit(selected.id, Number(garminAthleteId), locale);
+      const url = URL.createObjectURL(file.blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = file.filename;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+      setMessage(t("garminDownloadReady"));
+    } catch (caught) {
+      setError(localizeApiError((caught as Error).message, t));
+    } finally {
+      setGarminDownloading(false);
+    }
   }
 
   function updateDraft<K extends keyof TemplateDraft>(field: K, value: TemplateDraft[K]) {
@@ -472,6 +547,17 @@ export function WorkoutLibraryPage() {
             <div className="template-detail-actions"><button className="secondary" onClick={() => void copyTemplate(selected)} type="button">{t("builderCopyAndEdit")}</button>{selected.source === "coach" && <button className="secondary" onClick={() => startBuilder(selected)} type="button">{t("edit")}</button>}<button className="primary" onClick={() => openSchedule(selected)} type="button">{t("builderSchedule")}</button></div>
           </div>
           <div className="template-detail-summary"><span><small>{t("builderObjective")}</small><strong>{locale === "ru" ? selected.objective_ru || selected.objective : selected.objective}</strong></span><span><small>{t("builderDifficulty")}</small><strong>{selected.difficulty === "all" ? t("builderAllLevels") : t(selected.difficulty === "beginner" ? "experienceBeginner" : selected.difficulty === "intermediate" ? "experienceIntermediate" : "experienceAdvanced")}</strong></span><span><small>{t("builderCompatibility")}</small><strong>{selected.compatibility.garmin_ready ? t("builderGarminReady") : t("builderAdaptationRequired")}</strong></span></div>
+          <section className="garmin-export-panel" aria-live="polite">
+            <div className="garmin-export-intro">
+              <span className="garmin-fit-mark">FIT <small>2.0</small></span>
+              <div><span className="eyebrow">{t("garminExportEyebrow")}</span><h3>{t("garminExportTitle")}</h3><p>{t("garminExportHelp")}</p></div>
+            </div>
+            <label className="garmin-athlete-select">{t("garminExportAthlete")}<select onChange={(event) => setGarminAthleteId(event.target.value)} value={garminAthleteId}><option value="">{t("garminChooseAthlete")}</option>{relationships.map((item) => <option key={item.id} value={item.athlete.id}>{athleteName(item)}</option>)}</select><small>{t("garminPersonalizationHelp")}</small></label>
+            <div className={`garmin-export-status ${garminPreview?.status ?? "pending"}`}>
+              {garminLoading ? <strong>{t("garminChecking")}</strong> : garminPreview ? <><strong>{garminPreview.can_export ? t("garminFileReady") : t("garminNeedsAttention")}</strong><small>{t("garminExportSummary", { count: garminPreview.step_count, version: garminPreview.sdk_version })}</small>{[...garminPreview.issues, ...garminPreview.warnings].length > 0 && <ul>{[...garminPreview.issues, ...garminPreview.warnings].map((issue, index) => <li key={`${issue.code}-${issue.step_index ?? 0}-${index}`}>{garminIssueLabel(issue)}</li>)}</ul>}</> : <><strong>{t("garminChooseAthlete")}</strong><small>{t("garminChooseAthleteHelp")}</small></>}
+            </div>
+            <button className="primary garmin-download-button" disabled={garminDownloading || garminLoading || !garminPreview?.can_export} onClick={() => void downloadGarminFit()} type="button">{garminDownloading ? t("garminGenerating") : t("garminDownloadFit")}</button>
+          </section>
           <div className="workout-structure-preview">
             {selected.structured_steps.map((step, index) => (
               <article className={step.step_type} key={`${step.name}-${index}`}>

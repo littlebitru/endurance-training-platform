@@ -16,6 +16,7 @@ The repository also includes a responsive React and TypeScript web application w
 - Interactive weekly calendar with workout editing, drag-and-drop rescheduling, duplication, and reusable libraries
 - Professional bilingual workout studio with curated running, cycling, swimming, and triathlon templates
 - Step-by-step workout authoring with repeat blocks, time, distance, open duration, and zone-aware targets
+- Personalized Garmin FIT workout generation with official SDK encoding and integrity validation
 - Atomic template assignment that preserves the reusable prescription while resolving each athlete's current zones
 - Training plans, weekly plans, structured workouts, and exercises
 - Historical sport-specific thresholds with automatically calculated heart-rate, pace, and power zones
@@ -106,6 +107,8 @@ On Windows, activate the environment with `.venv\\Scripts\\activate`.
 | Workout library | `/api/v1/workout-templates/` |
 | Copy workout template | `POST /api/v1/workout-templates/{id}/duplicate/` |
 | Schedule workout template | `POST /api/v1/workout-templates/{id}/assign/` |
+| Preview Garmin FIT export | `GET /api/v1/workout-templates/{id}/garmin-preview/` |
+| Download Garmin FIT workout | `GET /api/v1/workout-templates/{id}/garmin-fit/` |
 | Exercises | `/api/v1/exercises/` |
 | Coach comments | `/api/v1/coach-comments/` |
 | Workout logs | `/api/v1/workout-logs/` |
@@ -129,7 +132,15 @@ Coaches can create, reorder, copy, and version reusable prescriptions without bi
 
 `POST /api/v1/workout-templates/{id}/assign/` atomically snapshots a template into a selected training week. The assigned workout records its source template and schema version, while its API representation resolves zone targets from the athlete's current threshold profile. The original template remains unchanged. Coaches can therefore improve future templates without silently rewriting workouts already prescribed to athletes.
 
-The bilingual web studio offers catalog search and filters, a step-by-step visual builder, repeat-block editing, live dose and intensity previews, athlete-specific target previews, Garmin-compatibility guidance, and direct scheduling into an athlete plan. This canonical structure is intentionally device-neutral; FIT export and Garmin Training API delivery are implemented as adapters in the next milestone.
+The bilingual web studio offers catalog search and filters, a step-by-step visual builder, repeat-block editing, live dose and intensity previews, athlete-specific target previews, Garmin-compatibility guidance, direct scheduling into an athlete plan, and personalized FIT downloads. The canonical template remains device-neutral; Garmin encoding is isolated in an adapter so additional providers can reuse the same prescription.
+
+### Garmin FIT workout export
+
+Coaches can select an actively assigned athlete on a workout template and request `GET /api/v1/workout-templates/{id}/garmin-preview/?athlete_id={id}&locale=en`. The preview expands repeated work and recovery blocks, resolves relative zones from the athlete's current threshold profile, reports compatibility issues, and shows the exact number of device steps without creating a file.
+
+`GET /api/v1/workout-templates/{id}/garmin-fit/?athlete_id={id}&locale=en` returns a personalized `.fit` workout only when the preview is exportable. Encoding uses the official Garmin FIT Python SDK. The adapter writes File ID, Workout, and ordered Workout Step messages, applies FIT scaling and target conventions, calculates the header and CRC, then decodes the completed payload and verifies its integrity before returning it. Responses are private, non-cacheable downloads. Athlete access is restricted to active coaching relationships.
+
+Heart-rate zones are encoded as personalized BPM ranges, running and swimming pace zones as speed ranges, cycling power zones as watt ranges, and cadence as an explicit RPM range. Open-duration steps remain Lap-button steps. RPE-only targets are reported as incompatible instead of being silently weakened. Triathlon templates are blocked until their bike, transition, and run steps are modeled as explicit multisport sessions. This milestone provides standards-compliant manual FIT delivery; direct Garmin Connect and watch synchronization still requires Garmin partner approval, athlete consent, OAuth, and the Training API delivery adapter.
 
 ### Completed activity imports
 
