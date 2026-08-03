@@ -516,5 +516,4 @@ class Migration(migrations.Migration):
                 name="template_system_sport_type_idx",
             ),
         ),
-        migrations.RunPython(seed_system_templates, remove_system_templates),
     ]
