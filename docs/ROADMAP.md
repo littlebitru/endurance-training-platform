@@ -23,8 +23,8 @@
 - Completed: official FIT workout encoding, semantic decoding, and CRC integrity validation
 - Completed: secure personalized preview and download endpoints with deterministic file naming
 - Completed: responsive bilingual Garmin export workflow in the workout library
-- Garmin Connect Developer Program application package, privacy policy, and account-disconnection flow
-- Provider-neutral integration connections, encrypted credentials, idempotent delivery jobs, and sync history
+- Completed: Garmin Connect Developer Program application package, device privacy policy, and account-disconnection flow
+- Completed: provider-neutral integration connections, encrypted credentials, idempotent delivery jobs, and sync history
 - Garmin OAuth 2.0 PKCE and Training API publishing after partner credentials are approved
 - Activity API webhook ingestion and automatic matching of completed Garmin activities
 

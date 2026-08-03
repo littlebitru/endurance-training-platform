@@ -10,6 +10,10 @@
 
 Set `DJANGO_SETTINGS_MODULE=config.settings_production`. Provide all values documented in `.env.example`, including a random secret key of at least 50 characters and explicit allowed hosts and trusted origins.
 
+Keep `GARMIN_TRAINING_API_ENABLED=False` and `GARMIN_DELIVERY_WORKER_ENABLED=False` until Garmin approves the application and staging passes the partner contract. When enabling the integration, generate a dedicated Fernet key for `DEVICE_TOKEN_ENCRYPTION_KEY`; do not reuse `DJANGO_SECRET_KEY`. Store Garmin client credentials and the encryption key in a managed secret store. Never expose them as Render Blueprint literal values.
+
+Run `python manage.py cleanup_device_authorizations` on a recurring schedule to remove expired one-time OAuth state records.
+
 ## Release procedure
 
 1. Run the CI workflow and require all checks to pass.

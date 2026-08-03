@@ -17,6 +17,7 @@ The repository also includes a responsive React and TypeScript web application w
 - Professional bilingual workout studio with curated running, cycling, swimming, and triathlon templates
 - Step-by-step workout authoring with repeat blocks, time, distance, open duration, and zone-aware targets
 - Personalized Garmin FIT workout generation with official SDK encoding and integrity validation
+- Provider-neutral Device Center with athlete-owned Garmin consent, encrypted OAuth credentials, idempotent delivery records, and coach-visible readiness
 - Atomic template assignment that preserves the reusable prescription while resolving each athlete's current zones
 - Training plans, weekly plans, structured workouts, and exercises
 - Historical sport-specific thresholds with automatically calculated heart-rate, pace, and power zones
@@ -38,6 +39,7 @@ The codebase uses domain-oriented Django applications:
 
 - `apps.users`: authentication, profiles, roles, and coaching relationships
 - `apps.training`: plans, weeks, workouts, exercises, comments, and logs
+- `apps.integrations`: provider capabilities, athlete-owned device connections, encrypted OAuth credentials, and delivery audit records
 - `apps.core`: shared, domain-neutral building blocks
 - `config`: environment-specific Django configuration and URL routing
 
@@ -111,6 +113,12 @@ On Windows, activate the environment with `.venv\\Scripts\\activate`.
 | Schedule workout template | `POST /api/v1/workout-templates/{id}/assign/` |
 | Preview Garmin FIT export | `GET /api/v1/workout-templates/{id}/garmin-preview/` |
 | Download Garmin FIT workout | `GET /api/v1/workout-templates/{id}/garmin-fit/` |
+| Device provider capabilities | `GET /api/v1/device-providers/` |
+| Device connections | `GET /api/v1/device-connections/` |
+| Start athlete Garmin consent | `POST /api/v1/device-connections/garmin/authorize/` |
+| Disconnect athlete device | `POST /api/v1/device-connections/{id}/disconnect/` |
+| Workout delivery history | `GET /api/v1/workout-deliveries/` |
+| Queue scheduled workout delivery | `POST /api/v1/workout-deliveries/queue/` |
 | Exercises | `/api/v1/exercises/` |
 | Coach comments | `/api/v1/coach-comments/` |
 | Workout logs | `/api/v1/workout-logs/` |
@@ -145,6 +153,16 @@ Coaches can select an actively assigned athlete on a workout template and reques
 Once a template has been scheduled, both the plan owner and the assigned athlete can preview or download the personalized prescription from `/api/v1/workouts/{id}/garmin-preview/` and `/api/v1/workouts/{id}/garmin-fit/`. The athlete is derived from the immutable plan assignment, so the caller cannot accidentally export the workout with another athlete's zones. The calendar exposes the same download for upcoming sessions.
 
 Heart-rate zones are encoded as personalized BPM ranges, running and swimming pace zones as speed ranges, cycling power zones as watt ranges, and cadence as an explicit RPM range. Open-duration steps remain Lap-button steps. RPE-only targets are reported as incompatible instead of being silently weakened. Triathlon templates are blocked until their bike, transition, and run steps are modeled as explicit multisport sessions. This milestone provides standards-compliant manual FIT delivery; direct Garmin Connect and watch synchronization still requires Garmin partner approval, athlete consent, OAuth, and the Training API delivery adapter.
+
+### Device connections and Garmin delivery foundation
+
+The bilingual **Devices** workspace is available to both roles. Athletes own connection consent and disconnection. Coaches see readiness and delivery status only for actively assigned athletes; OAuth credentials never appear in API serializers or frontend state.
+
+The Garmin authorization foundation uses OAuth 2.0 Authorization Code with PKCE, a hashed one-time state that expires after ten minutes, and encrypted access tokens, refresh tokens, and PKCE verifiers. Production refuses to enable Garmin without a dedicated valid Fernet key. Disconnecting clears stored credentials immediately.
+
+Workout deliveries are idempotent by device connection, scheduled workout, and a fingerprint of the final athlete-specific prescription. The fingerprint includes the structured version and resolved athlete targets, so a threshold change produces a new delivery while repeated clicks do not create duplicates. An append-only event history supports queued, processing, delivered, failed, and canceled states. Capability discovery keeps direct delivery disabled until partner credentials, the approved publishing contract, and the delivery worker are configured. Calendar users continue to receive a personalized FIT download instead of a simulated success.
+
+See [Garmin Connect application package](docs/GARMIN_CONNECT_APPLICATION.md) and [device data privacy and retention](docs/DEVICE_DATA_PRIVACY.md) before enabling a provider integration.
 
 ### Completed activity imports
 

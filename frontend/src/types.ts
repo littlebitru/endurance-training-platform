@@ -245,6 +245,52 @@ export interface GarminFitPreview {
   step_count: number;
   steps: GarminFitPreviewStep[];
 }
+export interface DeviceProviderCapability {
+  provider: "garmin";
+  partner_status: "application_required" | "under_review" | "approved" | "available" | string;
+  authorization_available: boolean;
+  direct_delivery_available: boolean;
+  manual_fit_available: boolean;
+}
+export interface DeviceConnection {
+  id: number;
+  athlete: { id: number; username: string; name: string };
+  provider: "garmin";
+  status: "pending" | "connected" | "expired" | "revoked" | "error";
+  scopes: string[];
+  token_expires_at: string | null;
+  consented_at: string | null;
+  disconnected_at: string | null;
+  last_synced_at: string | null;
+  sync_workouts: boolean;
+  last_error_code: string;
+  last_error_message: string;
+  is_usable: boolean;
+  created_at: string;
+  updated_at: string;
+}
+export interface WorkoutDelivery {
+  id: number;
+  athlete: { id: number; username: string; name: string };
+  provider: "garmin";
+  workout: number;
+  workout_title: string;
+  scheduled_at: string;
+  structure_version: number;
+  prescription_hash: string;
+  status: "queued" | "processing" | "delivered" | "failed" | "canceled";
+  provider_reference: string;
+  attempts: number;
+  available_at: string;
+  started_at: string | null;
+  delivered_at: string | null;
+  failed_at: string | null;
+  error_code: string;
+  error_message: string;
+  events: Array<{ id: number; status: string; message: string; details: Record<string, unknown>; created_at: string }>;
+  created_at: string;
+  updated_at: string;
+}
 export interface ActivityStreamPoint { elapsed: number; heart_rate?: number; power?: number; cadence?: number; speed?: number; distance?: number; elevation?: number }
 export interface ActivityZone { zone: number; name: string; seconds: number; percentage: number }
 export interface Activity {

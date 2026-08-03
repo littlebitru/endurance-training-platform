@@ -39,6 +39,10 @@ services:
         value: noreply@endurance-staging.invalid
       - key: EMAIL_BACKEND
         value: django.core.mail.backends.console.EmailBackend
+      - key: GARMIN_TRAINING_API_ENABLED
+        value: "false"
+      - key: GARMIN_PARTNER_STATUS
+        value: application_required
 
   - type: web
     name: endurance-staging-web

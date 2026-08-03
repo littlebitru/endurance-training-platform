@@ -27,6 +27,9 @@ vi.mock("./api", () => ({
     athletes: vi.fn(),
     publishPlan: vi.fn(),
     downloadScheduledGarminFit: vi.fn(),
+    deviceProviders: vi.fn(),
+    deviceConnections: vi.fn(),
+    queueWorkoutDelivery: vi.fn(),
   },
 }));
 
@@ -101,6 +104,14 @@ beforeEach(() => {
     previous: null,
     results: [],
   });
+  vi.mocked(api.deviceProviders).mockResolvedValue([{
+    provider: "garmin",
+    partner_status: "application_required",
+    authorization_available: false,
+    direct_delivery_available: false,
+    manual_fit_available: true,
+  }]);
+  vi.mocked(api.deviceConnections).mockResolvedValue({ count: 0, next: null, previous: null, results: [] });
 });
 
 afterEach(() => {

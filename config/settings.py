@@ -32,6 +32,7 @@ INSTALLED_APPS = [
     "drf_spectacular",
     "apps.users",
     "apps.training",
+    "apps.integrations",
 ]
 
 MIDDLEWARE = [
@@ -118,6 +119,7 @@ REST_FRAMEWORK = {
         "account_email": "5/hour",
         "logout": "30/hour",
         "activity_import": "20/hour",
+        "device_authorization": "20/hour",
     },
 }
 SIMPLE_JWT = {
@@ -134,5 +136,24 @@ SPECTACULAR_SETTINGS = {
     "DESCRIPTION": "API for coaches and endurance athletes.",
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
-    "ENUM_NAME_OVERRIDES": {"SportEnum": "apps.training.models.SportType.choices"},
+    "ENUM_NAME_OVERRIDES": {
+        "SportEnum": "apps.training.models.SportType.choices",
+        "WorkoutStatusEnum": "apps.training.models.WORKOUT_STATUS_CHOICES",
+        "DeviceConnectionStatusEnum": "apps.integrations.models.DEVICE_CONNECTION_STATUS_CHOICES",
+        "WorkoutDeliveryStatusEnum": "apps.integrations.models.WORKOUT_DELIVERY_STATUS_CHOICES",
+        "WellnessSeverityEnum": "apps.training.models.WELLNESS_SEVERITY_CHOICES",
+    },
 }
+
+DEVICE_TOKEN_ENCRYPTION_KEY = os.getenv("DEVICE_TOKEN_ENCRYPTION_KEY", "")
+GARMIN_TRAINING_API_ENABLED = os.getenv("GARMIN_TRAINING_API_ENABLED", "False").lower() == "true"
+GARMIN_PARTNER_STATUS = os.getenv("GARMIN_PARTNER_STATUS", "application_required")
+GARMIN_CLIENT_ID = os.getenv("GARMIN_CLIENT_ID", "")
+GARMIN_CLIENT_SECRET = os.getenv("GARMIN_CLIENT_SECRET", "")
+GARMIN_OAUTH_AUTHORIZATION_URL = os.getenv("GARMIN_OAUTH_AUTHORIZATION_URL", "")
+GARMIN_OAUTH_TOKEN_URL = os.getenv("GARMIN_OAUTH_TOKEN_URL", "")
+GARMIN_OAUTH_REVOCATION_URL = os.getenv("GARMIN_OAUTH_REVOCATION_URL", "")
+GARMIN_OAUTH_REDIRECT_URI = os.getenv("GARMIN_OAUTH_REDIRECT_URI", "")
+GARMIN_OAUTH_SCOPES = tuple(scope for scope in os.getenv("GARMIN_OAUTH_SCOPES", "").split() if scope)
+GARMIN_TRAINING_PUBLISH_URL = os.getenv("GARMIN_TRAINING_PUBLISH_URL", "")
+GARMIN_DELIVERY_WORKER_ENABLED = os.getenv("GARMIN_DELIVERY_WORKER_ENABLED", "False").lower() == "true"
