@@ -145,6 +145,8 @@ beforeEach(() => {
     coach_comments: [],
   });
   vi.mocked(api.previewGarminFit).mockResolvedValue({
+    source_type: "template",
+    source_id: 41,
     template_id: 41,
     title: systemTemplate.title,
     sport: "running",

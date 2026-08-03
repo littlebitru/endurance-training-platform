@@ -1249,6 +1249,12 @@ h1, h2, h3, h4, h5, strong, b, .brand-mark, .logo, .activity-sport, .eyebrow {
 .calendar-actual-details small, .calendar-actual-details strong { display: block; }
 .calendar-actual-details small { color: #74827a; font-size: 9px; text-transform: uppercase; }
 .calendar-actual-details strong { margin-top: 4px; font: 600 12px Manrope; }
+.calendar-garmin-export { display: grid; grid-template-columns: 48px minmax(0, 1fr) auto; align-items: center; gap: 13px; margin-top: 14px; padding: 14px; border: 1px solid rgba(21, 120, 96, .18); border-radius: 12px; background: linear-gradient(110deg, #eef8f2, #fbfcfa 58%, #eef8f7); }
+.calendar-garmin-mark { display: grid; place-items: center; width: 46px; height: 46px; border-radius: 13px; color: #fff; background: linear-gradient(145deg, #116d5a, #1d9d80); box-shadow: 0 8px 18px rgba(18, 108, 89, .18); font-size: 13px; font-weight: 900; letter-spacing: .07em; }
+.calendar-garmin-export strong { display: block; font-size: 13px; }
+.calendar-garmin-export p { margin: 4px 0 0; color: #62746d; font-size: 10px; line-height: 1.45; }
+.calendar-garmin-export small[role="alert"] { display: block; margin-top: 7px; color: #9b3d34; font-size: 10px; font-weight: 700; line-height: 1.4; }
+.calendar-garmin-export button { min-width: 170px; }
 .calendar-event-detail footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 17px; }
 
 .performance-page { min-width: 0; }
@@ -1800,6 +1806,8 @@ h1, h2, h3, h4, h5, strong, b, .brand-mark, .logo, .activity-sport, .eyebrow {
   .calendar-event-detail > header .event-state { grid-column: 2; justify-self: start; }
   .calendar-comparison { grid-template-columns: 1fr; }
   .calendar-actual-details > div { grid-template-columns: 1fr 1fr; }
+  .calendar-garmin-export { grid-template-columns: 42px 1fr; }
+  .calendar-garmin-export button { grid-column: 2; width: 100%; min-width: 0; }
   .calendar-event-detail footer { align-items: stretch; flex-direction: column; }
   .performance-controls { align-items: stretch; flex-direction: column; }
   .performance-controls label, .performance-controls select { width: 100%; }

@@ -104,6 +104,8 @@ On Windows, activate the environment with `.venv\\Scripts\\activate`.
 | Weekly plans | `/api/v1/weekly-plans/` |
 | Workouts | `/api/v1/workouts/` |
 | Duplicate workout | `POST /api/v1/workouts/{id}/duplicate/` |
+| Preview assigned workout FIT export | `GET /api/v1/workouts/{id}/garmin-preview/` |
+| Download assigned workout FIT file | `GET /api/v1/workouts/{id}/garmin-fit/` |
 | Workout library | `/api/v1/workout-templates/` |
 | Copy workout template | `POST /api/v1/workout-templates/{id}/duplicate/` |
 | Schedule workout template | `POST /api/v1/workout-templates/{id}/assign/` |
@@ -139,6 +141,8 @@ The bilingual web studio offers catalog search and filters, a step-by-step visua
 Coaches can select an actively assigned athlete on a workout template and request `GET /api/v1/workout-templates/{id}/garmin-preview/?athlete_id={id}&locale=en`. The preview expands repeated work and recovery blocks, resolves relative zones from the athlete's current threshold profile, reports compatibility issues, and shows the exact number of device steps without creating a file.
 
 `GET /api/v1/workout-templates/{id}/garmin-fit/?athlete_id={id}&locale=en` returns a personalized `.fit` workout only when the preview is exportable. Encoding uses the official Garmin FIT Python SDK. The adapter writes File ID, Workout, and ordered Workout Step messages, applies FIT scaling and target conventions, calculates the header and CRC, then decodes the completed payload and verifies its integrity before returning it. Responses are private, non-cacheable downloads. Athlete access is restricted to active coaching relationships.
+
+Once a template has been scheduled, both the plan owner and the assigned athlete can preview or download the personalized prescription from `/api/v1/workouts/{id}/garmin-preview/` and `/api/v1/workouts/{id}/garmin-fit/`. The athlete is derived from the immutable plan assignment, so the caller cannot accidentally export the workout with another athlete's zones. The calendar exposes the same download for upcoming sessions.
 
 Heart-rate zones are encoded as personalized BPM ranges, running and swimming pace zones as speed ranges, cycling power zones as watt ranges, and cadence as an explicit RPM range. Open-duration steps remain Lap-button steps. RPE-only targets are reported as incompatible instead of being silently weakened. Triathlon templates are blocked until their bike, transition, and run steps are modeled as explicit multisport sessions. This milestone provides standards-compliant manual FIT delivery; direct Garmin Connect and watch synchronization still requires Garmin partner approval, athlete consent, OAuth, and the Training API delivery adapter.
 
