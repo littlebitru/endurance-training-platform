@@ -16,7 +16,7 @@
 - Immutable system templates, private coach copies, structure versioning, compatibility reporting, and atomic calendar assignment
 - Personalized Garmin FIT workout preview and download using the official SDK, athlete zones, and post-encoding integrity validation
 - Provider-neutral Device Center with Garmin, Strava, Suunto, and COROS capability reporting
-- Secure Strava OAuth, token rotation, idempotent activity synchronization, calendar matching, and webhook ingestion
+- Secure Strava OAuth, token rotation, idempotent activity synchronization, calendar matching, and durable webhook queue
 - Responsive bilingual React application for coach and athlete workflows
 - PostgreSQL, Docker Compose, OpenAPI, automated tests, quality checks, CI, and Render staging
 
@@ -36,7 +36,7 @@ Exit criteria: a coach can validate and export any compatible structured workout
 
 ## Production readiness
 
-- Redis-backed caching and background jobs
+- Redis-backed caching and non-provider background jobs
 - Request correlation IDs, error tracking, and service metrics
 - Database backups and a tested restore procedure
 - Rate limiting, login protection, and a formal security review

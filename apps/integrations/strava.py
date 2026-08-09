@@ -51,7 +51,10 @@ def strava_capabilities() -> ProviderCapabilities:
         and settings.STRAVA_OAUTH_REDIRECT_URI
     )
     automatic_sync_available = bool(
-        authorization_available and settings.STRAVA_WEBHOOK_VERIFY_TOKEN and settings.STRAVA_WEBHOOK_SUBSCRIPTION_ID
+        authorization_available
+        and settings.STRAVA_WEBHOOK_PROCESSING_ENABLED
+        and settings.STRAVA_WEBHOOK_VERIFY_TOKEN
+        and settings.STRAVA_WEBHOOK_SUBSCRIPTION_ID
     )
     return ProviderCapabilities(
         provider=DeviceProvider.STRAVA,
@@ -408,29 +411,29 @@ def clear_strava_connection(connection: DeviceConnection) -> DeviceConnection:
     return connection
 
 
-def handle_strava_webhook_event(payload: dict) -> None:
+def handle_strava_webhook_event(payload: dict) -> str:
     owner_id = str(payload.get("owner_id") or "")
     subscription_id = str(payload.get("subscription_id") or "")
     if not owner_id or subscription_id != str(settings.STRAVA_WEBHOOK_SUBSCRIPTION_ID):
-        return
+        return "ignored"
     connection = DeviceConnection.objects.filter(
         provider=DeviceProvider.STRAVA,
         external_user_id=owner_id,
         status=DeviceConnection.Status.CONNECTED,
     ).first()
     if not connection:
-        return
+        return "ignored"
     if payload.get("object_type") == "athlete" and (payload.get("updates") or {}).get("authorized") == "false":
         clear_strava_connection(connection)
-        return
+        return "processed"
     if payload.get("object_type") != "activity":
-        return
+        return "ignored"
     external_id = str(payload.get("object_id") or "")
     if not external_id:
-        return
+        return "ignored"
     if payload.get("aspect_type") == "delete":
         delete_strava_activity(connection, external_id)
-        return
+        return "processed"
     if payload.get("aspect_type") in {"create", "update"}:
         try:
             sync_strava_activity(connection, external_id)
@@ -438,6 +441,9 @@ def handle_strava_webhook_event(payload: dict) -> None:
             connection.last_error_code = error.code
             connection.last_error_message = error.message
             connection.save(update_fields=("last_error_code", "last_error_message", "updated_at"))
+            raise
+        return "processed"
+    return "ignored"
 
 
 def _upsert_strava_activity(connection: DeviceConnection, payload: dict) -> str:
