@@ -244,6 +244,8 @@ New accounts must verify their email before JWT tokens are issued. In developmen
 
 The current version is a tested staging product, not yet a complete public SaaS release. See [`docs/ROADMAP.md`](docs/ROADMAP.md) for the prioritized path to production, including recovery context, notifications, observability, security review, and release criteria.
 
+Use the [`staging acceptance checklist`](docs/STAGING_ACCEPTANCE_CHECKLIST.md) to verify each coach, athlete, planning, activity, and device-integration release flow before production approval.
+
 ## Frontend development
 
 The frontend lives in `frontend/` and uses React, TypeScript, Vite, and native CSS.

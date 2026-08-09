@@ -47,6 +47,8 @@ services:
         value: "false"
       - key: STRAVA_PARTNER_STATUS
         value: configuration_required
+      - key: STRAVA_WEBHOOK_PROCESSING_ENABLED
+        value: "false"
       - key: SUUNTO_PARTNER_STATUS
         value: application_required
       - key: COROS_PARTNER_STATUS

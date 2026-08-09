@@ -37,10 +37,10 @@ from .strava import (
     begin_strava_authorization,
     complete_strava_authorization,
     disconnect_strava_connection,
-    handle_strava_webhook_event,
     strava_capabilities,
     sync_strava_activities,
 )
+from .webhooks import enqueue_strava_webhook_event
 
 
 def integration_error_response(error: DeviceIntegrationError):
@@ -215,7 +215,7 @@ class StravaWebhookView(APIView):
     @extend_schema(exclude=True)
     def post(self, request):
         if settings.STRAVA_WEBHOOK_SUBSCRIPTION_ID:
-            handle_strava_webhook_event(request.data)
+            enqueue_strava_webhook_event(request.data)
         return Response(status=status.HTTP_200_OK)
 
 

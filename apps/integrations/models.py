@@ -80,6 +80,39 @@ class OAuthAuthorizationState(TimeStampedModel):
         indexes = [models.Index(fields=("expires_at",), name="oauth_state_expiry_idx")]
 
 
+class ProviderWebhookEvent(TimeStampedModel):
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        PROCESSING = "processing", "Processing"
+        RETRY = "retry", "Retry"
+        PROCESSED = "processed", "Processed"
+        IGNORED = "ignored", "Ignored"
+        FAILED = "failed", "Failed"
+
+    provider = models.CharField(max_length=20, choices=DeviceProvider.choices)
+    event_key = models.CharField(max_length=64, unique=True)
+    event_type = models.CharField(max_length=80)
+    external_owner_id = models.CharField(max_length=200)
+    external_object_id = models.CharField(max_length=200)
+    payload = models.JSONField()
+    status = models.CharField(max_length=16, choices=Status.choices, default=Status.PENDING)
+    attempts = models.PositiveSmallIntegerField(default=0)
+    available_at = models.DateTimeField(default=timezone.now)
+    locked_at = models.DateTimeField(null=True, blank=True)
+    processed_at = models.DateTimeField(null=True, blank=True)
+    error_code = models.CharField(max_length=80, blank=True)
+    error_message = models.CharField(max_length=500, blank=True)
+
+    class Meta:
+        ordering = ("created_at",)
+        indexes = [
+            models.Index(
+                fields=("provider", "status", "available_at"),
+                name="webhook_provider_queue_idx",
+            )
+        ]
+
+
 class WorkoutDelivery(TimeStampedModel):
     class Status(models.TextChoices):
         QUEUED = "queued", "Queued"

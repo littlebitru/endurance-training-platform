@@ -45,6 +45,9 @@ if base_settings.GARMIN_TRAINING_API_ENABLED:
             "Garmin integration is enabled but required settings are missing: " + ", ".join(missing_garmin_settings)
         )
 
+if base_settings.STRAVA_WEBHOOK_PROCESSING_ENABLED and not base_settings.STRAVA_INTEGRATION_ENABLED:
+    raise ImproperlyConfigured("Strava webhook processing requires STRAVA_INTEGRATION_ENABLED=True.")
+
 if base_settings.STRAVA_INTEGRATION_ENABLED:
     strava_required_settings = {
         "DEVICE_TOKEN_ENCRYPTION_KEY": base_settings.DEVICE_TOKEN_ENCRYPTION_KEY,
@@ -57,6 +60,19 @@ if base_settings.STRAVA_INTEGRATION_ENABLED:
         raise ImproperlyConfigured(
             "Strava integration is enabled but required settings are missing: " + ", ".join(missing_strava_settings)
         )
+    if base_settings.STRAVA_WEBHOOK_PROCESSING_ENABLED:
+        strava_webhook_required_settings = {
+            "STRAVA_WEBHOOK_VERIFY_TOKEN": base_settings.STRAVA_WEBHOOK_VERIFY_TOKEN,
+            "STRAVA_WEBHOOK_SUBSCRIPTION_ID": base_settings.STRAVA_WEBHOOK_SUBSCRIPTION_ID,
+        }
+        missing_strava_webhook_settings = [
+            name for name, value in strava_webhook_required_settings.items() if not value
+        ]
+        if missing_strava_webhook_settings:
+            raise ImproperlyConfigured(
+                "Strava webhook processing is enabled but required settings are missing: "
+                + ", ".join(missing_strava_webhook_settings)
+            )
 
 EMAIL_BACKEND = os.getenv("EMAIL_BACKEND", "django.core.mail.backends.smtp.EmailBackend")
 EMAIL_HOST = os.getenv("EMAIL_HOST", "")
